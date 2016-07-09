@@ -142,10 +142,3 @@ impl EthernetReader {
         false
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn my_unit_test() {}
-}
