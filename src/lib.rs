@@ -19,6 +19,7 @@ use pnet::util::MacAddr;
 pub mod ethernet;
 pub mod arp;
 pub mod ipv4;
+pub mod icmp;
 
 use ethernet::Ethernet;
 use arp::Arp;
