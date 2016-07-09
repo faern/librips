@@ -115,4 +115,10 @@ impl Arp {
                       ArpEthernetIpv4Packet::minimum_packet_size(),
                       &mut builder_wrapper)
     }
+
+    /// Manually insert an IP -> MAC mapping into this Arp table
+    pub fn insert(&mut self, ip: Ipv4Addr, mac: MacAddr) {
+        let mut table = self.table.write().expect("Unable to lock Arp::table for writing");
+        table.insert(ip, mac);
+    }
 }
