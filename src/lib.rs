@@ -9,9 +9,11 @@ extern crate pnet;
 extern crate pnet_packets;
 extern crate ipnetwork;
 
+use std::io;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 
+use pnet::datalink;
 use pnet::util::MacAddr;
 
 pub mod ethernet;
@@ -28,6 +30,24 @@ pub struct NetworkStack {
     ethernets: HashMap<MacAddr, Ethernet>,
     arps: HashMap<MacAddr, Arp>,
     ipv4s: HashMap<MacAddr, HashMap<Ipv4Addr, Ipv4>>,
+}
+
+/// Create a `NetworkStack` managing all available interfaces using the default pnet backend.
+pub fn stack() -> io::Result<NetworkStack> {
+    let mut ethernets = vec![];
+    for interface in datalink::interfaces() {
+        let mac = match interface.mac {
+            Some(mac) => mac,
+            None => {
+                return Err(io::Error::new(io::ErrorKind::Other,
+                                          format!("No mac for {}", interface.name)))
+            }
+        };
+        let config = datalink::Config::default();
+        let channel = try!(datalink::channel(&interface, &config));
+        ethernets.push(Ethernet::new(mac, channel));
+    }
+    Ok(NetworkStack::new(&ethernets[..]))
 }
 
 #[allow(unused_variables)]
