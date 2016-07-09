@@ -28,13 +28,13 @@ impl ArpListener {
         }
     }
 
-    pub fn add_listener(&mut self, ip: &Ipv4Addr) -> Receiver<MacAddr> {
+    pub fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {
         let (tx, rx) = channel();
         let mut listeners = self.listeners.lock().expect("Unable to lock ArpListener::listeners");
-        if !listeners.contains_key(ip) {
-            listeners.insert(*ip, vec![]);
+        if !listeners.contains_key(&ip) {
+            listeners.insert(ip, vec![]);
         }
-        listeners.get_mut(ip).unwrap().push(tx);
+        listeners.get_mut(&ip).unwrap().push(tx);
         rx
     }
 }
@@ -77,21 +77,23 @@ impl Arp {
 
     /// Queries the table for a MAC. If it does not exist a request is sent and the call is blocked
     /// until a reply has arrived
-    pub fn get(&mut self, sender_ip: &Ipv4Addr, target_ip: &Ipv4Addr) -> MacAddr {
+    pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> MacAddr {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
             let table = table_arc.read().expect("Unable to lock Arp::table for reading");
-            if let Some(mac) = table.get(target_ip) {
+            if let Some(mac) = table.get(&target_ip) {
                 return mac.clone();
             }
-            self.send(sender_ip, target_ip).expect("Too small buffer").expect("Network send error");
+            self.send(sender_ip, target_ip)
+                .expect("Too small buffer")
+                .expect("Network send error");
             self.arp_listener.add_listener(target_ip)
         }; // Release table lock
         mac_rx.recv().expect("Unable to read MAC from mac_rx")
     }
 
     /// Send Arp packets to the network. More specifically Ipv4 to Ethernet
-    pub fn send(&mut self, sender_ip: &Ipv4Addr, target_ip: &Ipv4Addr) -> Option<io::Result<()>> {
+    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Option<io::Result<()>> {
         let local_mac = self.eth.mac;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
             eth_pkg.set_destination(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));

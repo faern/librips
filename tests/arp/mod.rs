@@ -34,7 +34,7 @@ fn test_arp_locking() {
         let mut arp = arp.clone();
         let arp_thread_tx = arp_thread_tx.clone();
         spawn(move || {
-            let mac = arp.get(&Ipv4Addr::new(10, 0, 0, i), &Ipv4Addr::new(10, 0, 0, 1));
+            let mac = arp.get(Ipv4Addr::new(10, 0, 0, i), Ipv4Addr::new(10, 0, 0, 1));
             arp_thread_tx.send(mac).expect("Unable to send mac to channel");
         });
     }

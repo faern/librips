@@ -128,7 +128,7 @@ impl Ipv4 {
             // Destination outside our network, send to default gateway
             self.conf.gw
         };
-        self.arp.get(&self.conf.ip, &local_dst_ip)
+        self.arp.get(self.conf.ip, local_dst_ip)
     }
 
     fn recv(&mut self, pkg: Ipv4Packet) {
