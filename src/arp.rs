@@ -4,9 +4,8 @@ use std::io;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
-use std::net::Ipv4Addr;//, IpAddr};
+use std::net::Ipv4Addr;
 
-// use pnet::datalink::{EthernetDataLinkSender, EthernetDataLinkReceiver};
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EthernetPacket, EtherTypes, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
@@ -93,8 +92,7 @@ impl Arp {
 
     /// Send Arp packets to the network. More specifically Ipv4 to Ethernet
     pub fn send(&mut self, sender_ip: &Ipv4Addr, target_ip: &Ipv4Addr) -> Option<io::Result<()>> {
-        let iface = self.eth.get_network_interface().clone();
-        let local_mac = iface.mac.expect("No local MAC");
+        let local_mac = self.eth.mac;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
             eth_pkg.set_destination(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
             eth_pkg.set_ethertype(EtherTypes::Arp);

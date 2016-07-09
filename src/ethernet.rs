@@ -5,30 +5,17 @@ use std::io;
 use std::thread;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 
-use pnet::datalink::{Config, EthernetDataLinkSender, EthernetDataLinkReceiver};
-use pnet::util::NetworkInterface;
+use pnet::datalink::{Channel, EthernetDataLinkSender, EthernetDataLinkReceiver};
+use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EthernetPacket, EtherType, MutableEthernetPacket};
 
-use internal::PnetEthernetProvider;
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
     fn recv(&mut self, packet: EthernetPacket);
-}
-
-/// Trait for providing the ethernet layer link to this library.
-/// Should not have to be used in general. The default `Ethernet::new` constructor uses the
-/// default libpnet backend and the user never have to care about the provider.
-pub trait EthernetProvider {
-    fn channel(&mut self,
-               &NetworkInterface,
-               &Config)
-               -> io::Result<(Box<EthernetDataLinkSender>, Box<EthernetDataLinkReceiver>)>;
-
-    fn get_network_interfaces(&self) -> Vec<NetworkInterface>;
 }
 
 enum ReaderMsg {
@@ -40,7 +27,7 @@ enum ReaderMsg {
 /// A Datalink Ethernet manager taking care of one physical network interface.
 #[derive(Clone)]
 pub struct Ethernet {
-    iface: NetworkInterface,
+    pub mac: MacAddr,
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,
     reader_chan: Sender<ReaderMsg>,
 }
@@ -57,34 +44,18 @@ impl Ethernet {
     ///   matching any of these `EtherType`s will be discarded.
     /// * error_listener: If reading from the network results in an `std::io::Error` it will be
     ///   sent here, returning `false` will abort the reading thread and `true` will continue.
-    pub fn new(iface: &NetworkInterface, config: &Config) -> io::Result<Ethernet> {
-        let provider = &mut PnetEthernetProvider as &mut EthernetProvider;
-        Self::new_with_provider(provider, iface, config)
-    }
-
-    /// Create a new `Ethernet` with a custom provider of the datalink layer.
-    /// Used for testing internaly to mock out libpnet. Can also be used to use this stack on top
-    /// of some other datalink layer provider.
-    ///
-    /// See `Ethernet::new` documentation for details.
-    pub fn new_with_provider(provider: &mut EthernetProvider,
-                             iface: &NetworkInterface,
-                             config: &Config)
-                             -> io::Result<Ethernet> {
-        assert!(iface.mac.is_some());
-        let (eth_tx, eth_rx) = try!(provider.channel(&iface, config));
-        let (reader_tx, reader_rx) = channel();
-        EthernetReader::spawn(reader_rx, eth_rx);
-        Ok(Ethernet {
-            iface: iface.clone(),
-            eth_tx: Arc::new(Mutex::new(eth_tx)),
+    pub fn new(mac: MacAddr, channel: Channel) -> Ethernet {
+        let (sender, receiver) = match channel {
+            Channel::Ethernet(s, r) => (s, r),
+            _ => panic!("Invalid datalink::Channel type"),
+        };
+        let (reader_tx, reader_rx) = mpsc::channel();
+        EthernetReader::spawn(reader_rx, receiver);
+        Ethernet {
+            mac: mac,
+            eth_tx: Arc::new(Mutex::new(sender)),
             reader_chan: reader_tx,
-        })
-    }
-
-    /// Get a reference to the `NetworkInterface` that is managed by this `Ethernet`
-    pub fn get_network_interface(&self) -> &NetworkInterface {
-        &self.iface
+        }
     }
 
     pub fn set_listener<L>(&self, ethertype: EtherType, listener: L)
@@ -107,7 +78,7 @@ impl Ethernet {
                    -> Option<io::Result<()>>
         where T: FnMut(&mut MutableEthernetPacket)
     {
-        let mac = self.iface.mac.as_ref().unwrap();
+        let mac = self.mac;
         let mut builder_wrapper = |mut pkg: MutableEthernetPacket| {
             // Fill in data we are responsible for
             pkg.set_source(mac.clone());
