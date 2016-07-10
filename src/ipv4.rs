@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::convert::From;
 
 use pnet::packet::ipv4::{MutableIpv4Packet, Ipv4Packet, checksum};
-use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket, EthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 use pnet::util::MacAddr;
@@ -107,7 +106,6 @@ impl Ipv4 {
                 ip_pkg.set_flags(0x010); // Hardcoded to DF (don't fragment)
                 ip_pkg.set_fragment_offset(0);
                 ip_pkg.set_ttl(40);
-                ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp); // TODO: Only for dbg
                 ip_pkg.set_source(src_ip);
                 ip_pkg.set_destination(dst_ip);
                 // ip_pkg.set_options(vec![]); // We currently don't support options in the header

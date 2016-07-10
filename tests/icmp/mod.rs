@@ -2,6 +2,7 @@ use std::net::Ipv4Addr;
 
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::EthernetPacket;
+use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::icmp::echo_request::EchoRequestPacket;
 use pnet::packet::icmp::icmp_types;
@@ -9,7 +10,7 @@ use pnet::packet::Packet;
 
 use rips::arp::Arp;
 use rips::ipv4::{Ipv4, Ipv4Conf};
-use rips::icmp::Ping;
+use rips::icmp::{Icmp, Ping};
 
 #[test]
 fn test_ping() {
@@ -25,13 +26,16 @@ fn test_ping() {
     let ip_config = Ipv4Conf::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
     let ipv4 = Ipv4::new(ethernet, arp, ip_config);
 
-    let mut ping = Ping::new(ipv4);
+    let icmp = Icmp::new(ipv4);
+    let mut ping = Ping::new(icmp);
 
     ping.send(target_ip, &[9, 55]).expect("None!!!").expect("Err!!!");
 
     let pkg = read_handle.recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
     let ip_pkg = Ipv4Packet::new(eth_pkg.payload()).unwrap();
+    assert_eq!(ip_pkg.get_next_level_protocol(),
+               IpNextHeaderProtocols::Icmp);
     let echo_pkg = EchoRequestPacket::new(ip_pkg.payload()).unwrap();
     assert_eq!(echo_pkg.get_icmp_type(), icmp_types::EchoRequest);
     assert_eq!(echo_pkg.get_icmp_code().0, 0);
