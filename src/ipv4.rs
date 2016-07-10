@@ -58,6 +58,36 @@ pub trait Ipv4Listener: Send {
     fn recv(&mut self, packet: Ipv4Packet);
 }
 
+pub struct Ipv4Factory {
+    ethernet: Ethernet,
+    arp: Arp,
+    ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
+}
+
+impl Ipv4Factory {
+    pub fn new(ethernet: Ethernet) -> Ipv4Factory {
+        let arp = Arp::new(ethernet.clone());
+        let ipv4s = Arc::new(Mutex::new(HashMap::new()));
+        ethernet.set_listener(EtherTypes::Ipv4, Ipv4EthernetListener::new(ipv4s.clone()));
+        Ipv4Factory {
+            ethernet: ethernet,
+            arp: arp,
+            ipv4s: ipv4s,
+        }
+    }
+
+    pub fn get_arp(&self) -> Arp {
+        self.arp.clone()
+    }
+
+    pub fn add_ip(&self, config: Ipv4Conf) -> Ipv4 {
+        let ipv4 = Ipv4::new(self.ethernet.clone(), self.arp.clone(), config);
+        let mut ipv4s = self.ipv4s.lock().expect("Unable to lock Ipv4Factory::ipv4s");
+        ipv4s.insert(ipv4.conf.ip, ipv4.clone());
+        ipv4
+    }
+}
+
 pub struct Ipv4EthernetListener {
     ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
 }

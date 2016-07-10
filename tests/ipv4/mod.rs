@@ -1,6 +1,5 @@
 use std::net::Ipv4Addr;
-use std::sync::{mpsc, Arc, Mutex};
-use std::collections::HashMap;
+use std::sync::mpsc;
 
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -9,7 +8,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{Packet, MutablePacket};
 
 use rips::arp::Arp;
-use rips::ipv4::{Ipv4Conf, Ipv4, Ipv4Listener, Ipv4EthernetListener};
+use rips::ipv4::{Ipv4Conf, Ipv4, Ipv4Listener, Ipv4Factory};
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -60,16 +59,9 @@ fn test_simple_recv() {
 
     let (ethernet, target_mac, inject_handle, _) = ::dummy_ethernet(7);
 
-    let arp = Arp::new(ethernet.clone());
-
     let conf = Ipv4Conf::new(target_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
-    let ipv4 = Ipv4::new(ethernet.clone(), arp, conf);
-
-    let mut ipv4s = HashMap::new();
-    ipv4s.insert(target_ip, ipv4.clone());
-    let locked_ipv4s = Arc::new(Mutex::new(ipv4s));
-    let ipv4_ethernet_listener = Ipv4EthernetListener::new(locked_ipv4s);
-    ethernet.set_listener(EtherTypes::Ipv4, ipv4_ethernet_listener);
+    let ipv4_factory = Ipv4Factory::new(ethernet);
+    let ipv4 = ipv4_factory.add_ip(conf);
 
     let (tx, rx) = mpsc::channel();
     let ipv4_listener = MockIpv4Listener { tx: tx };
