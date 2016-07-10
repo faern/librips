@@ -3,9 +3,8 @@ use std::sync::mpsc;
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket, EthernetPacket};
 use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
-use pnet::datalink::dummy;
 
-use rips::ethernet::{EthernetListener, Ethernet};
+use rips::ethernet::EthernetListener;
 
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -19,11 +18,7 @@ impl EthernetListener for MockEthernetListener {
 
 #[test]
 fn test_ethernet_recv() {
-    let iface = dummy::dummy_interface(0);
-    let mut config = dummy::Config::default();
-    let inject_handle = config.inject_handle().unwrap();
-    let channel = dummy::channel(&iface, config).unwrap();
-    let ethernet = Ethernet::new(*iface.mac.as_ref().unwrap(), channel);
+    let (ethernet, _, inject_handle, _) = ::dummy_ethernet(0);
 
     let (listener_tx, listener_rx) = mpsc::channel();
     let mock_listener = MockEthernetListener { tx: listener_tx };
@@ -51,11 +46,7 @@ fn test_ethernet_recv() {
 
 #[test]
 fn test_ethernet_send() {
-    let iface = dummy::dummy_interface(99);
-    let mut config = dummy::Config::default();
-    let read_handle = config.read_handle().unwrap();
-    let channel = dummy::channel(&iface, config).unwrap();
-    let mut ethernet = Ethernet::new(*iface.mac.as_ref().unwrap(), channel);
+    let (mut ethernet, _, _, read_handle) = ::dummy_ethernet(99);
 
     ethernet.send(1, 1, |pkg| {
         pkg.set_destination(MacAddr::new(6, 7, 8, 9, 10, 11));

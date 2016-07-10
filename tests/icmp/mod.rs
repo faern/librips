@@ -1,16 +1,15 @@
 use std::net::Ipv4Addr;
 
-use pnet::datalink::dummy;
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::EthernetPacket;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::icmp::echo_request::EchoRequestPacket;
 use pnet::packet::icmp::icmp_types;
 use pnet::packet::Packet;
-use rips::ethernet::Ethernet;
+
 use rips::arp::Arp;
 use rips::ipv4::{Ipv4, Ipv4Conf};
-use rips::icmp::{Ping};
+use rips::icmp::Ping;
 
 #[test]
 fn test_ping() {
@@ -18,19 +17,12 @@ fn test_ping() {
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
     let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let iface = dummy::dummy_interface(7);
-    let source_mac = iface.mac.unwrap();
-
-    let mut config = dummy::Config::default();
-    let read_handle = config.read_handle().unwrap();
-    let channel = dummy::channel(&iface, config).unwrap();
-    let ethernet = Ethernet::new(source_mac, channel);
+    let (ethernet, _, _, read_handle) = ::dummy_ethernet(7);
 
     let mut arp = Arp::new(ethernet.clone());
     arp.insert(target_ip, target_mac);
 
-    let ip_config = Ipv4Conf::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1))
-        .unwrap();
+    let ip_config = Ipv4Conf::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
     let ipv4 = Ipv4::new(ethernet, arp, ip_config);
 
     let mut ping = Ping::new(ipv4);

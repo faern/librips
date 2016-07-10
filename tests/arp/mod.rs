@@ -6,27 +6,17 @@ use std::net::Ipv4Addr;
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{Packet, MutablePacket};
-use pnet::datalink::dummy;
 
 use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
 
-use rips::NetworkStack;
-use rips::ethernet::Ethernet;
+use rips::arp::Arp;
 
 #[test]
 fn test_arp_locking() {
     let thread_count = 100;
 
-    let iface = dummy::dummy_interface(7);
-    let mac = iface.mac.unwrap();
-    let mut config = dummy::Config::default();
-    let inject_handle = config.inject_handle().unwrap();
-    let read_handle = config.read_handle().unwrap();
-    let channel = dummy::channel(&iface, config).unwrap();
-    let eth = Ethernet::new(mac, channel);
-    let stack = NetworkStack::new(&[eth]);
-
-    let arp = stack.get_arp(mac).expect("Expected Arp");
+    let (ethernet, _, inject_handle, read_handle) = ::dummy_ethernet(7);
+    let arp = Arp::new(ethernet.clone());
 
     let (arp_thread_tx, arp_thread_rx) = mpsc::channel();
     // Spawn `thread_count` threads that all try to request the same ip
