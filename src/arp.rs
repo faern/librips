@@ -15,14 +15,14 @@ use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
 use ethernet::{Ethernet, EthernetListener};
 
 #[derive(Clone)]
-struct ArpListener {
+struct ArpEthernetListener {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
     listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
 }
 
-impl ArpListener {
-    pub fn new(table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>) -> ArpListener {
-        ArpListener {
+impl ArpEthernetListener {
+    pub fn new(table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>) -> ArpEthernetListener {
+        ArpEthernetListener {
             table: table,
             listeners: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -30,7 +30,8 @@ impl ArpListener {
 
     pub fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {
         let (tx, rx) = channel();
-        let mut listeners = self.listeners.lock().expect("Unable to lock ArpListener::listeners");
+        let mut listeners =
+            self.listeners.lock().expect("Unable to lock ArpEthernetListener::listeners");
         if !listeners.contains_key(&ip) {
             listeners.insert(ip, vec![]);
         }
@@ -39,15 +40,17 @@ impl ArpListener {
     }
 }
 
-impl EthernetListener for ArpListener {
+impl EthernetListener for ArpEthernetListener {
     fn recv(&mut self, pkg: EthernetPacket) {
         let arp_pkg = ArpEthernetIpv4Packet::new(pkg.payload()).unwrap();
         let ip = arp_pkg.get_sender_ip();
         let mac = arp_pkg.get_sender_mac();
         println!("Arp MAC: {} -> IPv4: {}", mac, ip);
-        let mut table = self.table.write().expect("Unable to lock ArpListener::table for writing");
+        let mut table =
+            self.table.write().expect("Unable to lock ArpEthernetListener::table for writing");
         table.insert(ip, mac);
-        let listeners = self.listeners.lock().expect("Unable to lock ArpListener::listeners");
+        let listeners =
+            self.listeners.lock().expect("Unable to lock ArpEthernetListener::listeners");
         if let Some(ip_listeners) = listeners.get(&ip) {
             for listener in ip_listeners {
                 listener.send(mac).expect("Unable to send MAC to listener");
@@ -59,18 +62,18 @@ impl EthernetListener for ArpListener {
 #[derive(Clone)]
 pub struct Arp {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
-    eth: Ethernet,
-    arp_listener: ArpListener,
+    ethernet: Ethernet,
+    arp_listener: ArpEthernetListener,
 }
 
 impl Arp {
-    pub fn new(eth: Ethernet) -> Arp {
+    pub fn new(ethernet: Ethernet) -> Arp {
         let table = Arc::new(RwLock::new(HashMap::new()));
-        let arp_listener = ArpListener::new(table.clone());
-        eth.set_listener(EtherTypes::Arp, arp_listener.clone());
+        let arp_listener = ArpEthernetListener::new(table.clone());
+        ethernet.set_listener(EtherTypes::Arp, arp_listener.clone());
         Arp {
             table: table,
-            eth: eth,
+            ethernet: ethernet,
             arp_listener: arp_listener,
         }
     }
@@ -94,7 +97,7 @@ impl Arp {
 
     /// Send Arp packets to the network. More specifically Ipv4 to Ethernet
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Option<io::Result<()>> {
-        let local_mac = self.eth.mac;
+        let local_mac = self.ethernet.mac;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
             eth_pkg.set_destination(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
             eth_pkg.set_ethertype(EtherTypes::Arp);
@@ -111,9 +114,9 @@ impl Arp {
                 arp_pkg.set_target_ip(target_ip.clone());
             }
         };
-        self.eth.send(1,
-                      ArpEthernetIpv4Packet::minimum_packet_size(),
-                      &mut builder_wrapper)
+        self.ethernet.send(1,
+                           ArpEthernetIpv4Packet::minimum_packet_size(),
+                           &mut builder_wrapper)
     }
 
     /// Manually insert an IP -> MAC mapping into this Arp table
