@@ -4,10 +4,19 @@ use std::io;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, checksum, icmp_types};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
-use pnet::packet::ipv4::MutableIpv4Packet;
-use pnet::packet::MutablePacket;
+use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
+use pnet::packet::{Packet, MutablePacket};
 
-use ipv4::Ipv4;
+use ipv4::{Ipv4, Ipv4Listener};
+
+pub struct IcmpIpv4Listener;
+
+impl Ipv4Listener for IcmpIpv4Listener {
+    fn recv(&mut self, packet: Ipv4Packet) {
+        let icmp_pkg = IcmpPacket::new(packet.payload()).unwrap();
+        println!("Icmp got a packet with {} bytes!", icmp_pkg.payload().len());
+    }
+}
 
 #[derive(Clone)]
 pub struct Icmp {
@@ -16,6 +25,8 @@ pub struct Icmp {
 
 impl Icmp {
     pub fn new(ipv4: Ipv4) -> Icmp {
+        let listener = IcmpIpv4Listener;
+        ipv4.set_listener(IpNextHeaderProtocols::Icmp, listener);
         Icmp { ipv4: ipv4 }
     }
 
