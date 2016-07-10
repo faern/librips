@@ -112,6 +112,7 @@ impl Ipv4 {
                 ip_pkg.set_destination(dst_ip);
                 // ip_pkg.set_options(vec![]); // We currently don't support options in the header
                 builder(&mut ip_pkg);
+                ip_pkg.set_checksum(0);
                 let checksum = checksum(&ip_pkg.to_immutable());
                 ip_pkg.set_checksum(checksum);
             }
