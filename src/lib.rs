@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::net::Ipv4Addr;
 
 use pnet::datalink;
-use pnet::util::MacAddr;
+use pnet::util::{MacAddr, NetworkInterface};
 
 pub mod ethernet;
 pub mod arp;
@@ -34,27 +34,33 @@ pub struct NetworkStack {
 }
 
 /// Create a `NetworkStack` managing all available interfaces using the default pnet backend.
+/// This stack will have ethernet and arp management set up internally, but no IPs or anything.
 pub fn stack() -> io::Result<NetworkStack> {
     let mut ethernets = vec![];
     for interface in datalink::interfaces() {
-        let mac = match interface.mac {
-            Some(mac) => mac,
-            None => {
-                return Err(io::Error::new(io::ErrorKind::Other,
-                                          format!("No mac for {}", interface.name)))
-            }
-        };
-        let config = datalink::Config::default();
-        let channel = try!(datalink::channel(&interface, config));
-        ethernets.push(Ethernet::new(mac, channel));
+        let ethernet = try!(create_ethernet(interface));
+        ethernets.push(ethernet);
     }
     Ok(NetworkStack::new(&ethernets[..]))
 }
 
+fn create_ethernet(interface: NetworkInterface) -> io::Result<Ethernet> {
+    let mac = match interface.mac {
+        Some(mac) => mac,
+        None => {
+            return Err(io::Error::new(io::ErrorKind::Other,
+                                      format!("No mac for {}", interface.name)))
+        }
+    };
+    let config = datalink::Config::default();
+    let channel = try!(datalink::channel(&interface, config));
+    Ok(Ethernet::new(mac, channel))
+}
+
 #[allow(unused_variables)]
 impl NetworkStack {
-    /// Construct a `NetworkStack` with a specific datalink layer provider.
-    /// You probably don't want to call this directly. Use the `NetworkStackBuilder` instead.
+    /// Construct a `NetworkStack` managing a given set of `Ethernet` interfaces.
+    /// The stack will set up an `Arp` for each interface automatically internally.
     pub fn new(ethernets: &[Ethernet]) -> NetworkStack {
         let mut eths = HashMap::new();
         let mut arps = HashMap::new();
