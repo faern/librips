@@ -15,9 +15,7 @@ pub struct Icmp {
 
 impl Icmp {
     pub fn new(ipv4: Ipv4) -> Icmp {
-        Icmp {
-            ipv4: ipv4,
-        }
+        Icmp { ipv4: ipv4 }
     }
 
     pub fn send<T>(&mut self,
@@ -44,16 +42,10 @@ pub struct Ping {
 
 impl Ping {
     pub fn new(ipv4: Ipv4) -> Ping {
-        Ping {
-            ipv4: ipv4,
-        }
+        Ping { ipv4: ipv4 }
     }
 
-    pub fn send(&mut self,
-                   dst_ip: Ipv4Addr,
-                   payload: &[u8])
-                   -> Option<io::Result<()>>
-    {
+    pub fn send(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> Option<io::Result<()>> {
         let total_size = (EchoRequestPacket::minimum_packet_size() + payload.len()) as u16;
         let mut builder_wrapper = |ip_pkg: &mut MutableIpv4Packet| {
             {
