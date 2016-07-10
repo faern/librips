@@ -2,7 +2,9 @@ use std::io;
 use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::convert::From;
+use std::sync::{Arc, Mutex};
 
+use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{MutableIpv4Packet, Ipv4Packet, checksum};
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket, EthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
@@ -50,16 +52,33 @@ impl Ipv4Conf {
     }
 }
 
-pub struct Ipv4Listener {
-    ipv4s: HashMap<Ipv4Addr, Ipv4>,
+/// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
+pub trait Ipv4Listener: Send {
+    /// Called by the library to deliver an `Ipv4Packet` to a listener.
+    fn recv(&mut self, packet: Ipv4Packet);
 }
 
-impl EthernetListener for Ipv4Listener {
+pub struct Ipv4EthernetListener {
+    ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
+}
+
+impl Ipv4EthernetListener {
+    pub fn new(ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>) -> Ipv4EthernetListener {
+        Ipv4EthernetListener { ipv4s: ipv4s }
+    }
+}
+
+impl EthernetListener for Ipv4EthernetListener {
     fn recv(&mut self, pkg: EthernetPacket) {
         let ip_pkg = Ipv4Packet::new(pkg.payload()).unwrap();
         let dest_ip = ip_pkg.get_destination();
         println!("Ipv4 got a packet to {}!", dest_ip);
-        if let Some(ipv4) = self.ipv4s.get_mut(&dest_ip) {
+        // Release lock before recv call
+        let ipv4 = {
+            let ipv4s = self.ipv4s.lock().expect("Unable to lock Ipv4EthernetListener::ipv4s");
+            ipv4s.get(&dest_ip).map(|ipv4| ipv4.clone())
+        };
+        if let Some(mut ipv4) = ipv4 {
             ipv4.recv(ip_pkg);
         }
     }
@@ -67,9 +86,10 @@ impl EthernetListener for Ipv4Listener {
 
 #[derive(Clone)]
 pub struct Ipv4 {
-    conf: Ipv4Conf,
+    pub conf: Ipv4Conf,
     eth: Ethernet,
     arp: Arp,
+    listeners: Arc<Mutex<HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>>,
 }
 
 impl Ipv4 {
@@ -78,7 +98,15 @@ impl Ipv4 {
             conf: conf,
             eth: eth,
             arp: arp,
+            listeners: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    pub fn set_listener<L>(&self, next_protocol: IpNextHeaderProtocol, listener: L)
+        where L: Ipv4Listener + 'static
+    {
+        let mut listeners = self.listeners.lock().expect("Unable to lock Ipv4::listeners");
+        listeners.insert(next_protocol, Box::new(listener));
     }
 
     pub fn send<T>(&mut self,
@@ -132,5 +160,13 @@ impl Ipv4 {
 
     fn recv(&mut self, pkg: Ipv4Packet) {
         println!("Ipv4 got a packet with {} bytes!", pkg.payload().len());
+        let next_level_protocol = pkg.get_next_level_protocol();
+
+        let mut listeners = self.listeners.lock().expect("Unable to lock Ipv4::listeners");
+        if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
+            listener.recv(pkg);
+        } else {
+            println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
+        }
     }
 }

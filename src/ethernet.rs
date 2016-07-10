@@ -20,7 +20,6 @@ pub trait EthernetListener: Send {
 
 enum ReaderMsg {
     SetListener(EtherType, Box<EthernetListener>),
-    Shutdown,
 }
 
 
@@ -98,11 +97,11 @@ struct EthernetReader {
 
 impl EthernetReader {
     pub fn spawn(control_rx: Receiver<ReaderMsg>, eth_rx: Box<EthernetDataLinkReceiver>) {
-        let reader = EthernetReader {
-            control_rx: control_rx,
-            listeners: HashMap::new(),
-        };
         thread::spawn(move || {
+            let reader = EthernetReader {
+                control_rx: control_rx,
+                listeners: HashMap::new(),
+            };
             reader.run(eth_rx);
         });
     }
@@ -134,7 +133,6 @@ impl EthernetReader {
                 Ok(ReaderMsg::SetListener(eth, listener)) => {
                     self.listeners.insert(eth, listener);
                 }
-                Ok(ReaderMsg::Shutdown) => return true,
                 Err(TryRecvError::Disconnected) => return true,
                 Err(TryRecvError::Empty) => break,
             }

@@ -45,7 +45,7 @@ pub fn stack() -> io::Result<NetworkStack> {
             }
         };
         let config = datalink::Config::default();
-        let channel = try!(datalink::channel(&interface, &config));
+        let channel = try!(datalink::channel(&interface, config));
         ethernets.push(Ethernet::new(mac, channel));
     }
     Ok(NetworkStack::new(&ethernets[..]))
