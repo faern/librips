@@ -13,8 +13,8 @@ use std::io;
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 
-use pnet::datalink;
-use pnet::util::{MacAddr, NetworkInterface};
+use pnet::datalink::{self, NetworkInterface};
+use pnet::util::MacAddr;
 
 pub mod ethernet;
 
@@ -31,16 +31,18 @@ use ethernet::Ethernet;
 use arp::Arp;
 use ipv4::Ipv4;
 
-/// The main struct of this library, managing an entire TCP/IP stack. Takes care of ARP,
-/// routing tables, threads, TCP resends/fragmentation etc. Most of this is still unimplemented.
+/// The main struct of this library, managing an entire TCP/IP stack. Takes
+/// care of ARP, routing tables, threads, TCP resends/fragmentation etc. Most
+/// of this is still unimplemented.
 pub struct NetworkStack {
     ethernets: HashMap<MacAddr, Ethernet>,
     arps: HashMap<MacAddr, Arp>,
     ipv4s: HashMap<MacAddr, HashMap<Ipv4Addr, Ipv4>>,
 }
 
-/// Create a `NetworkStack` managing all available interfaces using the default pnet backend.
-/// This stack will have ethernet and arp management set up internally, but no IPs or anything.
+/// Create a `NetworkStack` managing all available interfaces using the default
+/// pnet backend. This stack will have ethernet and arp management set up
+/// internally, but no IPs or anything.
 pub fn stack() -> io::Result<NetworkStack> {
     let mut ethernets = vec![];
     for interface in datalink::interfaces() {
@@ -65,8 +67,10 @@ fn create_ethernet(interface: NetworkInterface) -> io::Result<Ethernet> {
 
 #[allow(unused_variables)]
 impl NetworkStack {
-    /// Construct a `NetworkStack` managing a given set of `Ethernet` interfaces.
-    /// The stack will set up an `Arp` for each interface automatically internally.
+    /// Construct a `NetworkStack` managing a given set of `Ethernet`
+    /// interfaces.
+    /// The stack will set up an `Arp` for each interface automatically
+    /// internally.
     pub fn new(ethernets: &[Ethernet]) -> NetworkStack {
         let mut eths = HashMap::new();
         let mut arps = HashMap::new();
@@ -84,7 +88,8 @@ impl NetworkStack {
         }
     }
 
-    /// Attach a IPv4 network to a an interface. The resulting `Ipv4` instance can be used to
+    /// Attach a IPv4 network to a an interface. The resulting `Ipv4` instance
+    /// can be used to
     /// communicate with this network.
     pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Config) -> Option<Ipv4> {
         let eth = self.get_ethernet(mac);

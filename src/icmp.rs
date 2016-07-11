@@ -5,7 +5,7 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, checksum, icmp_types};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
-use pnet::packet::{Packet, MutablePacket};
+use pnet::packet::{MutablePacket, Packet};
 
 use ipv4::{Ipv4, Ipv4Listener};
 

@@ -5,8 +5,8 @@ use std::convert::From;
 use std::sync::{Arc, Mutex};
 
 use pnet::packet::ip::IpNextHeaderProtocol;
-use pnet::packet::ipv4::{MutableIpv4Packet, Ipv4Packet, checksum};
-use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket, EthernetPacket};
+use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 use pnet::util::MacAddr;
 
@@ -18,7 +18,8 @@ use arp::Arp;
 /// Represents an error in an `IpConf`.
 #[derive(Debug)]
 pub enum IpConfError {
-    /// The given network configuration was not valid. For example invalid prefix.
+    /// The given network configuration was not valid. For example invalid
+    /// prefix.
     InvalidNetwork(ipnetwork::IpNetworkError),
 
     /// The gateway is not inside the local network.
@@ -72,8 +73,9 @@ pub struct Ipv4Factory {
 }
 
 impl Ipv4Factory {
-    /// Returns a new `Ipv4Factory`. Sets up Arp for the given `Ethernet` interface and
-    /// configures it to send ethernet frames with IPv4 packets to its `Ipv4`s
+    /// Returns a new `Ipv4Factory`. Sets up Arp for the given `Ethernet`
+    /// interface and configures it to send ethernet frames with IPv4 packets
+    /// to its `Ipv4`s
     pub fn new(ethernet: Ethernet) -> Ipv4Factory {
         let arp = Arp::new(ethernet.clone());
         let ipv4s = Arc::new(Mutex::new(HashMap::new()));
@@ -100,13 +102,15 @@ impl Ipv4Factory {
 }
 
 /// Struct listening for ethernet frames containing IPv4 packets.
-/// Does not have to be created manually, is being done automatically inside `Ipv4Factory`
+/// Does not have to be created manually, is being done automatically inside
+/// `Ipv4Factory`
 pub struct Ipv4EthernetListener {
     ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
 }
 
 impl Ipv4EthernetListener {
-    /// Returns a new `Ipv4EthernetListener` that can be connected to an `Ethernet`.
+    /// Returns a new `Ipv4EthernetListener` that can be connected to an
+    /// `Ethernet`.
     pub fn new(ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>) -> Ipv4EthernetListener {
         Ipv4EthernetListener { ipv4s: ipv4s }
     }
@@ -159,9 +163,10 @@ impl Ipv4 {
         listeners.insert(next_protocol, Box::new(listener));
     }
 
-    /// Sends an IPv4 packet to the network. If the given `dst_ip` is within the local network
-    /// It will be sent directly to the MAC of that IP (taken from arp), otherwise it will be
-    /// sent to the MAC of the configured gateway.
+    /// Sends an IPv4 packet to the network. If the given `dst_ip` is within
+    /// the local network it will be sent directly to the MAC of that IP (taken
+    /// from arp), otherwise it will be sent to the MAC of the configured
+    /// gateway.
     pub fn send<T>(&mut self,
                    dst_ip: Ipv4Addr,
                    payload_size: u16,
@@ -170,7 +175,8 @@ impl Ipv4 {
         where T: FnMut(&mut MutableIpv4Packet)
     {
         let total_size = Ipv4Packet::minimum_packet_size() as u16 + payload_size;
-        // Get destination MAC before locking `eth` since the arp lookup might take time.
+        // Get destination MAC before locking `eth` since the arp lookup might take
+        // time.
         let dst_mac = self.get_dst_mac(dst_ip);
         let src_ip = self.config.ip;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
@@ -189,7 +195,8 @@ impl Ipv4 {
                 ip_pkg.set_ttl(40);
                 ip_pkg.set_source(src_ip);
                 ip_pkg.set_destination(dst_ip);
-                // ip_pkg.set_options(vec![]); // We currently don't support options in the header
+                // ip_pkg.set_options(vec![]); // We currently don't support options in the
+                // header
                 builder(&mut ip_pkg);
                 ip_pkg.set_checksum(0);
                 let checksum = checksum(&ip_pkg.to_immutable());
@@ -200,7 +207,8 @@ impl Ipv4 {
     }
 
     /// Computes to what MAC to send a packet.
-    /// If `ip` is within the local network directly get the MAC, otherwise gateway MAC.
+    /// If `ip` is within the local network directly get the MAC, otherwise
+    /// gateway MAC.
     fn get_dst_mac(&mut self, ip: Ipv4Addr) -> MacAddr {
         let local_dst_ip = if self.config.net.contains(ip) {
             ip

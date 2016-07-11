@@ -1,4 +1,5 @@
-//! Provides functionality for reading and writing ethernet frames from and to an underlying
+//! Provides functionality for reading and writing ethernet frames from and to
+//! an underlying
 //! network adapter.
 
 use std::io;
@@ -7,12 +8,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 
-use pnet::datalink::{Channel, EthernetDataLinkSender, EthernetDataLinkReceiver};
+use pnet::datalink::{Channel, EthernetDataLinkReceiver, EthernetDataLinkSender};
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::{EthernetPacket, EtherType, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 
 
-/// Anyone interested in receiving ethernet frames from `Ethernet` must implement this.
+/// Anyone interested in receiving ethernet frames from `Ethernet` must
+/// implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
     fn recv(&mut self, packet: EthernetPacket);
@@ -34,17 +36,8 @@ pub struct Ethernet {
 }
 
 impl Ethernet {
-    /// Create a new `Ethernet` running on top of libpnet's datalink layer.
-    ///
-    /// # Arguments
-    ///
-    /// * iface: The interface this `Ethernet` will listen on and send to.
-    /// * tx_buffer: The desired size of the write buffer. Might be ignored by some providers.
-    /// * rx_buffer: The desired size of the read buffer. Might be ignored by some providers.
-    /// * listeners: Callbacks with listeners for different `EtherType`s. Incoming packets not
-    ///   matching any of these `EtherType`s will be discarded.
-    /// * error_listener: If reading from the network results in an `std::io::Error` it will be
-    ///   sent here, returning `false` will abort the reading thread and `true` will continue.
+    /// Creates a new `Ethernet` with a given MAC and running on top of the
+    /// given pnet datalink channel.
     pub fn new(mac: MacAddr, channel: Channel) -> Ethernet {
         let (sender, receiver) = match channel {
             Channel::Ethernet(s, r) => (s, r),
@@ -59,7 +52,8 @@ impl Ethernet {
         }
     }
 
-    /// Sets a given `EthernetListener` as the receiver of all packets with the given `EtherType`.
+    /// Sets a given `EthernetListener` as the receiver of all packets with the
+    /// given `EtherType`.
     pub fn set_listener<L>(&self, ethertype: EtherType, listener: L)
         where L: EthernetListener + 'static
     {
@@ -68,11 +62,12 @@ impl Ethernet {
 
     /// Send ethernet packets to the network.
     ///
-    /// For every packet, all `header_size+payload_size` bytes will be sent, no matter how small
-    /// payload is provided to the `MutableEthernetPacket` in the call to `builder`. So in total
-    /// `num_packets * (header_size+payload_size)` bytes will be sent. This is usually not a
-    /// problem since the IP layer has the length in the header and the extra bytes should thus
-    /// not cause any trouble.
+    /// For every packet, all `header_size+payload_size` bytes will be sent, no
+    /// matter how small payload is provided to the `MutableEthernetPacket` in
+    /// the call to `builder`. So in total `num_packets *
+    /// (header_size+payload_size)` bytes will be sent. This is  usually not a
+    /// problem since the IP layer has the length in the header and the extra
+    /// bytes should thus not cause any trouble.
     pub fn send<T>(&mut self,
                    num_packets: usize,
                    payload_size: usize,

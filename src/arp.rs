@@ -1,13 +1,13 @@
 #[allow(unused_imports)]
 
 use std::io;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::net::Ipv4Addr;
 
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::{EthernetPacket, EtherTypes, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 
 use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
@@ -81,7 +81,8 @@ impl Arp {
         }
     }
 
-    /// Queries the table for a MAC. If it does not exist a request is sent and the call is blocked
+    /// Queries the table for a MAC. If it does not exist a request is sent and
+    /// the call is blocked
     /// until a reply has arrived
     pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> MacAddr {
         let mac_rx = {
