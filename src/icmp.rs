@@ -55,14 +55,14 @@ impl Icmp {
 }
 
 /// !
-pub struct Ping {
+pub struct Echo {
     icmp: Icmp,
 }
 
-impl Ping {
+impl Echo {
     /// !
-    pub fn new(icmp: Icmp) -> Ping {
-        Ping { icmp: icmp }
+    pub fn new(icmp: Icmp) -> Echo {
+        Echo { icmp: icmp }
     }
 
     /// !

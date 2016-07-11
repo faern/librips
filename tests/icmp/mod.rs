@@ -10,7 +10,7 @@ use pnet::packet::Packet;
 
 use rips::arp::Arp;
 use rips::ipv4::{Ipv4, Ipv4Config};
-use rips::icmp::{Icmp, Ping};
+use rips::icmp::{Icmp, Echo};
 
 #[test]
 fn test_ping() {
@@ -27,9 +27,9 @@ fn test_ping() {
     let ipv4 = Ipv4::new(ethernet, arp, ip_config);
 
     let icmp = Icmp::new(ipv4);
-    let mut ping = Ping::new(icmp);
+    let mut echo = Echo::new(icmp);
 
-    ping.send(target_ip, &[9, 55]).expect("None!!!").expect("Err!!!");
+    echo.send(target_ip, &[9, 55]).unwrap().unwrap();
 
     let pkg = read_handle.recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
