@@ -18,7 +18,7 @@ use pnet::util::MacAddr;
 use rips::ethernet::Ethernet;
 
 fn dummy_ethernet(iface_i: u8)
-                  -> (Ethernet, MacAddr, Sender<io::Result<Box<[u8]>>>, Receiver<Vec<u8>>) {
+                  -> (Ethernet, MacAddr, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let iface = dummy::dummy_interface(iface_i);
     let mac = iface.mac.unwrap();
 
