@@ -9,14 +9,17 @@ readme = "README.md"
 
 [dependencies]
 #ipnetwork = "0.7.0"
-pnet = "0.10.0"
+#pnet = "0.10.0"
 
-#[dependencies.pnet]
-#git = "https://github.com/libpnet/libpnet"
+[dependencies.pnet]
+git = "https://github.com/faern/libpnet"
+branch = "mockpnet"
+#path = "../libpnet"
 
 [dependencies.ipnetwork]
 git = "https://github.com/faern/ipnetwork"
-#branch = "clonable-structs"
+#path = "../ipnetwork"
 
 [dependencies.pnet_packets]
 git = "https://github.com/faern/pnet_packets"
+#path = "../pnet_packets"
