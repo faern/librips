@@ -8,7 +8,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{Packet, MutablePacket};
 
 use rips::arp::Arp;
-use rips::ipv4::{Ipv4Conf, Ipv4, Ipv4Listener, Ipv4Factory};
+use rips::ipv4::{Ipv4Config, Ipv4, Ipv4Listener, Ipv4Factory};
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -33,7 +33,7 @@ fn test_simple_send() {
     let mut arp = Arp::new(ethernet.clone());
     arp.insert(target_ip, target_mac);
 
-    let conf = Ipv4Conf::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
+    let conf = Ipv4Config::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
     let mut ipv4 = Ipv4::new(ethernet.clone(), arp, conf);
 
     ipv4.send(target_ip, 2, |pkg| {
@@ -59,7 +59,7 @@ fn test_simple_recv() {
 
     let (ethernet, target_mac, inject_handle, _) = ::dummy_ethernet(7);
 
-    let conf = Ipv4Conf::new(target_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
+    let conf = Ipv4Config::new(target_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
     let ipv4_factory = Ipv4Factory::new(ethernet);
     let ipv4 = ipv4_factory.add_ip(conf);
 

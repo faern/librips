@@ -2,7 +2,7 @@
 //!
 //! `librips` is a TCP/IP stack implemented in Rust.
 
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 #[allow(unused_imports)]
 
 extern crate pnet;
@@ -17,8 +17,14 @@ use pnet::datalink;
 use pnet::util::{MacAddr, NetworkInterface};
 
 pub mod ethernet;
+
+/// Module for everything related to the Arp protocol
 pub mod arp;
+
+/// Module for all IPv4 functionality
 pub mod ipv4;
+
+/// Module for Icmp functionality
 pub mod icmp;
 
 use ethernet::Ethernet;
@@ -80,7 +86,7 @@ impl NetworkStack {
 
     /// Attach a IPv4 network to a an interface. The resulting `Ipv4` instance can be used to
     /// communicate with this network.
-    pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Conf) -> Option<Ipv4> {
+    pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Config) -> Option<Ipv4> {
         let eth = self.get_ethernet(mac);
         let arp = self.get_arp(mac);
         if eth.is_none() || arp.is_none() {
@@ -96,14 +102,17 @@ impl NetworkStack {
         Some(ipv4)
     }
 
+    /// dead
     pub fn get_ethernet(&self, mac: MacAddr) -> Option<Ethernet> {
         self.ethernets.get(&mac).map(|ethernet| ethernet.clone())
     }
 
+    /// dead
     pub fn get_arp(&self, mac: MacAddr) -> Option<Arp> {
         self.arps.get(&mac).map(|arp| arp.clone())
     }
 
+    /// dead
     pub fn get_ipv4(&self, mac: MacAddr, ip: Ipv4Addr) -> Option<Ipv4> {
         if let Some(iface_ipv4s) = self.ipv4s.get(&mac) {
             if let Some(ipv4) = iface_ipv4s.get(&ip) {

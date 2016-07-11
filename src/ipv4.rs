@@ -15,10 +15,14 @@ use ipnetwork::{self, Ipv4Network};
 use ethernet::{Ethernet, EthernetListener};
 use arp::Arp;
 
+/// Represents an error in an `IpConf`.
 #[derive(Debug)]
 pub enum IpConfError {
+    /// The given network configuration was not valid. For example invalid prefix.
     InvalidNetwork(ipnetwork::IpNetworkError),
-    IpNotInNetwork,
+
+    /// The gateway is not inside the local network.
+    GwNotInNetwork,
 }
 
 impl From<ipnetwork::IpNetworkError> for IpConfError {
@@ -29,21 +33,23 @@ impl From<ipnetwork::IpNetworkError> for IpConfError {
 
 /// IP settings for one `Ipv4` instance
 #[derive(Clone)]
-pub struct Ipv4Conf {
+pub struct Ipv4Config {
+    /// The ip of the local host represented by this `Ipv4Config`
     pub ip: Ipv4Addr,
+
     gw: Ipv4Addr,
     net: Ipv4Network,
 }
 
-impl Ipv4Conf {
-    /// Creates a new `Ipv4Conf`.
+impl Ipv4Config {
+    /// Creates a new `Ipv4Config`.
     /// Checks so the gateways is inside the network, returns None otherwise.
-    pub fn new(ip: Ipv4Addr, prefix: u8, gw: Ipv4Addr) -> Result<Ipv4Conf, IpConfError> {
+    pub fn new(ip: Ipv4Addr, prefix: u8, gw: Ipv4Addr) -> Result<Ipv4Config, IpConfError> {
         let net = try!(Ipv4Network::new(ip, prefix));
         if !net.contains(gw) {
-            Err(IpConfError::IpNotInNetwork)
+            Err(IpConfError::GwNotInNetwork)
         } else {
-            Ok(Ipv4Conf {
+            Ok(Ipv4Config {
                 ip: ip,
                 gw: gw,
                 net: net,
@@ -58,6 +64,7 @@ pub trait Ipv4Listener: Send {
     fn recv(&mut self, packet: Ipv4Packet);
 }
 
+/// A factory managing all `Ipv4` instances for one `Ethernet` interface.
 pub struct Ipv4Factory {
     ethernet: Ethernet,
     arp: Arp,
@@ -65,6 +72,8 @@ pub struct Ipv4Factory {
 }
 
 impl Ipv4Factory {
+    /// Returns a new `Ipv4Factory`. Sets up Arp for the given `Ethernet` interface and
+    /// configures it to send ethernet frames with IPv4 packets to its `Ipv4`s
     pub fn new(ethernet: Ethernet) -> Ipv4Factory {
         let arp = Arp::new(ethernet.clone());
         let ipv4s = Arc::new(Mutex::new(HashMap::new()));
@@ -76,23 +85,28 @@ impl Ipv4Factory {
         }
     }
 
+    /// Returns the `Arp` instance for this `Ipv4Factory`.
     pub fn get_arp(&self) -> Arp {
         self.arp.clone()
     }
 
-    pub fn add_ip(&self, config: Ipv4Conf) -> Ipv4 {
+    /// Adds and returns a new `Ipv4`.
+    pub fn add_ip(&self, config: Ipv4Config) -> Ipv4 {
         let ipv4 = Ipv4::new(self.ethernet.clone(), self.arp.clone(), config);
         let mut ipv4s = self.ipv4s.lock().expect("Unable to lock Ipv4Factory::ipv4s");
-        ipv4s.insert(ipv4.conf.ip, ipv4.clone());
+        ipv4s.insert(ipv4.config.ip, ipv4.clone());
         ipv4
     }
 }
 
+/// Struct listening for ethernet frames containing IPv4 packets.
+/// Does not have to be created manually, is being done automatically inside `Ipv4Factory`
 pub struct Ipv4EthernetListener {
     ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
 }
 
 impl Ipv4EthernetListener {
+    /// Returns a new `Ipv4EthernetListener` that can be connected to an `Ethernet`.
     pub fn new(ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>) -> Ipv4EthernetListener {
         Ipv4EthernetListener { ipv4s: ipv4s }
     }
@@ -114,24 +128,30 @@ impl EthernetListener for Ipv4EthernetListener {
     }
 }
 
+/// One IPv4 configuration on one ethernet interface.
 #[derive(Clone)]
 pub struct Ipv4 {
-    pub conf: Ipv4Conf,
-    eth: Ethernet,
+    /// Configuration for this `Ipv4` instance
+    pub config: Ipv4Config,
+
+    ethernet: Ethernet,
     arp: Arp,
     listeners: Arc<Mutex<HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>>,
 }
 
 impl Ipv4 {
-    pub fn new(eth: Ethernet, arp: Arp, conf: Ipv4Conf) -> Ipv4 {
+    /// Returns a new `Ipv4` instance for a given `Ethernet` interface.
+    /// Does not have to be done manually, use a `Ipv4Factory` instead.
+    pub fn new(ethernet: Ethernet, arp: Arp, config: Ipv4Config) -> Ipv4 {
         Ipv4 {
-            conf: conf,
-            eth: eth,
+            config: config,
+            ethernet: ethernet,
             arp: arp,
             listeners: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
+    /// Sets the `Ipv4Listener` for a given protocol encapsulated in IPv4.
     pub fn set_listener<L>(&self, next_protocol: IpNextHeaderProtocol, listener: L)
         where L: Ipv4Listener + 'static
     {
@@ -139,6 +159,9 @@ impl Ipv4 {
         listeners.insert(next_protocol, Box::new(listener));
     }
 
+    /// Sends an IPv4 packet to the network. If the given `dst_ip` is within the local network
+    /// It will be sent directly to the MAC of that IP (taken from arp), otherwise it will be
+    /// sent to the MAC of the configured gateway.
     pub fn send<T>(&mut self,
                    dst_ip: Ipv4Addr,
                    payload_size: u16,
@@ -149,7 +172,7 @@ impl Ipv4 {
         let total_size = Ipv4Packet::minimum_packet_size() as u16 + payload_size;
         // Get destination MAC before locking `eth` since the arp lookup might take time.
         let dst_mac = self.get_dst_mac(dst_ip);
-        let src_ip = self.conf.ip;
+        let src_ip = self.config.ip;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
             eth_pkg.set_destination(dst_mac);
             eth_pkg.set_ethertype(EtherTypes::Ipv4);
@@ -173,19 +196,19 @@ impl Ipv4 {
                 ip_pkg.set_checksum(checksum);
             }
         };
-        self.eth.send(1, total_size as usize, &mut builder_wrapper)
+        self.ethernet.send(1, total_size as usize, &mut builder_wrapper)
     }
 
     /// Computes to what MAC to send a packet.
     /// If `ip` is within the local network directly get the MAC, otherwise gateway MAC.
     fn get_dst_mac(&mut self, ip: Ipv4Addr) -> MacAddr {
-        let local_dst_ip = if self.conf.net.contains(ip) {
+        let local_dst_ip = if self.config.net.contains(ip) {
             ip
         } else {
             // Destination outside our network, send to default gateway
-            self.conf.gw
+            self.config.gw
         };
-        self.arp.get(self.conf.ip, local_dst_ip)
+        self.arp.get(self.config.ip, local_dst_ip)
     }
 
     fn recv(&mut self, pkg: Ipv4Packet) {

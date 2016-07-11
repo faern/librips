@@ -26,7 +26,9 @@ enum ReaderMsg {
 /// A Datalink Ethernet manager taking care of one physical network interface.
 #[derive(Clone)]
 pub struct Ethernet {
+    /// The MAC address for this `Ethernet` interface
     pub mac: MacAddr,
+
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,
     reader_chan: Sender<ReaderMsg>,
 }
@@ -57,6 +59,7 @@ impl Ethernet {
         }
     }
 
+    /// Sets a given `EthernetListener` as the receiver of all packets with the given `EtherType`.
     pub fn set_listener<L>(&self, ethertype: EtherType, listener: L)
         where L: EthernetListener + 'static
     {

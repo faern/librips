@@ -9,6 +9,7 @@ use pnet::packet::{Packet, MutablePacket};
 
 use ipv4::{Ipv4, Ipv4Listener};
 
+/// Struct used for listening on incoming Icmp packets
 pub struct IcmpIpv4Listener;
 
 impl Ipv4Listener for IcmpIpv4Listener {
@@ -18,18 +19,21 @@ impl Ipv4Listener for IcmpIpv4Listener {
     }
 }
 
+/// An Icmp communication struct.
 #[derive(Clone)]
 pub struct Icmp {
     ipv4: Ipv4,
 }
 
 impl Icmp {
+    /// !
     pub fn new(ipv4: Ipv4) -> Icmp {
         let listener = IcmpIpv4Listener;
         ipv4.set_listener(IpNextHeaderProtocols::Icmp, listener);
         Icmp { ipv4: ipv4 }
     }
 
+    /// !
     pub fn send<T>(&mut self,
                    dst_ip: Ipv4Addr,
                    payload_size: u16,
@@ -50,15 +54,18 @@ impl Icmp {
     }
 }
 
+/// !
 pub struct Ping {
     icmp: Icmp,
 }
 
 impl Ping {
+    /// !
     pub fn new(icmp: Icmp) -> Ping {
         Ping { icmp: icmp }
     }
 
+    /// !
     pub fn send(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> Option<io::Result<()>> {
         let total_size = (EchoRequestPacket::minimum_packet_size() -
                           IcmpPacket::minimum_packet_size() +

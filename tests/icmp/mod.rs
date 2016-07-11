@@ -9,7 +9,7 @@ use pnet::packet::icmp::icmp_types;
 use pnet::packet::Packet;
 
 use rips::arp::Arp;
-use rips::ipv4::{Ipv4, Ipv4Conf};
+use rips::ipv4::{Ipv4, Ipv4Config};
 use rips::icmp::{Icmp, Ping};
 
 #[test]
@@ -23,7 +23,7 @@ fn test_ping() {
     let mut arp = Arp::new(ethernet.clone());
     arp.insert(target_ip, target_mac);
 
-    let ip_config = Ipv4Conf::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
+    let ip_config = Ipv4Config::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
     let ipv4 = Ipv4::new(ethernet, arp, ip_config);
 
     let icmp = Icmp::new(ipv4);

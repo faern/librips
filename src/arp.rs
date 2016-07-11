@@ -59,6 +59,7 @@ impl EthernetListener for ArpEthernetListener {
     }
 }
 
+/// An Arp table and query interface struct.
 #[derive(Clone)]
 pub struct Arp {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
@@ -67,6 +68,8 @@ pub struct Arp {
 }
 
 impl Arp {
+    /// Returns a new `Arp`.
+    /// This method sets up listening for Arp packets on the given `Ethernet`.
     pub fn new(ethernet: Ethernet) -> Arp {
         let table = Arc::new(RwLock::new(HashMap::new()));
         let arp_listener = ArpEthernetListener::new(table.clone());
