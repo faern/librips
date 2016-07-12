@@ -21,11 +21,11 @@ pub mod ethernet;
 /// Module for everything related to the Arp protocol
 pub mod arp;
 
-// /// Module for all IPv4 functionality
+/// Module for all IPv4 functionality
 pub mod ipv4;
 
-// /// Module for Icmp functionality
-// pub mod icmp;
+/// Module for Icmp functionality
+pub mod icmp;
 
 // use ethernet::Ethernet;
 // use arp::Arp;
@@ -40,7 +40,8 @@ pub mod ipv4;
 //     ipv4s: HashMap<MacAddr, HashMap<Ipv4Addr, Ipv4>>,
 // }
 //
-// /// Create a `NetworkStack` managing all available interfaces using the default
+// /// Create a `NetworkStack` managing all available interfaces using the
+// default
 // /// pnet backend. This stack will have ethernet and arp management set up
 // /// internally, but no IPs or anything.
 // pub fn stack() -> io::Result<NetworkStack> {
@@ -57,7 +58,8 @@ pub mod ipv4;
 //         Some(mac) => mac,
 //         None => {
 //             return Err(io::Error::new(io::ErrorKind::Other,
-//                                       format!("No mac for {}", interface.name)))
+// format!("No mac for {}",
+// interface.name)))
 //         }
 //     };
 //     let config = datalink::Config::default();
@@ -88,10 +90,12 @@ pub mod ipv4;
 //         }
 //     }
 //
-//     /// Attach a IPv4 network to a an interface. The resulting `Ipv4` instance
+// /// Attach a IPv4 network to a an interface. The resulting `Ipv4`
+// instance
 //     /// can be used to
 //     /// communicate with this network.
-//     pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Config) -> Option<Ipv4> {
+// pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Config) ->
+// Option<Ipv4> {
 //         let eth = self.get_ethernet(mac);
 //         let arp = self.get_arp(mac);
 //         if eth.is_none() || arp.is_none() {

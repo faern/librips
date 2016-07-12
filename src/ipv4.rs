@@ -74,7 +74,9 @@ impl Ipv4Factory {
     /// Returns a new `Ipv4Factory`. Sets up Arp for the given `Ethernet`
     /// interface and configures it to send ethernet frames with IPv4 packets
     /// to its `Ipv4`s
-    pub fn new(arp_factory: ArpFactory, listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>) -> Ipv4Factory {
+    pub fn new(arp_factory: ArpFactory,
+               listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>)
+               -> Ipv4Factory {
         Ipv4Factory {
             arp_factory: arp_factory,
             listeners: Some(listeners),
@@ -83,11 +85,7 @@ impl Ipv4Factory {
 
     /// Can only be called once.
     pub fn listener(&mut self) -> Option<Ipv4EthernetListener> {
-        self.listeners.take().map(|l| {
-            Ipv4EthernetListener {
-                listeners: l,
-            }
-        })
+        self.listeners.take().map(|l| Ipv4EthernetListener { listeners: l })
     }
 
     /// Adds and returns a new `Ipv4`.

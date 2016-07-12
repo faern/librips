@@ -107,7 +107,8 @@ impl Arp {
         mac_rx.recv().expect("Unable to read MAC from mac_rx")
     }
 
-    /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet request
+    /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
+    /// request
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Option<io::Result<()>> {
         let local_mac = self.ethernet.mac;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {

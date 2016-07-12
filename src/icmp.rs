@@ -1,21 +1,69 @@
 use std::net::Ipv4Addr;
 use std::io;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, checksum, icmp_types};
+use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, checksum, icmp_types, IcmpType};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
 use ipv4::{Ipv4, Ipv4Listener};
 
+pub trait IcmpListener: Send {
+    fn recv(&mut self, packet: Ipv4Packet);
+}
+
+pub struct IcmpFactory {
+    listeners: Arc<Mutex<HashMap<IcmpType, Box<IcmpListener>>>>,
+}
+
+impl IcmpFactory {
+    pub fn new() -> IcmpFactory {
+        IcmpFactory {
+            listeners: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub fn listener(&self) -> IcmpIpv4Listener {
+        IcmpIpv4Listener {
+            listeners: self.listeners.clone(),
+        }
+    }
+
+    pub fn add_listener<L: IcmpListener + 'static>(&self, icmp_type: IcmpType, listener: L) {
+        let mut listeners = self.listeners.lock().expect("Unable to lock IcmpIpv4Listener::listeners");
+        listeners.insert(icmp_type, Box::new(listener));
+    }
+}
+
 /// Struct used for listening on incoming Icmp packets
-pub struct IcmpIpv4Listener;
+pub struct IcmpIpv4Listener {
+    listeners: Arc<Mutex<HashMap<IcmpType, Box<IcmpListener>>>>,
+}
+
+impl IcmpIpv4Listener {
+    pub fn new(listeners: Arc<Mutex<HashMap<IcmpType, Box<IcmpListener>>>>) -> IcmpIpv4Listener {
+        IcmpIpv4Listener {
+            listeners: listeners,
+        }
+    }
+}
 
 impl Ipv4Listener for IcmpIpv4Listener {
-    fn recv(&mut self, packet: Ipv4Packet) {
-        let icmp_pkg = IcmpPacket::new(packet.payload()).unwrap();
-        println!("Icmp got a packet with {} bytes!", icmp_pkg.payload().len());
+    fn recv(&mut self, ip_pkg: Ipv4Packet) {
+        let icmp_type = {
+            let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
+            icmp_pkg.get_icmp_type()
+        };
+        println!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
+        let mut listeners = self.listeners.lock().expect("Unable to lock IcmpIpv4Listener::listeners");
+        if let Some(mut listener) = listeners.get_mut(&icmp_type) {
+            listener.recv(ip_pkg);
+        } else {
+            println!("Icmp, no listener for type {:?}", icmp_type);
+        }
     }
 }
 
@@ -28,8 +76,6 @@ pub struct Icmp {
 impl Icmp {
     /// !
     pub fn new(ipv4: Ipv4) -> Icmp {
-        let listener = IcmpIpv4Listener;
-        ipv4.set_listener(IpNextHeaderProtocols::Icmp, listener);
         Icmp { ipv4: ipv4 }
     }
 

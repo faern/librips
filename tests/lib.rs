@@ -9,7 +9,7 @@ mod ethernet;
 //mod stack;
 mod arp;
 mod ipv4;
-//mod icmp;
+mod icmp;
 
 use std::sync::mpsc::{Receiver, Sender};
 use std::io;
