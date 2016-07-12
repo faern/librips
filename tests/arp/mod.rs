@@ -10,7 +10,7 @@ use pnet::packet::{Packet, MutablePacket};
 
 use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
 
-use rips::arp::{Arp, ArpFactory};
+use rips::arp::ArpFactory;
 use rips::ethernet::EthernetListener;
 
 #[test]

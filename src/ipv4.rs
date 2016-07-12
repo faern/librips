@@ -2,7 +2,6 @@ use std::io;
 use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::convert::From;
-use std::sync::{Arc, Mutex};
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
@@ -13,7 +12,7 @@ use pnet::util::MacAddr;
 use ipnetwork::{self, Ipv4Network};
 
 use ethernet::{Ethernet, EthernetListener};
-use arp::Arp;
+use arp::{Arp, ArpFactory};
 
 /// Represents an error in an `IpConf`.
 #[derive(Debug)]
@@ -67,37 +66,33 @@ pub trait Ipv4Listener: Send {
 
 /// A factory managing all `Ipv4` instances for one `Ethernet` interface.
 pub struct Ipv4Factory {
-    ethernet: Ethernet,
-    arp: Arp,
-    ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
+    arp_factory: ArpFactory,
+    listeners: Option<HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>,
 }
 
 impl Ipv4Factory {
     /// Returns a new `Ipv4Factory`. Sets up Arp for the given `Ethernet`
     /// interface and configures it to send ethernet frames with IPv4 packets
     /// to its `Ipv4`s
-    pub fn new(ethernet: Ethernet) -> Ipv4Factory {
-        let arp = Arp::new(ethernet.clone());
-        let ipv4s = Arc::new(Mutex::new(HashMap::new()));
-        ethernet.set_listener(EtherTypes::Ipv4, Ipv4EthernetListener::new(ipv4s.clone()));
+    pub fn new(arp_factory: ArpFactory, listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>) -> Ipv4Factory {
         Ipv4Factory {
-            ethernet: ethernet,
-            arp: arp,
-            ipv4s: ipv4s,
+            arp_factory: arp_factory,
+            listeners: Some(listeners),
         }
     }
 
-    /// Returns the `Arp` instance for this `Ipv4Factory`.
-    pub fn get_arp(&self) -> Arp {
-        self.arp.clone()
+    /// Can only be called once.
+    pub fn listener(&mut self) -> Option<Ipv4EthernetListener> {
+        self.listeners.take().map(|l| {
+            Ipv4EthernetListener {
+                listeners: l,
+            }
+        })
     }
 
     /// Adds and returns a new `Ipv4`.
-    pub fn add_ip(&self, config: Ipv4Config) -> Ipv4 {
-        let ipv4 = Ipv4::new(self.ethernet.clone(), self.arp.clone(), config);
-        let mut ipv4s = self.ipv4s.lock().expect("Unable to lock Ipv4Factory::ipv4s");
-        ipv4s.insert(ipv4.config.ip, ipv4.clone());
-        ipv4
+    pub fn ip(&self, ethernet: Ethernet, config: Ipv4Config) -> Ipv4 {
+        Ipv4::new(ethernet.clone(), self.arp_factory.arp(ethernet), config)
     }
 }
 
@@ -105,29 +100,19 @@ impl Ipv4Factory {
 /// Does not have to be created manually, is being done automatically inside
 /// `Ipv4Factory`
 pub struct Ipv4EthernetListener {
-    ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>,
-}
-
-impl Ipv4EthernetListener {
-    /// Returns a new `Ipv4EthernetListener` that can be connected to an
-    /// `Ethernet`.
-    pub fn new(ipv4s: Arc<Mutex<HashMap<Ipv4Addr, Ipv4>>>) -> Ipv4EthernetListener {
-        Ipv4EthernetListener { ipv4s: ipv4s }
-    }
+    listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>,
 }
 
 impl EthernetListener for Ipv4EthernetListener {
     fn recv(&mut self, pkg: EthernetPacket) {
         let ip_pkg = Ipv4Packet::new(pkg.payload()).unwrap();
         let dest_ip = ip_pkg.get_destination();
+        let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);
-        // Release lock before recv call
-        let ipv4 = {
-            let ipv4s = self.ipv4s.lock().expect("Unable to lock Ipv4EthernetListener::ipv4s");
-            ipv4s.get(&dest_ip).map(|ipv4| ipv4.clone())
-        };
-        if let Some(mut ipv4) = ipv4 {
-            ipv4.recv(ip_pkg);
+        if let Some(mut listener) = self.listeners.get_mut(&next_level_protocol) {
+            listener.recv(ip_pkg);
+        } else {
+            println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
         }
     }
 }
@@ -140,7 +125,6 @@ pub struct Ipv4 {
 
     ethernet: Ethernet,
     arp: Arp,
-    listeners: Arc<Mutex<HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>>,
 }
 
 impl Ipv4 {
@@ -151,16 +135,7 @@ impl Ipv4 {
             config: config,
             ethernet: ethernet,
             arp: arp,
-            listeners: Arc::new(Mutex::new(HashMap::new())),
         }
-    }
-
-    /// Sets the `Ipv4Listener` for a given protocol encapsulated in IPv4.
-    pub fn set_listener<L>(&self, next_protocol: IpNextHeaderProtocol, listener: L)
-        where L: Ipv4Listener + 'static
-    {
-        let mut listeners = self.listeners.lock().expect("Unable to lock Ipv4::listeners");
-        listeners.insert(next_protocol, Box::new(listener));
     }
 
     /// Sends an IPv4 packet to the network. If the given `dst_ip` is within
@@ -217,17 +192,5 @@ impl Ipv4 {
             self.config.gw
         };
         self.arp.get(self.config.ip, local_dst_ip)
-    }
-
-    fn recv(&mut self, pkg: Ipv4Packet) {
-        println!("Ipv4 got a packet with {} bytes!", pkg.payload().len());
-        let next_level_protocol = pkg.get_next_level_protocol();
-
-        let mut listeners = self.listeners.lock().expect("Unable to lock Ipv4::listeners");
-        if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
-            listener.recv(pkg);
-        } else {
-            println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
-        }
     }
 }

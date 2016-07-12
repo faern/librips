@@ -1,5 +1,6 @@
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
+use std::collections::HashMap;
 
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -7,7 +8,8 @@ use pnet::packet::ethernet::{EthernetPacket, EtherTypes, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{Packet, MutablePacket};
 
-use rips::arp::Arp;
+use rips::ethernet::EthernetListener;
+use rips::arp::{Arp, ArpFactory};
 use rips::ipv4::{Ipv4Config, Ipv4, Ipv4Listener, Ipv4Factory};
 
 pub struct MockIpv4Listener {
@@ -27,7 +29,17 @@ fn test_simple_send() {
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
     let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let (ethernet, source_mac, _, read_handle) = ::dummy_ethernet(7);
+    let mut listeners = HashMap::new();
+
+    let arp_factory = ArpFactory::new();
+    let arp_listener = arp_factory.listener();
+    listeners.insert(EtherTypes::Arp, Box::new(arp_listener) as Box<EthernetListener>);
+
+    let mut ipv4_factory = Ipv4Factory::new(arp_factory, HashMap::new());
+    let ipv4_listener = ipv4_factory.listener().unwrap();
+    listeners.insert(EtherTypes::Ipv4, Box::new(ipv4_listener) as Box<EthernetListener>);
+
+    let (ethernet, source_mac, _, read_handle) = ::dummy_ethernet(7, listeners);
 
     // Inject an Arp entry so Ipv4 knows where to send
     let mut arp = Arp::new(ethernet.clone());
@@ -57,15 +69,22 @@ fn test_simple_recv() {
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
     let source_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let (ethernet, target_mac, inject_handle, _) = ::dummy_ethernet(7);
-
-    let conf = Ipv4Config::new(target_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
-    let ipv4_factory = Ipv4Factory::new(ethernet);
-    let ipv4 = ipv4_factory.add_ip(conf);
-
+    let mut ipv4_listeners = HashMap::new();
     let (tx, rx) = mpsc::channel();
     let ipv4_listener = MockIpv4Listener { tx: tx };
-    ipv4.set_listener(IpNextHeaderProtocols::Igmp, ipv4_listener);
+    ipv4_listeners.insert(IpNextHeaderProtocols::Igmp, Box::new(ipv4_listener) as Box<Ipv4Listener>);
+
+    let mut ethernet_listeners = HashMap::new();
+
+    let arp_factory = ArpFactory::new();
+    let arp_listener = arp_factory.listener();
+    ethernet_listeners.insert(EtherTypes::Arp, Box::new(arp_listener) as Box<EthernetListener>);
+
+    let mut ipv4_factory = Ipv4Factory::new(arp_factory, ipv4_listeners);
+    let ipv4_listener = ipv4_factory.listener().unwrap();
+    ethernet_listeners.insert(EtherTypes::Ipv4, Box::new(ipv4_listener) as Box<EthernetListener>);
+
+    let (_ethernet, target_mac, inject_handle, _) = ::dummy_ethernet(7, ethernet_listeners);
 
     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() + 2;
     let mut buffer = vec![0; size];

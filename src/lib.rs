@@ -22,7 +22,7 @@ pub mod ethernet;
 pub mod arp;
 
 // /// Module for all IPv4 functionality
-// pub mod ipv4;
+pub mod ipv4;
 
 // /// Module for Icmp functionality
 // pub mod icmp;

@@ -77,6 +77,16 @@ pub struct Arp {
 }
 
 impl Arp {
+    pub fn new(ethernet: Ethernet) -> Arp {
+        Arp {
+            table: Arc::new(RwLock::new(HashMap::new())),
+            ethernet: ethernet,
+            listeners: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl Arp {
     /// Queries the table for a MAC. If it does not exist a request is sent and
     /// the call is blocked
     /// until a reply has arrived
