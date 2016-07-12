@@ -9,7 +9,7 @@ readme = "README.md"
 
 [dependencies]
 #ipnetwork = "0.7.0"
-pnet = "0.11.0"
+pnet = "0.11.1"
 
 #[dependencies.pnet]
 #git = "https://github.com/faern/libpnet"
