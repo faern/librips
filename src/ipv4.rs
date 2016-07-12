@@ -83,6 +83,10 @@ impl Ipv4Factory {
         }
     }
 
+    pub fn arp_factory(&self) -> &ArpFactory {
+        &self.arp_factory
+    }
+
     /// Can only be called once.
     pub fn listener(&mut self) -> Option<Ipv4EthernetListener> {
         self.listeners.take().map(|l| Ipv4EthernetListener { listeners: l })

@@ -4,21 +4,26 @@ extern crate pnet;
 extern crate rips;
 extern crate pnet_packets;
 
+use std::sync::mpsc::{Receiver, Sender};
+use std::io;
+use std::net::Ipv4Addr;
+
+use pnet::datalink::dummy;
+use pnet::packet::ethernet::{EtherType, EtherTypes};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::util::MacAddr;
+
+use rips::ethernet::{Ethernet, EthernetListener};
+use rips::arp::ArpFactory;
+use rips::ipv4::{Ipv4, Ipv4Factory, Ipv4Listener, Ipv4Config};
+use rips::icmp::IcmpFactory;
+
 // Modules containing tests.
 mod ethernet;
 //mod stack;
 mod arp;
 mod ipv4;
 mod icmp;
-
-use std::sync::mpsc::{Receiver, Sender};
-use std::io;
-
-use pnet::datalink::dummy;
-use pnet::packet::ethernet::EtherType;
-use pnet::util::MacAddr;
-
-use rips::ethernet::{Ethernet, EthernetListener};
 
 fn dummy_ethernet(iface_i: u8, listeners: HashMap<EtherType, Box<EthernetListener>>)
                   -> (Ethernet, MacAddr, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
@@ -33,4 +38,40 @@ fn dummy_ethernet(iface_i: u8, listeners: HashMap<EtherType, Box<EthernetListene
     let ethernet = Ethernet::new(mac, channel, listeners);
 
     (ethernet, mac, inject_handle, read_handle)
+}
+
+fn dummy_arp() -> (ArpFactory, HashMap<EtherType, Box<EthernetListener>>) {
+    let arp_factory = ArpFactory::new();
+    let arp_listener = arp_factory.listener();
+    let mut listeners = HashMap::new();
+    listeners.insert(EtherTypes::Arp, Box::new(arp_listener) as Box<EthernetListener>);
+    (arp_factory, listeners)
+}
+
+fn dummy_ipv4(listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>) -> (Ethernet, Ipv4Factory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+    let (arp_factory, mut ethernet_listeners) = dummy_arp();
+    let mut ipv4_factory = Ipv4Factory::new(arp_factory, listeners);
+    let ipv4_listener = ipv4_factory.listener().unwrap();
+    ethernet_listeners.insert(EtherTypes::Ipv4, Box::new(ipv4_listener) as Box<EthernetListener>);
+
+    let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0, ethernet_listeners);
+    (ethernet, ipv4_factory, inject_handle, read_handle)
+}
+
+fn dummy_icmp() -> (Ethernet, IcmpFactory, Ipv4, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+    let mut ipv4_listeners = HashMap::new();
+    let icmp_factory = IcmpFactory::new();
+    let icmp_listener = icmp_factory.listener();
+    ipv4_listeners.insert(IpNextHeaderProtocols::Icmp, Box::new(icmp_listener) as Box<Ipv4Listener>);
+
+    let (ethernet, ipv4_factory, inject_handle, read_handle) = dummy_ipv4(ipv4_listeners);
+
+    let mut arp = ipv4_factory.arp_factory().arp(ethernet.clone());
+    arp.insert(Ipv4Addr::new(10, 0, 0, 1), MacAddr::new(9, 8, 7, 6, 5, 4));
+
+    let ip_config = Ipv4Config::new(Ipv4Addr::new(10, 0, 0, 2), 24, Ipv4Addr::new(10, 0, 0, 1)).unwrap();
+    let ipv4 = ipv4_factory.ip(ethernet.clone(), ip_config);
+
+
+    (ethernet, icmp_factory, ipv4, inject_handle, read_handle)
 }

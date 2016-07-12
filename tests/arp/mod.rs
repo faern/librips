@@ -2,7 +2,6 @@ use std::sync::mpsc;
 use std::thread::{spawn, sleep};
 use std::time::Duration;
 use std::net::Ipv4Addr;
-use std::collections::HashMap;
 
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
@@ -10,18 +9,11 @@ use pnet::packet::{Packet, MutablePacket};
 
 use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
 
-use rips::arp::ArpFactory;
-use rips::ethernet::EthernetListener;
-
 #[test]
 fn test_arp_locking() {
     let thread_count = 100;
 
-    let arp_factory = ArpFactory::new();
-    let arp_listener = arp_factory.listener();
-    let mut listeners = HashMap::new();
-    listeners.insert(EtherTypes::Arp, Box::new(arp_listener) as Box<EthernetListener>);
-
+    let (arp_factory, listeners) = ::dummy_arp();
     let (ethernet, _, inject_handle, read_handle) = ::dummy_ethernet(7, listeners);
     let arp = arp_factory.arp(ethernet);
 
