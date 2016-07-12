@@ -35,10 +35,7 @@ pub struct Ethernet {
 impl Ethernet {
     /// Creates a new `Ethernet` with a given MAC and running on top of the
     /// given pnet datalink channel.
-    pub fn new(mac: MacAddr,
-               channel: Channel,
-               listeners: Vec<Box<EthernetListener>>)
-               -> Ethernet {
+    pub fn new(mac: MacAddr, channel: Channel, listeners: Vec<Box<EthernetListener>>) -> Ethernet {
         let (sender, receiver) = match channel {
             Channel::Ethernet(tx, rx) => (tx, rx),
             _ => panic!("Invalid datalink::Channel type"),
@@ -124,7 +121,7 @@ impl EthernetReader {
                             for listener in listeners {
                                 listener.recv(&pkg);
                             }
-                        },
+                        }
                         None => (),
                     }
                 }

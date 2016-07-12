@@ -5,7 +5,7 @@ use std::convert::From;
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
-use pnet::packet::ethernet::{EtherTypes, EtherType, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 use pnet::util::MacAddr;
 
@@ -89,9 +89,9 @@ impl Ipv4Factory {
 
     /// Can only be called once.
     pub fn listener(&mut self) -> Option<Box<EthernetListener>> {
-        self.listeners.take().map(|l| {
-            Box::new(Ipv4EthernetListener { listeners: l }) as Box<EthernetListener>
-        })
+        self.listeners
+            .take()
+            .map(|l| Box::new(Ipv4EthernetListener { listeners: l }) as Box<EthernetListener>)
     }
 
     pub fn listeners(&mut self) -> Option<Vec<Box<EthernetListener>>> {

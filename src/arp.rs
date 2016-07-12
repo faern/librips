@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::net::Ipv4Addr;
 
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::{EtherTypes, EtherType, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
