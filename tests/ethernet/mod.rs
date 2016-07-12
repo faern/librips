@@ -1,7 +1,6 @@
 use std::sync::mpsc;
-use std::collections::HashMap;
 
-use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket, EthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EtherType, MutableEthernetPacket, EthernetPacket};
 use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
 
@@ -12,8 +11,12 @@ pub struct MockEthernetListener {
 }
 
 impl EthernetListener for MockEthernetListener {
-    fn recv(&mut self, packet: EthernetPacket) {
+    fn recv(&mut self, packet: &EthernetPacket) {
         self.tx.send(packet.packet().to_vec()).unwrap();
+    }
+
+    fn get_ethertype(&self) -> EtherType {
+        EtherTypes::Arp
     }
 }
 
@@ -21,8 +24,7 @@ impl EthernetListener for MockEthernetListener {
 fn test_ethernet_recv() {
     let (listener_tx, listener_rx) = mpsc::channel();
     let mock_listener = MockEthernetListener { tx: listener_tx };
-    let mut listeners = HashMap::new();
-    listeners.insert(EtherTypes::Arp, Box::new(mock_listener) as Box<EthernetListener>);
+    let listeners = vec![Box::new(mock_listener) as Box<EthernetListener>];
 
     let (_ethernet, _, inject_handle, _) = ::dummy_ethernet(0, listeners);
 
@@ -48,7 +50,7 @@ fn test_ethernet_recv() {
 
 #[test]
 fn test_ethernet_send() {
-    let (mut ethernet, _, _, read_handle) = ::dummy_ethernet(99, HashMap::new());
+    let (mut ethernet, _, _, read_handle) = ::dummy_ethernet(99, vec![]);
 
     ethernet.send(1, 1, |pkg| {
         pkg.set_destination(MacAddr::new(6, 7, 8, 9, 10, 11));

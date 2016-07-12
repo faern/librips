@@ -8,13 +8,14 @@ use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{Packet, MutablePacket};
 use pnet::packet::arp::{ArpPacket, MutableArpPacket};
 
+use rips::arp::ArpFactory;
 
 #[test]
 fn test_arp_locking() {
     let thread_count = 100;
 
-    let (arp_factory, listeners) = ::dummy_arp();
-    let (ethernet, _, inject_handle, read_handle) = ::dummy_ethernet(7, listeners);
+    let arp_factory = ArpFactory::new();
+    let (ethernet, _, inject_handle, read_handle) = ::dummy_ethernet(7, vec![arp_factory.listener()]);
     let arp = arp_factory.arp(ethernet);
 
     let (arp_thread_tx, arp_thread_rx) = mpsc::channel();

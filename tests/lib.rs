@@ -8,7 +8,6 @@ use std::io;
 use std::net::Ipv4Addr;
 
 use pnet::datalink::dummy;
-use pnet::packet::ethernet::{EtherType, EtherTypes};
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::util::MacAddr;
 
@@ -24,7 +23,7 @@ mod arp;
 mod ipv4;
 mod icmp;
 
-fn dummy_ethernet(iface_i: u8, listeners: HashMap<EtherType, Box<EthernetListener>>)
+fn dummy_ethernet(iface_i: u8, listeners: Vec<Box<EthernetListener>>)
                   -> (Ethernet, MacAddr, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let iface = dummy::dummy_interface(iface_i);
     let mac = iface.mac.unwrap();
@@ -39,19 +38,12 @@ fn dummy_ethernet(iface_i: u8, listeners: HashMap<EtherType, Box<EthernetListene
     (ethernet, mac, inject_handle, read_handle)
 }
 
-fn dummy_arp() -> (ArpFactory, HashMap<EtherType, Box<EthernetListener>>) {
+fn dummy_ipv4(listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>) -> (Ethernet, Ipv4Factory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let arp_factory = ArpFactory::new();
     let arp_listener = arp_factory.listener();
-    let mut listeners = HashMap::new();
-    listeners.insert(EtherTypes::Arp, Box::new(arp_listener) as Box<EthernetListener>);
-    (arp_factory, listeners)
-}
-
-fn dummy_ipv4(listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>) -> (Ethernet, Ipv4Factory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
-    let (arp_factory, mut ethernet_listeners) = dummy_arp();
     let mut ipv4_factory = Ipv4Factory::new(arp_factory, listeners);
     let ipv4_listener = ipv4_factory.listener().unwrap();
-    ethernet_listeners.insert(EtherTypes::Ipv4, Box::new(ipv4_listener) as Box<EthernetListener>);
+    let ethernet_listeners = vec![arp_listener, ipv4_listener];
 
     let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0, ethernet_listeners);
     (ethernet, ipv4_factory, inject_handle, read_handle)

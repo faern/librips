@@ -17,7 +17,9 @@ use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 /// implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
-    fn recv(&mut self, packet: EthernetPacket);
+    fn recv(&mut self, packet: &EthernetPacket);
+
+    fn get_ethertype(&self) -> EtherType;
 }
 
 /// A Datalink Ethernet manager taking care of one physical network interface.
@@ -35,7 +37,7 @@ impl Ethernet {
     /// given pnet datalink channel.
     pub fn new(mac: MacAddr,
                channel: Channel,
-               listeners: HashMap<EtherType, Box<EthernetListener>>)
+               listeners: Vec<Box<EthernetListener>>)
                -> Ethernet {
         let (sender, receiver) = match channel {
             Channel::Ethernet(tx, rx) => (tx, rx),
@@ -43,11 +45,7 @@ impl Ethernet {
         };
 
         let (reader_tx, reader_rx) = mpsc::channel();
-        let reader = EthernetReader {
-            control_rx: reader_rx,
-            listeners: listeners,
-        };
-        reader.spawn(receiver);
+        EthernetReader::new(reader_rx, listeners).spawn(receiver);
 
         Ethernet {
             mac: mac,
@@ -86,10 +84,26 @@ impl Ethernet {
 
 struct EthernetReader {
     control_rx: Receiver<()>,
-    listeners: HashMap<EtherType, Box<EthernetListener>>,
+    listeners: HashMap<EtherType, Vec<Box<EthernetListener>>>,
 }
 
 impl EthernetReader {
+    pub fn new(control_rx: Receiver<()>, listeners: Vec<Box<EthernetListener>>) -> EthernetReader {
+        let mut map_listeners = HashMap::new();
+        for listener in listeners.into_iter() {
+            let ethertype = listener.get_ethertype();
+            if !map_listeners.contains_key(&ethertype) {
+                map_listeners.insert(ethertype, vec![listener]);
+            } else {
+                map_listeners.get_mut(&ethertype).unwrap().push(listener);
+            }
+        }
+        EthernetReader {
+            control_rx: control_rx,
+            listeners: map_listeners,
+        }
+    }
+
     pub fn spawn(self, receiver: Box<EthernetDataLinkReceiver>) {
         thread::spawn(move || {
             self.run(receiver);
@@ -106,7 +120,11 @@ impl EthernetReader {
                     }
                     let ethertype = pkg.get_ethertype();
                     match self.listeners.get_mut(&ethertype) {
-                        Some(listener) => listener.recv(pkg),
+                        Some(listeners) => {
+                            for listener in listeners {
+                                listener.recv(&pkg);
+                            }
+                        },
                         None => (),
                     }
                 }

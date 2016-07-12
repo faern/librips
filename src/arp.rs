@@ -7,9 +7,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::net::Ipv4Addr;
 
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
-use pnet::packet::arp::{ArpHardwareTypes, ArpOperation, ArpOperations, ArpPacket, MutableArpPacket};
+use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
 use ethernet::{Ethernet, EthernetListener};
 
@@ -26,11 +26,11 @@ impl ArpFactory {
         }
     }
 
-    pub fn listener(&self) -> ArpEthernetListener {
-        ArpEthernetListener {
+    pub fn listener(&self) -> Box<EthernetListener> {
+        Box::new(ArpEthernetListener {
             table: self.table.clone(),
             listeners: self.listeners.clone(),
-        }
+        }) as Box<EthernetListener>
     }
 
     pub fn arp(&self, ethernet: Ethernet) -> Arp {
@@ -49,7 +49,7 @@ pub struct ArpEthernetListener {
 }
 
 impl EthernetListener for ArpEthernetListener {
-    fn recv(&mut self, pkg: EthernetPacket) {
+    fn recv(&mut self, pkg: &EthernetPacket) {
         let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
         let ip = arp_pkg.get_sender_proto_addr();
         let mac = arp_pkg.get_sender_hw_addr();
@@ -64,6 +64,10 @@ impl EthernetListener for ArpEthernetListener {
                 listener.send(mac).expect("Unable to send MAC to listener");
             }
         }
+    }
+
+    fn get_ethertype(&self) -> EtherType {
+        EtherTypes::Arp
     }
 }
 

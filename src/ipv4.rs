@@ -5,7 +5,7 @@ use std::convert::From;
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 use pnet::util::MacAddr;
 
@@ -88,8 +88,17 @@ impl Ipv4Factory {
     }
 
     /// Can only be called once.
-    pub fn listener(&mut self) -> Option<Ipv4EthernetListener> {
-        self.listeners.take().map(|l| Ipv4EthernetListener { listeners: l })
+    pub fn listener(&mut self) -> Option<Box<EthernetListener>> {
+        self.listeners.take().map(|l| {
+            Box::new(Ipv4EthernetListener { listeners: l }) as Box<EthernetListener>
+        })
+    }
+
+    pub fn listeners(&mut self) -> Option<Vec<Box<EthernetListener>>> {
+        self.listener().map(|ipv4_listener| {
+            let arp_listener = self.arp_factory.listener();
+            vec![arp_listener, ipv4_listener]
+        })
     }
 
     /// Adds and returns a new `Ipv4`.
@@ -106,7 +115,7 @@ pub struct Ipv4EthernetListener {
 }
 
 impl EthernetListener for Ipv4EthernetListener {
-    fn recv(&mut self, pkg: EthernetPacket) {
+    fn recv(&mut self, pkg: &EthernetPacket) {
         let ip_pkg = Ipv4Packet::new(pkg.payload()).unwrap();
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
@@ -116,6 +125,10 @@ impl EthernetListener for Ipv4EthernetListener {
         } else {
             println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
         }
+    }
+
+    fn get_ethertype(&self) -> EtherType {
+        EtherTypes::Ipv4
     }
 }
 
