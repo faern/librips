@@ -11,9 +11,9 @@ use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, icmp_types};
 use pnet::packet::{Packet, MutablePacket};
 
 use rips::ethernet::EthernetListener;
-use rips::arp::{Arp, ArpFactory};
-use rips::ipv4::{Ipv4, Ipv4Config, Ipv4Factory, Ipv4Listener};
-use rips::icmp::{Icmp, Echo, IcmpFactory, IcmpIpv4Listener, IcmpListener};
+use rips::arp::ArpFactory;
+use rips::ipv4::{Ipv4Config, Ipv4Factory, Ipv4Listener};
+use rips::icmp::{Icmp, Echo, IcmpFactory, IcmpListener};
 
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -63,7 +63,6 @@ fn test_ping() {
 fn recv_icmp() {
     let source_ip = Ipv4Addr::new(10, 1, 2, 3);
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
-    let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
     let (tx, rx) = mpsc::channel();
     let mock_icmp_listener = MockIcmpListener { tx: tx };
@@ -91,7 +90,6 @@ fn recv_icmp() {
     let mut buffer = vec![0; size];
     {
         let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
-        eth_pkg.set_destination(target_mac);
         eth_pkg.set_ethertype(EtherTypes::Ipv4);
         let mut ip_pkg = MutableIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
         ip_pkg.set_header_length(5); // 5 is for no option fields

@@ -67,7 +67,6 @@ fn test_simple_send() {
 fn test_simple_recv() {
     let source_ip = Ipv4Addr::new(10, 1, 2, 3);
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
-    let source_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
     let mut ipv4_listeners = HashMap::new();
     let (tx, rx) = mpsc::channel();
@@ -84,14 +83,12 @@ fn test_simple_recv() {
     let ipv4_listener = ipv4_factory.listener().unwrap();
     ethernet_listeners.insert(EtherTypes::Ipv4, Box::new(ipv4_listener) as Box<EthernetListener>);
 
-    let (_ethernet, target_mac, inject_handle, _) = ::dummy_ethernet(7, ethernet_listeners);
+    let (_ethernet, _, inject_handle, _) = ::dummy_ethernet(7, ethernet_listeners);
 
     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() + 2;
     let mut buffer = vec![0; size];
     {
         let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
-        eth_pkg.set_source(source_mac);
-        eth_pkg.set_destination(target_mac);
         eth_pkg.set_ethertype(EtherTypes::Ipv4);
         let mut ip_pkg = MutableIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
         ip_pkg.set_header_length(5); // 5 is for no option fields
