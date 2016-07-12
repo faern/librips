@@ -14,30 +14,39 @@ use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
 
 use ethernet::{Ethernet, EthernetListener};
 
-#[derive(Clone)]
-struct ArpEthernetListener {
+pub struct ArpFactory {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
     listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
 }
 
-impl ArpEthernetListener {
-    pub fn new(table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>) -> ArpEthernetListener {
-        ArpEthernetListener {
-            table: table,
+impl ArpFactory {
+    pub fn new() -> ArpFactory {
+        ArpFactory {
+            table: Arc::new(RwLock::new(HashMap::new())),
             listeners: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {
-        let (tx, rx) = channel();
-        let mut listeners =
-            self.listeners.lock().expect("Unable to lock ArpEthernetListener::listeners");
-        if !listeners.contains_key(&ip) {
-            listeners.insert(ip, vec![]);
+    pub fn listener(&self) -> ArpEthernetListener {
+        ArpEthernetListener {
+            table: self.table.clone(),
+            listeners: self.listeners.clone(),
         }
-        listeners.get_mut(&ip).unwrap().push(tx);
-        rx
     }
+
+    pub fn arp(&self, ethernet: Ethernet) -> Arp {
+        Arp {
+            table: self.table.clone(),
+            ethernet: ethernet,
+            listeners: self.listeners.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ArpEthernetListener {
+    table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
+    listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
 }
 
 impl EthernetListener for ArpEthernetListener {
@@ -64,26 +73,14 @@ impl EthernetListener for ArpEthernetListener {
 pub struct Arp {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
     ethernet: Ethernet,
-    arp_listener: ArpEthernetListener,
+    listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
 }
 
 impl Arp {
-    /// Returns a new `Arp`.
-    /// This method sets up listening for Arp packets on the given `Ethernet`.
-    pub fn new(ethernet: Ethernet) -> Arp {
-        let table = Arc::new(RwLock::new(HashMap::new()));
-        let arp_listener = ArpEthernetListener::new(table.clone());
-        ethernet.set_listener(EtherTypes::Arp, arp_listener.clone());
-        Arp {
-            table: table,
-            ethernet: ethernet,
-            arp_listener: arp_listener,
-        }
-    }
-
     /// Queries the table for a MAC. If it does not exist a request is sent and
     /// the call is blocked
     /// until a reply has arrived
+    // TODO: Rewrite with match on table.get and a drop(table)
     pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> MacAddr {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
@@ -91,15 +88,16 @@ impl Arp {
             if let Some(mac) = table.get(&target_ip) {
                 return mac.clone();
             }
+            let rx = self.add_listener(target_ip);
             self.send(sender_ip, target_ip)
                 .expect("Too small buffer")
                 .expect("Network send error");
-            self.arp_listener.add_listener(target_ip)
+            rx
         }; // Release table lock
         mac_rx.recv().expect("Unable to read MAC from mac_rx")
     }
 
-    /// Send Arp packets to the network. More specifically Ipv4 to Ethernet
+    /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet request
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Option<io::Result<()>> {
         let local_mac = self.ethernet.mac;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
@@ -121,6 +119,17 @@ impl Arp {
         self.ethernet.send(1,
                            ArpEthernetIpv4Packet::minimum_packet_size(),
                            &mut builder_wrapper)
+    }
+
+    fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {
+        let (tx, rx) = channel();
+        let mut listeners = self.listeners.lock().expect("Unable to lock Arp::listeners");
+        if !listeners.contains_key(&ip) {
+            listeners.insert(ip, vec![tx]);
+        } else {
+            listeners.get_mut(&ip).unwrap().push(tx);
+        }
+        rx
     }
 
     /// Manually insert an IP -> MAC mapping into this Arp table

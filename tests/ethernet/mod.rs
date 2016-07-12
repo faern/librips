@@ -1,4 +1,5 @@
 use std::sync::mpsc;
+use std::collections::HashMap;
 
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket, EthernetPacket};
 use pnet::util::MacAddr;
@@ -18,11 +19,12 @@ impl EthernetListener for MockEthernetListener {
 
 #[test]
 fn test_ethernet_recv() {
-    let (ethernet, _, inject_handle, _) = ::dummy_ethernet(0);
-
     let (listener_tx, listener_rx) = mpsc::channel();
     let mock_listener = MockEthernetListener { tx: listener_tx };
-    ethernet.set_listener(EtherTypes::Arp, mock_listener);
+    let mut listeners = HashMap::new();
+    listeners.insert(EtherTypes::Arp, Box::new(mock_listener) as Box<EthernetListener>);
+
+    let (_ethernet, _, inject_handle, _) = ::dummy_ethernet(0, listeners);
 
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() + 3];
     {
@@ -46,7 +48,7 @@ fn test_ethernet_recv() {
 
 #[test]
 fn test_ethernet_send() {
-    let (mut ethernet, _, _, read_handle) = ::dummy_ethernet(99);
+    let (mut ethernet, _, _, read_handle) = ::dummy_ethernet(99, HashMap::new());
 
     ethernet.send(1, 1, |pkg| {
         pkg.set_destination(MacAddr::new(6, 7, 8, 9, 10, 11));

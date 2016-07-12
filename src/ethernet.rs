@@ -20,11 +20,6 @@ pub trait EthernetListener: Send {
     fn recv(&mut self, packet: EthernetPacket);
 }
 
-enum ReaderMsg {
-    SetListener(EtherType, Box<EthernetListener>),
-}
-
-
 /// A Datalink Ethernet manager taking care of one physical network interface.
 #[derive(Clone)]
 pub struct Ethernet {
@@ -32,32 +27,33 @@ pub struct Ethernet {
     pub mac: MacAddr,
 
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,
-    reader_chan: Sender<ReaderMsg>,
+    reader_tx: Sender<()>,
 }
 
 impl Ethernet {
     /// Creates a new `Ethernet` with a given MAC and running on top of the
     /// given pnet datalink channel.
-    pub fn new(mac: MacAddr, channel: Channel) -> Ethernet {
+    pub fn new(mac: MacAddr,
+               channel: Channel,
+               listeners: HashMap<EtherType, Box<EthernetListener>>)
+               -> Ethernet {
         let (sender, receiver) = match channel {
-            Channel::Ethernet(s, r) => (s, r),
+            Channel::Ethernet(tx, rx) => (tx, rx),
             _ => panic!("Invalid datalink::Channel type"),
         };
+
         let (reader_tx, reader_rx) = mpsc::channel();
-        EthernetReader::spawn(reader_rx, receiver);
+        let reader = EthernetReader {
+            control_rx: reader_rx,
+            listeners: listeners,
+        };
+        reader.spawn(receiver);
+
         Ethernet {
             mac: mac,
             eth_tx: Arc::new(Mutex::new(sender)),
-            reader_chan: reader_tx,
+            reader_tx: reader_tx,
         }
-    }
-
-    /// Sets a given `EthernetListener` as the receiver of all packets with the
-    /// given `EtherType`.
-    pub fn set_listener<L>(&self, ethertype: EtherType, listener: L)
-        where L: EthernetListener + 'static
-    {
-        self.reader_chan.send(ReaderMsg::SetListener(ethertype, Box::new(listener))).unwrap();
     }
 
     /// Send ethernet packets to the network.
@@ -89,23 +85,19 @@ impl Ethernet {
 }
 
 struct EthernetReader {
-    control_rx: Receiver<ReaderMsg>,
+    control_rx: Receiver<()>,
     listeners: HashMap<EtherType, Box<EthernetListener>>,
 }
 
 impl EthernetReader {
-    pub fn spawn(control_rx: Receiver<ReaderMsg>, eth_rx: Box<EthernetDataLinkReceiver>) {
+    pub fn spawn(self, receiver: Box<EthernetDataLinkReceiver>) {
         thread::spawn(move || {
-            let reader = EthernetReader {
-                control_rx: control_rx,
-                listeners: HashMap::new(),
-            };
-            reader.run(eth_rx);
+            self.run(receiver);
         });
     }
 
-    fn run(mut self, mut eth_rx: Box<EthernetDataLinkReceiver>) {
-        let mut rx_iter = eth_rx.iter();
+    fn run(mut self, mut receiver: Box<EthernetDataLinkReceiver>) {
+        let mut rx_iter = receiver.iter();
         loop {
             match rx_iter.next() {
                 Ok(pkg) => {
@@ -121,6 +113,7 @@ impl EthernetReader {
                 Err(e) => panic!("EthernetReader crash: {}", e),
             }
         }
+        println!("EthernetReader exits main loop");
     }
 
     /// Process control messages to the `EthernetReader`.
@@ -128,11 +121,8 @@ impl EthernetReader {
     fn process_control(&mut self) -> bool {
         loop {
             match self.control_rx.try_recv() {
-                Ok(ReaderMsg::SetListener(eth, listener)) => {
-                    self.listeners.insert(eth, listener);
-                }
                 Err(TryRecvError::Disconnected) => return true,
-                Err(TryRecvError::Empty) => break,
+                _ => break,
             }
         }
         false
