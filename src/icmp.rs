@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
 use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, checksum, icmp_types, IcmpType};
+use pnet::packet::icmp::{IcmpPacket, IcmpType, MutableIcmpPacket, checksum, icmp_types};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
@@ -21,19 +21,16 @@ pub struct IcmpFactory {
 
 impl IcmpFactory {
     pub fn new() -> IcmpFactory {
-        IcmpFactory {
-            listeners: Arc::new(Mutex::new(HashMap::new())),
-        }
+        IcmpFactory { listeners: Arc::new(Mutex::new(HashMap::new())) }
     }
 
     pub fn listener(&self) -> IcmpIpv4Listener {
-        IcmpIpv4Listener {
-            listeners: self.listeners.clone(),
-        }
+        IcmpIpv4Listener { listeners: self.listeners.clone() }
     }
 
     pub fn add_listener<L: IcmpListener + 'static>(&self, icmp_type: IcmpType, listener: L) {
-        let mut listeners = self.listeners.lock().expect("Unable to lock IcmpIpv4Listener::listeners");
+        let mut listeners =
+            self.listeners.lock().expect("Unable to lock IcmpIpv4Listener::listeners");
         listeners.insert(icmp_type, Box::new(listener));
     }
 }
@@ -45,9 +42,7 @@ pub struct IcmpIpv4Listener {
 
 impl IcmpIpv4Listener {
     pub fn new(listeners: Arc<Mutex<HashMap<IcmpType, Box<IcmpListener>>>>) -> IcmpIpv4Listener {
-        IcmpIpv4Listener {
-            listeners: listeners,
-        }
+        IcmpIpv4Listener { listeners: listeners }
     }
 }
 
@@ -58,7 +53,8 @@ impl Ipv4Listener for IcmpIpv4Listener {
             icmp_pkg.get_icmp_type()
         };
         println!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
-        let mut listeners = self.listeners.lock().expect("Unable to lock IcmpIpv4Listener::listeners");
+        let mut listeners =
+            self.listeners.lock().expect("Unable to lock IcmpIpv4Listener::listeners");
         if let Some(mut listener) = listeners.get_mut(&icmp_type) {
             listener.recv(ip_pkg);
         } else {

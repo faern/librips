@@ -19,7 +19,3 @@ pnet = "0.11.1"
 [dependencies.ipnetwork]
 git = "https://github.com/faern/ipnetwork"
 #path = "../ipnetwork"
-
-[dependencies.pnet_packets]
-git = "https://github.com/faern/pnet_packets"
-#path = "../pnet_packets"

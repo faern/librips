@@ -6,8 +6,8 @@ use std::net::Ipv4Addr;
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{Packet, MutablePacket};
+use pnet::packet::arp::{ArpPacket, MutableArpPacket};
 
-use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
 
 #[test]
 fn test_arp_locking() {
@@ -35,19 +35,19 @@ fn test_arp_locking() {
     // Check that the request was sent to the network
     let arp_request_u8 = read_handle.recv().unwrap();
     let arp_request_eth = EthernetPacket::new(&arp_request_u8[..]).unwrap();
-    let arp_request = ArpEthernetIpv4Packet::new(arp_request_eth.payload()).unwrap();
-    assert_eq!(MacAddr::new(1, 2, 3, 4, 5, 7), arp_request.get_sender_mac());
-    assert_eq!(Ipv4Addr::new(10, 0, 0, 1), arp_request.get_target_ip());
+    let arp_request = ArpPacket::new(arp_request_eth.payload()).unwrap();
+    assert_eq!(MacAddr::new(1, 2, 3, 4, 5, 7), arp_request.get_sender_hw_addr());
+    assert_eq!(Ipv4Addr::new(10, 0, 0, 1), arp_request.get_target_proto_addr());
 
     // Send the response back to librips
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() +
-                             ArpEthernetIpv4Packet::minimum_packet_size()];
+                             ArpPacket::minimum_packet_size()];
     {
         let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
         eth_pkg.set_ethertype(EtherTypes::Arp);
-        let mut arp_pkg = MutableArpEthernetIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
-        arp_pkg.set_sender_mac(MacAddr::new(9, 8, 7, 6, 5, 4));
-        arp_pkg.set_sender_ip(Ipv4Addr::new(10, 0, 0, 1));
+        let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
+        arp_pkg.set_sender_hw_addr(MacAddr::new(9, 8, 7, 6, 5, 4));
+        arp_pkg.set_sender_proto_addr(Ipv4Addr::new(10, 0, 0, 1));
     }
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
 

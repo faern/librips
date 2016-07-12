@@ -6,7 +6,6 @@
 #[allow(unused_imports)]
 
 extern crate pnet;
-extern crate pnet_packets;
 extern crate ipnetwork;
 
 use std::io;

@@ -9,8 +9,7 @@ use std::net::Ipv4Addr;
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
-
-use pnet_packets::arp::{ArpEthernetIpv4Packet, MutableArpEthernetIpv4Packet};
+use pnet::packet::arp::{ArpHardwareTypes, ArpOperation, ArpOperations, ArpPacket, MutableArpPacket};
 
 use ethernet::{Ethernet, EthernetListener};
 
@@ -51,9 +50,9 @@ pub struct ArpEthernetListener {
 
 impl EthernetListener for ArpEthernetListener {
     fn recv(&mut self, pkg: EthernetPacket) {
-        let arp_pkg = ArpEthernetIpv4Packet::new(pkg.payload()).unwrap();
-        let ip = arp_pkg.get_sender_ip();
-        let mac = arp_pkg.get_sender_mac();
+        let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
+        let ip = arp_pkg.get_sender_proto_addr();
+        let mac = arp_pkg.get_sender_hw_addr();
         println!("Arp MAC: {} -> IPv4: {}", mac, ip);
         let mut table =
             self.table.write().expect("Unable to lock ArpEthernetListener::table for writing");
@@ -115,21 +114,19 @@ impl Arp {
             eth_pkg.set_destination(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
             eth_pkg.set_ethertype(EtherTypes::Arp);
             {
-                let mut arp_pkg = MutableArpEthernetIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
-                arp_pkg.set_hardware_type(1);
+                let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
+                arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
                 arp_pkg.set_protocol_type(EtherTypes::Ipv4);
                 arp_pkg.set_hw_addr_len(6);
-                arp_pkg.set_protocol_addr_len(4);
-                arp_pkg.set_opcode(1);
-                arp_pkg.set_sender_mac(local_mac.clone());
-                arp_pkg.set_sender_ip(sender_ip.clone());
-                arp_pkg.set_target_mac(MacAddr::new(0, 0, 0, 0, 0, 0));
-                arp_pkg.set_target_ip(target_ip.clone());
+                arp_pkg.set_proto_addr_len(4);
+                arp_pkg.set_operation(ArpOperations::Request);
+                arp_pkg.set_sender_hw_addr(local_mac.clone());
+                arp_pkg.set_sender_proto_addr(sender_ip.clone());
+                arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
+                arp_pkg.set_target_proto_addr(target_ip.clone());
             }
         };
-        self.ethernet.send(1,
-                           ArpEthernetIpv4Packet::minimum_packet_size(),
-                           &mut builder_wrapper)
+        self.ethernet.send(1, ArpPacket::minimum_packet_size(), &mut builder_wrapper)
     }
 
     fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {
