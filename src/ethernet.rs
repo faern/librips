@@ -122,7 +122,7 @@ impl EthernetReader {
                                 listener.recv(&pkg);
                             }
                         }
-                        None => (),
+                        None => println!("Ethernet: No listener for {:?}", ethertype),
                     }
                 }
                 Err(e) => panic!("EthernetReader crash: {}", e),

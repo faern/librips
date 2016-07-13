@@ -25,7 +25,7 @@ impl IcmpFactory {
     }
 
     pub fn listener(&self) -> IcmpIpv4Listener {
-        IcmpIpv4Listener { listeners: self.listeners.clone() }
+        IcmpIpv4Listener::new(self.listeners.clone())
     }
 
     pub fn add_listener<L: IcmpListener + 'static>(&self, icmp_type: IcmpType, listener: L) {
