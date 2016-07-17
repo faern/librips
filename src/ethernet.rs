@@ -7,17 +7,19 @@ use std::thread;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
+use std::time::SystemTime;
 
 use pnet::datalink::{Channel, EthernetDataLinkReceiver, EthernetDataLinkSender};
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 
+use ::Interface;
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must
 /// implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
-    fn recv(&mut self, packet: &EthernetPacket);
+    fn recv(&mut self, time: SystemTime, packet: &EthernetPacket);
 
     fn get_ethertype(&self) -> EtherType;
 }
@@ -25,8 +27,8 @@ pub trait EthernetListener: Send {
 /// A Datalink Ethernet manager taking care of one physical network interface.
 #[derive(Clone)]
 pub struct Ethernet {
-    /// The MAC address for this `Ethernet` interface
-    pub mac: MacAddr,
+    /// The `Interface` this `Ethernet` manages.
+    pub interface: Interface,
 
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,
     reader_tx: Sender<()>,
@@ -35,7 +37,7 @@ pub struct Ethernet {
 impl Ethernet {
     /// Creates a new `Ethernet` with a given MAC and running on top of the
     /// given pnet datalink channel.
-    pub fn new(mac: MacAddr, channel: Channel, listeners: Vec<Box<EthernetListener>>) -> Ethernet {
+    pub fn new(interface: Interface, channel: Channel, listeners: Vec<Box<EthernetListener>>) -> Ethernet {
         let (sender, receiver) = match channel {
             Channel::Ethernet(tx, rx) => (tx, rx),
             _ => panic!("Invalid datalink::Channel type"),
@@ -45,7 +47,7 @@ impl Ethernet {
         EthernetReader::new(reader_rx, listeners).spawn(receiver);
 
         Ethernet {
-            mac: mac,
+            interface: interface,
             eth_tx: Arc::new(Mutex::new(sender)),
             reader_tx: reader_tx,
         }
@@ -66,7 +68,7 @@ impl Ethernet {
                    -> Option<io::Result<()>>
         where T: FnMut(&mut MutableEthernetPacket)
     {
-        let mac = self.mac;
+        let mac = self.interface.mac;
         let mut builder_wrapper = |mut pkg: MutableEthernetPacket| {
             // Fill in data we are responsible for
             pkg.set_source(mac.clone());
@@ -86,6 +88,14 @@ struct EthernetReader {
 
 impl EthernetReader {
     pub fn new(control_rx: Receiver<()>, listeners: Vec<Box<EthernetListener>>) -> EthernetReader {
+        let map_listeners = Self::expand_listeners(listeners);
+        EthernetReader {
+            control_rx: control_rx,
+            listeners: map_listeners,
+        }
+    }
+
+    fn expand_listeners(listeners: Vec<Box<EthernetListener>>) -> HashMap<EtherType, Vec<Box<EthernetListener>>> {
         let mut map_listeners = HashMap::new();
         for listener in listeners.into_iter() {
             let ethertype = listener.get_ethertype();
@@ -95,10 +105,7 @@ impl EthernetReader {
                 map_listeners.get_mut(&ethertype).unwrap().push(listener);
             }
         }
-        EthernetReader {
-            control_rx: control_rx,
-            listeners: map_listeners,
-        }
+        map_listeners
     }
 
     pub fn spawn(self, receiver: Box<EthernetDataLinkReceiver>) {
@@ -112,6 +119,7 @@ impl EthernetReader {
         loop {
             match rx_iter.next() {
                 Ok(pkg) => {
+                    let time = SystemTime::now();
                     if self.process_control() {
                         break;
                     }
@@ -119,7 +127,7 @@ impl EthernetReader {
                     match self.listeners.get_mut(&ethertype) {
                         Some(listeners) => {
                             for listener in listeners {
-                                listener.recv(&pkg);
+                                listener.recv(time, &pkg);
                             }
                         }
                         None => println!("Ethernet: No listener for {:?}", ethertype),

@@ -1,4 +1,5 @@
 use std::sync::mpsc;
+use std::time::SystemTime;
 
 use pnet::packet::ethernet::{EtherTypes, EtherType, MutableEthernetPacket, EthernetPacket};
 use pnet::util::MacAddr;
@@ -11,7 +12,7 @@ pub struct MockEthernetListener {
 }
 
 impl EthernetListener for MockEthernetListener {
-    fn recv(&mut self, packet: &EthernetPacket) {
+    fn recv(&mut self, _time: SystemTime, packet: &EthernetPacket) {
         self.tx.send(packet.packet().to_vec()).unwrap();
     }
 

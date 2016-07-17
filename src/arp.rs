@@ -5,6 +5,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::net::Ipv4Addr;
+use std::time::SystemTime;
 
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
@@ -49,7 +50,7 @@ pub struct ArpEthernetListener {
 }
 
 impl EthernetListener for ArpEthernetListener {
-    fn recv(&mut self, pkg: &EthernetPacket) {
+    fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) {
         let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
         let ip = arp_pkg.get_sender_proto_addr();
         let mac = arp_pkg.get_sender_hw_addr();
@@ -113,7 +114,7 @@ impl Arp {
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
     /// request
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Option<io::Result<()>> {
-        let local_mac = self.ethernet.mac;
+        let local_mac = self.ethernet.interface.mac;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
             eth_pkg.set_destination(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
             eth_pkg.set_ethertype(EtherTypes::Arp);
@@ -124,7 +125,7 @@ impl Arp {
                 arp_pkg.set_hw_addr_len(6);
                 arp_pkg.set_proto_addr_len(4);
                 arp_pkg.set_operation(ArpOperations::Request);
-                arp_pkg.set_sender_hw_addr(local_mac.clone());
+                arp_pkg.set_sender_hw_addr(local_mac);
                 arp_pkg.set_sender_proto_addr(sender_ip.clone());
                 arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
                 arp_pkg.set_target_proto_addr(target_ip.clone());

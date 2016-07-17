@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::collections::HashMap;
+use std::time::SystemTime;
 
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -15,7 +16,7 @@ pub struct MockIpv4Listener {
 }
 
 impl Ipv4Listener for MockIpv4Listener {
-    fn recv(&mut self, packet: Ipv4Packet) {
+    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) {
         println!("MockIpv4Listener got a packet!");
         self.tx.send(packet.packet().to_vec()).unwrap();
     }

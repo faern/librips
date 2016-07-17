@@ -2,6 +2,7 @@ use std::io;
 use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::convert::From;
+use std::time::SystemTime;
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
@@ -61,7 +62,7 @@ impl Ipv4Config {
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
-    fn recv(&mut self, packet: Ipv4Packet);
+    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet);
 }
 
 /// A factory managing all `Ipv4` instances for one `Ethernet` interface.
@@ -115,13 +116,13 @@ pub struct Ipv4EthernetListener {
 }
 
 impl EthernetListener for Ipv4EthernetListener {
-    fn recv(&mut self, pkg: &EthernetPacket) {
+    fn recv(&mut self, time: SystemTime, pkg: &EthernetPacket) {
         let ip_pkg = Ipv4Packet::new(pkg.payload()).unwrap();
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);
         if let Some(mut listener) = self.listeners.get_mut(&next_level_protocol) {
-            listener.recv(ip_pkg);
+            listener.recv(time, ip_pkg);
         } else {
             println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
         }

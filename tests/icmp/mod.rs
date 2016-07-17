@@ -1,5 +1,6 @@
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
+use std::time::SystemTime;
 
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket, EtherTypes};
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -15,7 +16,7 @@ pub struct MockIcmpListener {
 }
 
 impl IcmpListener for MockIcmpListener {
-    fn recv(&mut self, packet: Ipv4Packet) {
+    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) {
         println!("MockIcmpListener got a packet!");
         self.tx.send(packet.packet().to_vec()).unwrap();
     }
