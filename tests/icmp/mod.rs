@@ -16,7 +16,7 @@ pub struct MockIcmpListener {
 }
 
 impl IcmpListener for MockIcmpListener {
-    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) {
+    fn recv(&mut self, _time: SystemTime, packet: &Ipv4Packet) {
         println!("MockIcmpListener got a packet!");
         self.tx.send(packet.packet().to_vec()).unwrap();
     }

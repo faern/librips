@@ -26,10 +26,21 @@ pub mod ipv4;
 /// Module for Icmp functionality
 pub mod icmp;
 
-// use ethernet::Ethernet;
-// use arp::Arp;
-// use ipv4::Ipv4;
-//
+pub mod routing;
+
+mod test;
+
+use ethernet::{Ethernet, EthernetListener};
+use arp::{Arp, ArpFactory};
+use ipv4::{Ipv4, Ipv4Factory};
+use icmp::IcmpListenerFactory;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Interface {
+    pub name: String,
+    pub mac: MacAddr,
+}
+
 // /// The main struct of this library, managing an entire TCP/IP stack. Takes
 // /// care of ARP, routing tables, threads, TCP resends/fragmentation etc. Most
 // /// of this is still unimplemented.
@@ -39,11 +50,15 @@ pub mod icmp;
 //     ipv4s: HashMap<MacAddr, HashMap<Ipv4Addr, Ipv4>>,
 // }
 //
-// /// Create a `NetworkStack` managing all available interfaces using the
-// default
-// /// pnet backend. This stack will have ethernet and arp management set up
-// /// internally, but no IPs or anything.
+// /// Create a `NetworkStack` managing all available interfaces using the default
+// /// pnet backend.
 // pub fn stack() -> io::Result<NetworkStack> {
+//     let icmp_factory = IcmpListenerFactory::new(); // Save to stack for adding listeners
+//     let icmp_listener = icmp_factory.ipv4_listener();
+//
+//     let arp_factory = ArpFactory::new();
+//     let mut ipv4_factory = Ipv4Factory::new(arp_factory, ipv4_listeners);
+//
 //     let mut ethernets = vec![];
 //     for interface in datalink::interfaces() {
 //         let ethernet = try!(create_ethernet(interface));
@@ -52,35 +67,31 @@ pub mod icmp;
 //     Ok(NetworkStack::new(&ethernets[..]))
 // }
 //
-// fn create_ethernet(interface: NetworkInterface) -> io::Result<Ethernet> {
-//     let mac = match interface.mac {
-//         Some(mac) => mac,
-//         None => {
-//             return Err(io::Error::new(io::ErrorKind::Other,
-// format!("No mac for {}",
-// interface.name)))
-//         }
-//     };
+// fn create_ethernet(interface: NetworkInterface, listeners: Vec<Box<EthernetListener>>) -> io::Result<Ethernet> {
 //     let config = datalink::Config::default();
 //     let channel = try!(datalink::channel(&interface, config));
-//     Ok(Ethernet::new(mac, channel))
+//     let internal_interface = try!(convert_interface(interface));
+//     Ok(Ethernet::new(internal_interface, channel, listeners))
 // }
 //
-// #[allow(unused_variables)]
+// fn convert_interface(interface: NetworkInterface) -> io::Result<Interface> {
+//     if let Some(mac) = interface.mac {
+//         Ok(Interface {
+//             name: interface.name,
+//             mac: mac,
+//         })
+//     } else {
+//         Err(io::Error::new(io::ErrorKind::Other, format!("No mac for {}", interface.name)))
+//     }
+// }
+//
 // impl NetworkStack {
-//     /// Construct a `NetworkStack` managing a given set of `Ethernet`
-//     /// interfaces.
-//     /// The stack will set up an `Arp` for each interface automatically
-//     /// internally.
 //     pub fn new(ethernets: &[Ethernet]) -> NetworkStack {
 //         let mut eths = HashMap::new();
 //         let mut arps = HashMap::new();
 //         for ethernet in ethernets {
-//             let mac = ethernet.mac;
+//             let mac = ethernet.interface.mac;
 //             eths.insert(mac, ethernet.clone());
-//
-//             let arp = Arp::new(ethernet.clone());
-//             arps.insert(mac, arp.clone());
 //         }
 //         NetworkStack {
 //             ethernets: eths,
@@ -89,12 +100,10 @@ pub mod icmp;
 //         }
 //     }
 //
-// /// Attach a IPv4 network to a an interface. The resulting `Ipv4`
-// instance
+//     /// Attach a IPv4 network to a an interface. The resulting `Ipv4`
 //     /// can be used to
 //     /// communicate with this network.
-// pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Config) ->
-// Option<Ipv4> {
+//     pub fn add_ipv4(&mut self, mac: MacAddr, conf: ipv4::Ipv4Config) ->Option<Ipv4> {
 //         let eth = self.get_ethernet(mac);
 //         let arp = self.get_arp(mac);
 //         if eth.is_none() || arp.is_none() {

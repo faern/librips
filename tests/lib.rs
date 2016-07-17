@@ -11,10 +11,11 @@ use pnet::datalink::dummy;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::util::MacAddr;
 
+use rips::Interface;
 use rips::ethernet::{Ethernet, EthernetListener};
 use rips::arp::ArpFactory;
 use rips::ipv4::{Ipv4, Ipv4Factory, Ipv4Listener, Ipv4Config};
-use rips::icmp::IcmpFactory;
+use rips::icmp::IcmpListenerFactory;
 
 // Modules containing tests.
 mod ethernet;
@@ -27,13 +28,17 @@ fn dummy_ethernet(iface_i: u8, listeners: Vec<Box<EthernetListener>>)
                   -> (Ethernet, MacAddr, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let iface = dummy::dummy_interface(iface_i);
     let mac = iface.mac.unwrap();
+    let interface = Interface {
+        name: iface.name.clone(),
+        mac: mac,
+    };
 
     let mut config = dummy::Config::default();
     let read_handle = config.read_handle().unwrap();
     let inject_handle = config.inject_handle().unwrap();
 
     let channel = dummy::channel(&iface, config).unwrap();
-    let ethernet = Ethernet::new(mac, channel, listeners);
+    let ethernet = Ethernet::new(interface, channel, listeners);
 
     (ethernet, mac, inject_handle, read_handle)
 }
@@ -49,10 +54,10 @@ fn dummy_ipv4(listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>) -> (E
     (ethernet, ipv4_factory, inject_handle, read_handle)
 }
 
-fn dummy_icmp() -> (Ethernet, IcmpFactory, Ipv4, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+fn dummy_icmp() -> (Ethernet, IcmpListenerFactory, Ipv4, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let mut ipv4_listeners = HashMap::new();
-    let icmp_factory = IcmpFactory::new();
-    let icmp_listener = icmp_factory.listener();
+    let icmp_factory = IcmpListenerFactory::new();
+    let icmp_listener = icmp_factory.ipv4_listener();
     ipv4_listeners.insert(IpNextHeaderProtocols::Icmp, Box::new(icmp_listener) as Box<Ipv4Listener>);
 
     let (ethernet, ipv4_factory, inject_handle, read_handle) = dummy_ipv4(ipv4_listeners);
