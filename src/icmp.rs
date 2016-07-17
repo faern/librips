@@ -13,7 +13,7 @@ use pnet::packet::{MutablePacket, Packet};
 use ipv4::{Ipv4, Ipv4Listener};
 
 pub trait IcmpListener: Send {
-    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet);
+    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet);
 }
 
 pub struct IcmpListenerFactory {
@@ -59,9 +59,9 @@ impl Ipv4Listener for IcmpIpv4Listener {
         };
         println!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
         let mut listeners = self.listeners.lock().unwrap();
-        if let Some(mut type_listeners) = listeners.get_mut(&icmp_type) {
+        if let Some(type_listeners) = listeners.get_mut(&icmp_type) {
             for listener in type_listeners {
-                listener.recv(time, ip_pkg);
+                listener.recv(time, &ip_pkg);
             }
         } else {
             println!("Icmp, no listener for type {:?}", icmp_type);
