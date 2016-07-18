@@ -95,6 +95,7 @@ impl Ipv4Factory {
             .map(|l| Box::new(Ipv4EthernetListener { listeners: l }) as Box<EthernetListener>)
     }
 
+    #[deprecated]
     pub fn listeners(&mut self) -> Option<Vec<Box<EthernetListener>>> {
         self.listener().map(|ipv4_listener| {
             let arp_listener = self.arp_factory.listener();

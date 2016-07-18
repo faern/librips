@@ -25,8 +25,8 @@ impl IcmpListenerFactory {
         IcmpListenerFactory { listeners: Arc::new(Mutex::new(HashMap::new())) }
     }
 
-    pub fn ipv4_listener(&self) -> IcmpIpv4Listener {
-        IcmpIpv4Listener::new(self.listeners.clone())
+    pub fn ipv4_listener(&self) -> Box<Ipv4Listener> {
+        Box::new(IcmpIpv4Listener::new(self.listeners.clone())) as Box<Ipv4Listener>
     }
 
     pub fn add_listener<L: IcmpListener + 'static>(&self, icmp_type: IcmpType, listener: L) {

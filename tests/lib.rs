@@ -7,11 +7,11 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::io;
 use std::net::Ipv4Addr;
 
-use pnet::datalink::dummy;
+use pnet::datalink::{dummy, Channel};
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::util::MacAddr;
 
-use rips::Interface;
+use rips::{Interface, EthernetChannel};
 use rips::ethernet::{Ethernet, EthernetListener};
 use rips::arp::ArpFactory;
 use rips::ipv4::{Ipv4, Ipv4Factory, Ipv4Listener, Ipv4Config};
@@ -37,7 +37,10 @@ fn dummy_ethernet(iface_i: u8, listeners: Vec<Box<EthernetListener>>)
     let read_handle = config.read_handle().unwrap();
     let inject_handle = config.inject_handle().unwrap();
 
-    let channel = dummy::channel(&iface, config).unwrap();
+    let channel = match dummy::channel(&iface, config).unwrap() {
+        Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
+        _ => panic!("Invalid channel type returned"),
+    };
     let ethernet = Ethernet::new(interface, channel, listeners);
 
     (ethernet, mac, inject_handle, read_handle)
@@ -58,7 +61,7 @@ fn dummy_icmp() -> (Ethernet, IcmpListenerFactory, Ipv4, Sender<io::Result<Box<[
     let mut ipv4_listeners = HashMap::new();
     let icmp_factory = IcmpListenerFactory::new();
     let icmp_listener = icmp_factory.ipv4_listener();
-    ipv4_listeners.insert(IpNextHeaderProtocols::Icmp, Box::new(icmp_listener) as Box<Ipv4Listener>);
+    ipv4_listeners.insert(IpNextHeaderProtocols::Icmp, icmp_listener);
 
     let (ethernet, ipv4_factory, inject_handle, read_handle) = dummy_ipv4(ipv4_listeners);
 

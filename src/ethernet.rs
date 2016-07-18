@@ -9,11 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::time::SystemTime;
 
-use pnet::datalink::{Channel, EthernetDataLinkReceiver, EthernetDataLinkSender};
-use pnet::util::MacAddr;
+use pnet::datalink::{EthernetDataLinkReceiver, EthernetDataLinkSender};
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 
-use ::Interface;
+use ::{EthernetChannel, Interface};
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must
 /// implement this.
@@ -37,11 +36,12 @@ pub struct Ethernet {
 impl Ethernet {
     /// Creates a new `Ethernet` with a given MAC and running on top of the
     /// given pnet datalink channel.
-    pub fn new(interface: Interface, channel: Channel, listeners: Vec<Box<EthernetListener>>) -> Ethernet {
-        let (sender, receiver) = match channel {
-            Channel::Ethernet(tx, rx) => (tx, rx),
-            _ => panic!("Invalid datalink::Channel type"),
-        };
+    pub fn new(interface: Interface,
+               channel: EthernetChannel,
+               listeners: Vec<Box<EthernetListener>>)
+               -> Ethernet {
+        let sender = channel.0;
+        let receiver = channel.1;
 
         let (reader_tx, reader_rx) = mpsc::channel();
         EthernetReader::new(reader_rx, listeners).spawn(receiver);
@@ -95,7 +95,8 @@ impl EthernetReader {
         }
     }
 
-    fn expand_listeners(listeners: Vec<Box<EthernetListener>>) -> HashMap<EtherType, Vec<Box<EthernetListener>>> {
+    fn expand_listeners(listeners: Vec<Box<EthernetListener>>)
+                        -> HashMap<EtherType, Vec<Box<EthernetListener>>> {
         let mut map_listeners = HashMap::new();
         for listener in listeners.into_iter() {
             let ethertype = listener.get_ethertype();
