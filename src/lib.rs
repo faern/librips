@@ -31,7 +31,7 @@ pub mod routing;
 
 mod test;
 
-//mod util;
+mod util;
 
 use ethernet::{Ethernet, EthernetListener};
 use arp::{Arp, ArpFactory};
