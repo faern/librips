@@ -55,12 +55,12 @@ mod tests {
 
     #[test]
     fn normal() {
-        let mut testee = CacheMap::new(Duration::new(0, 10_000_000));
+        let mut testee = CacheMap::new(Duration::new(0, 100_000_000));
         testee.insert(0, 15);
         assert_eq!(testee.get(&0), Some(&15));
         assert!(testee.get(&1).is_none());
 
-        sleep(Duration::new(0, 5_000_000));
+        sleep(Duration::new(0, 50_000_000));
         assert_eq!(testee.get(&0), Some(&15));
         assert!(testee.get(&1).is_none());
 
@@ -68,11 +68,11 @@ mod tests {
         assert_eq!(testee.get(&0), Some(&15));
         assert_eq!(testee.get(&1), Some(&99));
 
-        sleep(Duration::new(0, 6_000_000));
+        sleep(Duration::new(0, 60_000_000));
         assert!(testee.get(&0).is_none());
         assert_eq!(testee.get(&1), Some(&99));
 
-        sleep(Duration::new(0, 5_000_000));
+        sleep(Duration::new(0, 50_000_000));
         assert!(testee.get(&0).is_none());
         assert!(testee.get(&1).is_none());
     }
