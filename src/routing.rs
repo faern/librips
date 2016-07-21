@@ -105,4 +105,24 @@ mod tests {
         assert_eq!(out_gw2, Some(gw));
         assert_eq!(out_eth2, Ethernet::new("eth1"));
     }
+
+    #[test]
+    fn with_specific() {
+        let gw = Ipv4Addr::new(10, 0, 0, 1);
+
+        let mut table = RoutingTable::new();
+        table.add_route(Ipv4Network::from_cidr("10.0.0.0/24").unwrap(),
+                        None,
+                        Ethernet::new("eth0"));
+        table.add_route(Ipv4Network::from_cidr("10.0.0.99/32").unwrap(),
+                        Some(gw),
+                        Ethernet::new("eth1"));
+
+        let (out_gw, out_eth) = table.route(Ipv4Addr::new(10, 0, 0, 20)).unwrap();
+        assert_eq!(out_gw, None);
+        assert_eq!(out_eth, Ethernet::new("eth0"));
+        let (out_gw2, out_eth2) = table.route(Ipv4Addr::new(10, 0, 0, 99)).unwrap();
+        assert_eq!(out_gw2, Some(gw));
+        assert_eq!(out_eth2, Ethernet::new("eth1"));
+    }
 }
