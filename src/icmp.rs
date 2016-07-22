@@ -100,21 +100,8 @@ impl Icmp {
         };
         self.ipv4.send(dst_ip, total_size, &mut builder_wrapper)
     }
-}
 
-/// !
-pub struct Echo {
-    icmp: Icmp,
-}
-
-impl Echo {
-    /// !
-    pub fn new(icmp: Icmp) -> Echo {
-        Echo { icmp: icmp }
-    }
-
-    /// !
-    pub fn send(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> Option<io::Result<()>> {
+    pub fn send_echo(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> Option<io::Result<()>> {
         let total_size = (EchoRequestPacket::minimum_packet_size() -
                           IcmpPacket::minimum_packet_size() +
                           payload.len()) as u16;
@@ -124,6 +111,6 @@ impl Echo {
             let mut echo_pkg = MutableEchoRequestPacket::new(icmp_pkg.packet_mut()).unwrap();
             echo_pkg.set_payload(payload);
         };
-        self.icmp.send(dst_ip, total_size, &mut builder_wrapper)
+        self.send(dst_ip, total_size, &mut builder_wrapper)
     }
 }
