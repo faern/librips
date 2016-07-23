@@ -16,7 +16,7 @@ use rips::{Interface, EthernetChannel};
 use rips::ethernet::{Ethernet, EthernetListener};
 use rips::arp::{Arp, ArpFactory};
 use rips::ipv4::{Ipv4, Ipv4EthernetListener, Ipv4Listener, Ipv4Config, IpListenerLookup};
-use rips::icmp::IcmpListenerFactory;
+use rips::icmp::{IcmpIpv4Listener, IcmpListenerLookup};
 
 // Modules containing tests.
 mod ethernet;
@@ -58,9 +58,9 @@ fn dummy_ipv4(listeners: Arc<Mutex<IpListenerLookup>>) -> (Ethernet, ArpFactory,
     (ethernet, arp_factory, inject_handle, read_handle)
 }
 
-fn dummy_icmp() -> (Ethernet, IcmpListenerFactory, Ipv4, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
-    let icmp_factory = IcmpListenerFactory::new();
-    let icmp_listener = icmp_factory.ipv4_listener();
+fn dummy_icmp() -> (Ethernet, Arc<Mutex<IcmpListenerLookup>>, Ipv4, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+    let icmp_listeners = Arc::new(Mutex::new(HashMap::new()));
+    let icmp_listener = IcmpIpv4Listener::new(icmp_listeners.clone());
 
     let mut ipv4_ip_listeners = HashMap::new();
     ipv4_ip_listeners.insert(IpNextHeaderProtocols::Icmp, icmp_listener);
@@ -77,5 +77,5 @@ fn dummy_icmp() -> (Ethernet, IcmpListenerFactory, Ipv4, Sender<io::Result<Box<[
     let ipv4 = Ipv4::new(ethernet.clone(), arp, ip_config);
 
 
-    (ethernet, icmp_factory, ipv4, inject_handle, read_handle)
+    (ethernet, icmp_listeners, ipv4, inject_handle, read_handle)
 }

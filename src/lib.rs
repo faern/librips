@@ -40,7 +40,6 @@ mod test;
 use ethernet::{Ethernet, EthernetListener};
 use arp::{Arp, ArpFactory};
 use ipv4::{Ipv4Config, Ipv4EthernetListener, Ipv4Listener};
-use icmp::IcmpListenerFactory;
 use routing::RoutingTable;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

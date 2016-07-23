@@ -48,10 +48,10 @@ fn recv_icmp() {
     let target_ip = Ipv4Addr::new(10, 0, 0, 2);
 
     let (tx, rx) = mpsc::channel();
-    let mock_icmp_listener = MockIcmpListener { tx: tx };
+    let mock_icmp_listener = vec![Box::new(MockIcmpListener { tx: tx }) as Box<IcmpListener>];
 
-    let (_ethernet, icmp_factory, _, inject_handle, _) = ::dummy_icmp();
-    icmp_factory.add_listener(icmp_types::DestinationUnreachable, mock_icmp_listener);
+    let (_ethernet, icmp_listeners, _, inject_handle, _) = ::dummy_icmp();
+    icmp_listeners.lock().unwrap().insert(icmp_types::DestinationUnreachable, mock_icmp_listener);
 
     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() + IcmpPacket::minimum_packet_size();
     let mut buffer = vec![0; size];

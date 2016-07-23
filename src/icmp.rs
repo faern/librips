@@ -1,7 +1,6 @@
 use std::net::Ipv4Addr;
 use std::io;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{self, Receiver};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
@@ -17,38 +16,15 @@ pub trait IcmpListener: Send {
     fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet);
 }
 
-pub struct IcmpListenerFactory {
-    listeners: Arc<Mutex<HashMap<IcmpType, Vec<Box<IcmpListener>>>>>,
-}
+pub type IcmpListenerLookup = HashMap<IcmpType, Vec<Box<IcmpListener>>>;
 
-impl IcmpListenerFactory {
-    pub fn new() -> IcmpListenerFactory {
-        IcmpListenerFactory { listeners: Arc::new(Mutex::new(HashMap::new())) }
-    }
-
-    pub fn ipv4_listener(&self) -> Box<Ipv4Listener> {
-        Box::new(IcmpIpv4Listener::new(self.listeners.clone())) as Box<Ipv4Listener>
-    }
-
-    pub fn add_listener<L: IcmpListener + 'static>(&self, icmp_type: IcmpType, listener: L) {
-        let box_listener = Box::new(listener);
-        let mut listeners = self.listeners.lock().unwrap();
-        if !listeners.contains_key(&icmp_type) {
-            listeners.insert(icmp_type, vec![box_listener]);
-        } else {
-            listeners.get_mut(&icmp_type).unwrap().push(box_listener);
-        }
-    }
-}
-
-/// Struct used for listening on incoming Icmp packets
 pub struct IcmpIpv4Listener {
-    listeners: Arc<Mutex<HashMap<IcmpType, Vec<Box<IcmpListener>>>>>,
+    listeners: Arc<Mutex<IcmpListenerLookup>>,
 }
 
 impl IcmpIpv4Listener {
-    pub fn new(listeners: Arc<Mutex<HashMap<IcmpType, Vec<Box<IcmpListener>>>>>) -> IcmpIpv4Listener {
-        IcmpIpv4Listener { listeners: listeners }
+    pub fn new(listeners: Arc<Mutex<IcmpListenerLookup>>) -> Box<Ipv4Listener> {
+        Box::new(IcmpIpv4Listener { listeners: listeners }) as Box<Ipv4Listener>
     }
 }
 
