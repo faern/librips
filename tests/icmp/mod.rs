@@ -26,7 +26,7 @@ impl IcmpListener for MockIcmpListener {
 fn test_ping() {
     let (_ethernet, _, ipv4, _, read_handle) = ::dummy_icmp();
 
-    let icmp = Icmp::new(ipv4);
+    let mut icmp = Icmp::new(ipv4);
 
     icmp.send_echo(Ipv4Addr::new(10, 0, 0, 1), &[9, 55]).unwrap().unwrap();
 
@@ -45,7 +45,7 @@ fn test_ping() {
 #[test]
 fn recv_icmp() {
     let source_ip = Ipv4Addr::new(10, 1, 2, 3);
-    let target_ip = Ipv4Addr::new(10, 1, 2, 2);
+    let target_ip = Ipv4Addr::new(10, 0, 0, 2);
 
     let (tx, rx) = mpsc::channel();
     let mock_icmp_listener = MockIcmpListener { tx: tx };
