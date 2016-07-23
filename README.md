@@ -59,3 +59,9 @@ Here is a quite messy and far from complete todo list for layer 3. The stuff her
 ## Layer 4 - Transport layer
 
 - [ ] Research and plan what is needed for layer 4
+
+
+# Questions
+
+If it's possible to have the same IP on multiple interfaces, which one will a
+socket bound to that local IP receive packets from?
