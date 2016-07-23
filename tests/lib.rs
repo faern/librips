@@ -9,13 +9,13 @@ use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
 
 use pnet::datalink::{dummy, Channel};
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::util::MacAddr;
 
 use rips::{Interface, EthernetChannel};
 use rips::ethernet::{Ethernet, EthernetListener};
-use rips::arp::{Arp, ArpFactory};
-use rips::ipv4::{Ipv4, Ipv4EthernetListener, Ipv4Listener, Ipv4Config, IpListenerLookup};
+use rips::arp::ArpFactory;
+use rips::ipv4::{Ipv4, Ipv4EthernetListener, Ipv4Config, IpListenerLookup};
 use rips::icmp::{IcmpIpv4Listener, IcmpListenerLookup};
 
 // Modules containing tests.

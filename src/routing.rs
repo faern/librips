@@ -5,11 +5,6 @@ use ipnetwork::Ipv4Network;
 
 use Interface;
 
-#[cfg(not(test))]
-use ethernet::Ethernet;
-#[cfg(test)]
-use test::ethernet::Ethernet;
-
 // TODO: Add metric
 struct Entry {
     pub net: Ipv4Network,

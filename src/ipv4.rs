@@ -14,7 +14,7 @@ use pnet::util::MacAddr;
 use ipnetwork::{self, Ipv4Network};
 
 use ethernet::{Ethernet, EthernetListener};
-use arp::{Arp, ArpFactory};
+use arp::Arp;
 
 /// Represents an error in an `IpConf`.
 #[derive(Debug)]

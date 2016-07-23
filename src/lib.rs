@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, ToSocketAddrs, SocketAddr};
 use std::sync::{Arc, Mutex};
 
-use pnet::datalink::{self, NetworkInterface};
+use pnet::datalink;
 use pnet::util::MacAddr;
 use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
 
@@ -37,7 +37,7 @@ mod util;
 #[cfg(test)]
 mod test;
 
-use ethernet::{Ethernet, EthernetListener};
+use ethernet::Ethernet;
 use arp::{Arp, ArpFactory};
 use ipv4::{Ipv4Config, Ipv4EthernetListener, Ipv4Listener};
 use routing::RoutingTable;
@@ -106,7 +106,7 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 /// The larger `NetworkStack` comprises multiple of these.
 struct StackInterface {
     ethernet: Ethernet,
-    _arp_factory: ArpFactory,
+    arp_factory: ArpFactory,
     ipv4s: HashMap<Ipv4Addr, Ipv4Config>,
     // ipv6s: HashMap<Ipv6Addr, Ipv6Config>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
@@ -140,6 +140,10 @@ impl StackInterface {
 
         proto_listeners
     }
+
+    pub fn get_arp(&self) -> Arp {
+        self.arp_factory.arp(self.ethernet.clone())
+    }
 }
 
 /// The main struct of this library, managing an entire TCP/IP stack. Takes
@@ -147,14 +151,14 @@ impl StackInterface {
 /// of this is still unimplemented.
 pub struct NetworkStack {
     interfaces: HashMap<Interface, StackInterface>,
-    routing_table: RoutingTable,
+    _routing_table: RoutingTable,
 }
 
 impl NetworkStack {
     pub fn new() -> NetworkStack {
         NetworkStack {
             interfaces: HashMap::new(),
-            routing_table: RoutingTable::new(),
+            _routing_table: RoutingTable::new(),
         }
     }
 
@@ -176,7 +180,7 @@ impl NetworkStack {
 
             let stack_interface = StackInterface {
                 ethernet: ethernet,
-                _arp_factory: arp_factory,
+                arp_factory: arp_factory,
                 ipv4s: HashMap::new(),
                 ipv4_listeners: ipv4_listeners,
                 udp_listeners: HashMap::new(),
@@ -200,34 +204,38 @@ impl NetworkStack {
     }
 
     pub fn get_arp(&self, interface: &Interface) -> Option<Arp> {
-        self.interfaces.get(interface).map(|si| Arp::new(si.ethernet.clone()))
+        self.interfaces.get(interface).map(|si| si.get_arp())
     }
 
     pub fn udp_listen<A: ToSocketAddrs, L: udp::UdpListener + 'static>(&mut self, addr: A, listener: L) -> io::Result<()> {
-        if let Some(addr) = try!(addr.to_socket_addrs()).next() {
-            match addr {
-                SocketAddr::V4(addr) => {
-                    let local_ip = addr.ip();
-                    let local_port = addr.port();
-                    if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
-                        panic!("Rips does not support listening to all interfaces yet");
-                    } else {
-                        for stack_interface in self.interfaces.values() {
-                            if let Some(udp_listeners) = stack_interface.udp_listeners.get(local_ip) {
-                                let mut udp_listeners = udp_listeners.lock().unwrap();
-                                if !udp_listeners.contains_key(&local_port) {
-                                    udp_listeners.insert(local_port, Box::new(listener));
-                                    return Ok(());
-                                } else {
-                                    return Err(io::Error::new(io::ErrorKind::AddrInUse, format!("Address/Port is already occupied")));
-                                }
+        match try!(Self::first_socket_addr(addr)) {
+            SocketAddr::V4(addr) => {
+                let local_ip = addr.ip();
+                let local_port = addr.port();
+                if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
+                    panic!("Rips does not support listening to all interfaces yet");
+                } else {
+                    for stack_interface in self.interfaces.values() {
+                        if let Some(udp_listeners) = stack_interface.udp_listeners.get(local_ip) {
+                            let mut udp_listeners = udp_listeners.lock().unwrap();
+                            if !udp_listeners.contains_key(&local_port) {
+                                udp_listeners.insert(local_port, Box::new(listener));
+                                return Ok(());
+                            } else {
+                                return Err(io::Error::new(io::ErrorKind::AddrInUse, format!("Address/Port is already occupied")));
                             }
                         }
-                        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Bind address does not exist in stack")));
                     }
-                },
-                SocketAddr::V6(_) => panic!("Rips does not support IPv6 yet"),
-            }
+                    return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Bind address does not exist in stack")));
+                }
+            },
+            SocketAddr::V6(_) => panic!("Rips does not support IPv6 yet"),
+        }
+    }
+
+    fn first_socket_addr<A: ToSocketAddrs>(addr: A) -> io::Result<SocketAddr> {
+        if let Some(addr) = try!(addr.to_socket_addrs()).next() {
+            Ok(addr)
         } else {
             Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Given bind address did not yield any address")))
         }
