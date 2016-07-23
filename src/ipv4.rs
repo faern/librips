@@ -3,6 +3,7 @@ use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::convert::From;
 use std::time::SystemTime;
+use std::sync::{Arc, Mutex};
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
@@ -65,55 +66,20 @@ pub trait Ipv4Listener: Send {
     fn recv(&mut self, time: SystemTime, packet: Ipv4Packet);
 }
 
-/// A factory managing all `Ipv4` instances for one `Ethernet` interface.
-pub struct Ipv4Factory {
-    arp_factory: ArpFactory,
-    listeners: Option<HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>,
-}
-
-impl Ipv4Factory {
-    /// Returns a new `Ipv4Factory`. Sets up Arp for the given `Ethernet`
-    /// interface and configures it to send ethernet frames with IPv4 packets
-    /// to its `Ipv4`s
-    pub fn new(arp_factory: ArpFactory,
-               listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>)
-               -> Ipv4Factory {
-        Ipv4Factory {
-            arp_factory: arp_factory,
-            listeners: Some(listeners),
-        }
-    }
-
-    pub fn arp_factory(&self) -> &ArpFactory {
-        &self.arp_factory
-    }
-
-    /// Can only be called once.
-    pub fn listener(&mut self) -> Option<Box<EthernetListener>> {
-        self.listeners
-            .take()
-            .map(|l| Box::new(Ipv4EthernetListener { listeners: l }) as Box<EthernetListener>)
-    }
-
-    #[deprecated]
-    pub fn listeners(&mut self) -> Option<Vec<Box<EthernetListener>>> {
-        self.listener().map(|ipv4_listener| {
-            let arp_listener = self.arp_factory.listener();
-            vec![arp_listener, ipv4_listener]
-        })
-    }
-
-    /// Adds and returns a new `Ipv4`.
-    pub fn ip(&self, ethernet: Ethernet, config: Ipv4Config) -> Ipv4 {
-        Ipv4::new(ethernet.clone(), self.arp_factory.arp(ethernet), config)
-    }
-}
+pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
 
 /// Struct listening for ethernet frames containing IPv4 packets.
-/// Does not have to be created manually, is being done automatically inside
-/// `Ipv4Factory`
 pub struct Ipv4EthernetListener {
-    listeners: HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>,
+    listeners: Arc<Mutex<IpListenerLookup>>,
+}
+
+impl Ipv4EthernetListener {
+    pub fn new(listeners: Arc<Mutex<IpListenerLookup>>) -> Box<EthernetListener> {
+        let this = Ipv4EthernetListener {
+            listeners: listeners,
+        };
+        Box::new(this) as Box<EthernetListener>
+    }
 }
 
 impl EthernetListener for Ipv4EthernetListener {
@@ -122,10 +88,15 @@ impl EthernetListener for Ipv4EthernetListener {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);
-        if let Some(mut listener) = self.listeners.get_mut(&next_level_protocol) {
-            listener.recv(time, ip_pkg);
+        let mut listeners = self.listeners.lock().unwrap();
+        if let Some(mut listeners) = listeners.get_mut(&dest_ip) {
+            if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
+                listener.recv(time, ip_pkg);
+            } else {
+                println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
+            }
         } else {
-            println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
+            println!("Ipv4 is not listening to {} on this interface", dest_ip);
         }
     }
 

@@ -12,7 +12,7 @@ use std::time::SystemTime;
 use pnet::datalink::{EthernetDataLinkReceiver, EthernetDataLinkSender};
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 
-use ::{EthernetChannel, Interface};
+use {EthernetChannel, Interface};
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must
 /// implement this.

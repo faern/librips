@@ -81,6 +81,7 @@ pub struct Arp {
 }
 
 impl Arp {
+    #[deprecated(note = "Use factory")]
     pub fn new(ethernet: Ethernet) -> Arp {
         Arp {
             table: Arc::new(RwLock::new(HashMap::new())),

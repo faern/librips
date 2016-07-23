@@ -3,6 +3,8 @@ use std::collections::HashMap;
 
 use ipnetwork::Ipv4Network;
 
+use Interface;
+
 #[cfg(not(test))]
 use ethernet::Ethernet;
 #[cfg(test)]
@@ -12,7 +14,7 @@ use test::ethernet::Ethernet;
 struct Entry {
     pub net: Ipv4Network,
     pub gw: Option<Ipv4Addr>,
-    pub ethernet: Ethernet,
+    pub interface: Interface,
 }
 
 pub struct RoutingTable {
@@ -29,12 +31,12 @@ impl RoutingTable {
     }
 
     // TODO: Check for collision
-    pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, ethernet: Ethernet) {
+    pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) {
         let prefix = net.prefix();
         let entry = Entry {
             net: net,
             gw: gw,
-            ethernet: ethernet,
+            interface: interface,
         };
         if !self.table.contains_key(&prefix) {
             self.prefixes.push(prefix);
@@ -45,11 +47,11 @@ impl RoutingTable {
         }
     }
 
-    pub fn route(&self, ip: Ipv4Addr) -> Option<(Option<Ipv4Addr>, Ethernet)> {
+    pub fn route(&self, ip: Ipv4Addr) -> Option<(Option<Ipv4Addr>, Interface)> {
         for prefix in self.prefixes.iter() {
             for entry in self.table.get(&prefix).unwrap() {
                 if entry.net.contains(ip) {
-                    return Some((entry.gw.clone(), entry.ethernet.clone()));
+                    return Some((entry.gw.clone(), entry.interface.clone()));
                 }
             }
         }
@@ -62,9 +64,10 @@ impl RoutingTable {
 mod tests {
     use std::net::Ipv4Addr;
 
+    use pnet::util::MacAddr;
     use ipnetwork::Ipv4Network;
 
-    use test::ethernet::Ethernet;
+    use Interface;
     use super::*;
 
     #[test]
@@ -79,10 +82,10 @@ mod tests {
         let mut table = RoutingTable::new();
         table.add_route(Ipv4Network::from_cidr("10/8").unwrap(),
                         None,
-                        Ethernet::new("eth0"));
+                        iface("eth0"));
         let (gw, out_eth) = table.route(Ipv4Addr::new(10, 0, 0, 1)).unwrap();
         assert_eq!(gw, None);
-        assert_eq!(out_eth, Ethernet::new("eth0"));
+        assert_eq!(out_eth, iface("eth0"));
         assert!(table.route(Ipv4Addr::new(192, 168, 0, 0)).is_none());
     }
 
@@ -93,17 +96,17 @@ mod tests {
         let mut table = RoutingTable::new();
         table.add_route(Ipv4Network::from_cidr("10/16").unwrap(),
                         None,
-                        Ethernet::new("eth0"));
+                        iface("eth0"));
         table.add_route(Ipv4Network::from_cidr("0/0").unwrap(),
                         Some(gw),
-                        Ethernet::new("eth1"));
+                        iface("eth1"));
 
         let (out_gw, out_eth) = table.route(Ipv4Addr::new(10, 0, 200, 20)).unwrap();
         assert_eq!(out_gw, None);
-        assert_eq!(out_eth, Ethernet::new("eth0"));
+        assert_eq!(out_eth, iface("eth0"));
         let (out_gw2, out_eth2) = table.route(Ipv4Addr::new(192, 168, 0, 0)).unwrap();
         assert_eq!(out_gw2, Some(gw));
-        assert_eq!(out_eth2, Ethernet::new("eth1"));
+        assert_eq!(out_eth2, iface("eth1"));
     }
 
     #[test]
@@ -113,16 +116,23 @@ mod tests {
         let mut table = RoutingTable::new();
         table.add_route(Ipv4Network::from_cidr("10.0.0.0/24").unwrap(),
                         None,
-                        Ethernet::new("eth0"));
+                        iface("eth0"));
         table.add_route(Ipv4Network::from_cidr("10.0.0.99/32").unwrap(),
                         Some(gw),
-                        Ethernet::new("eth1"));
+                        iface("eth1"));
 
         let (out_gw, out_eth) = table.route(Ipv4Addr::new(10, 0, 0, 20)).unwrap();
         assert_eq!(out_gw, None);
-        assert_eq!(out_eth, Ethernet::new("eth0"));
+        assert_eq!(out_eth, iface("eth0"));
         let (out_gw2, out_eth2) = table.route(Ipv4Addr::new(10, 0, 0, 99)).unwrap();
         assert_eq!(out_gw2, Some(gw));
-        assert_eq!(out_eth2, Ethernet::new("eth1"));
+        assert_eq!(out_eth2, iface("eth1"));
+    }
+
+    fn iface(name: &str) -> Interface {
+        Interface {
+            name: name.to_string(),
+            mac: MacAddr::new(0, 0, 0, 0, 0, 0),
+        }
     }
 }

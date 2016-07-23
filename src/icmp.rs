@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 use std::io;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{self, Receiver};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
@@ -53,9 +54,9 @@ impl IcmpIpv4Listener {
 
 impl Ipv4Listener for IcmpIpv4Listener {
     fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) {
-        let icmp_type = {
+        let (icmp_type, _icmp_code) = {
             let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
-            icmp_pkg.get_icmp_type()
+            (icmp_pkg.get_icmp_type(), icmp_pkg.get_icmp_code())
         };
         println!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
         let mut listeners = self.listeners.lock().unwrap();
@@ -114,3 +115,22 @@ impl Icmp {
         self.send(dst_ip, total_size, &mut builder_wrapper)
     }
 }
+
+// pub struct PingSocket {
+//     echo: Echo,
+//     reader: Option<Receiver<Box<[u8]>>>,
+//     identifier: u16,
+//     sequence_number: u16,
+// }
+
+// impl PingSocket {
+//     pub fn bind(str, stack?) -> PingSocket {
+//
+//     }
+//
+//     pub fn send_to();
+//
+//     pub fn recv();
+//
+//     pub fn take_recv() -> Result<Receiver<Box<[u8]>>, ()>;
+// }

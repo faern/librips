@@ -9,7 +9,7 @@ use pnet::packet::icmp::echo_request::EchoRequestPacket;
 use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, icmp_types};
 use pnet::packet::{Packet, MutablePacket};
 
-use rips::icmp::{Icmp, Echo, IcmpListener};
+use rips::icmp::{Icmp, IcmpListener};
 
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -27,9 +27,8 @@ fn test_ping() {
     let (_ethernet, _, ipv4, _, read_handle) = ::dummy_icmp();
 
     let icmp = Icmp::new(ipv4);
-    let mut echo = Echo::new(icmp);
 
-    echo.send(Ipv4Addr::new(10, 0, 0, 1), &[9, 55]).unwrap().unwrap();
+    icmp.send_echo(Ipv4Addr::new(10, 0, 0, 1), &[9, 55]).unwrap().unwrap();
 
     let pkg = read_handle.recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
