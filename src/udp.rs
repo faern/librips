@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 
 use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::udp::{UdpPacket, MutableUdpPacket, ipv4_checksum};
+use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
@@ -36,7 +36,8 @@ impl Ipv4Listener for UdpIpv4Listener {
         };
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(listener) = listeners.get_mut(&port) {
-            listener.recv(time, &ip_pkg);
+            let _resume = listener.recv(time, &ip_pkg);
+            // TODO: When resume turns false, remove this socket.
         } else {
             println!("Udp, no listener for port {:?}", port);
         }
@@ -55,11 +56,11 @@ impl Udp {
     }
 
     pub fn send_to<T>(&mut self,
-                   dst_ip: Ipv4Addr,
-                   dst_port: u16,
-                   payload_size: u16,
-                   mut builder: T)
-                   -> Option<io::Result<()>>
+                      dst_ip: Ipv4Addr,
+                      dst_port: u16,
+                      payload_size: u16,
+                      mut builder: T)
+                      -> Option<io::Result<()>>
         where T: FnMut(&mut MutableUdpPacket)
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
@@ -74,7 +75,10 @@ impl Udp {
             udp_pkg.set_length(total_size);
             builder(&mut udp_pkg);
             // TODO: Set to zero?
-            let checksum = ipv4_checksum(&udp_pkg.to_immutable(), src_ip, dst_ip, IpNextHeaderProtocols::Udp);
+            let checksum = ipv4_checksum(&udp_pkg.to_immutable(),
+                                         src_ip,
+                                         dst_ip,
+                                         IpNextHeaderProtocols::Udp);
             udp_pkg.set_checksum(checksum);
         };
         self.ipv4.send(dst_ip, total_size, &mut builder_wrapper)

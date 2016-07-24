@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 use std::time::SystemTime;
 
-use pnet::packet::ethernet::{EtherTypes, EtherType, MutableEthernetPacket, EthernetPacket};
+use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
 

@@ -10,12 +10,12 @@ extern crate ipnetwork;
 
 use std::io;
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, ToSocketAddrs, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 
 use pnet::datalink;
 use pnet::util::MacAddr;
-use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 
 pub mod ethernet;
 
@@ -77,7 +77,7 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 //     }
 //     Ok(NetworkStack::new(&ethernets[..]))
 // }
-
+//
 // fn create_ethernet(interface: NetworkInterface,
 //                    listeners: Vec<Box<EthernetListener>>)
 //                    -> io::Result<Ethernet> {
@@ -89,7 +89,7 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 //     let internal_interface = try!(convert_interface(interface));
 //     Ok(Ethernet::new(internal_interface, channel, listeners))
 // }
-
+//
 // fn convert_interface(interface: NetworkInterface) -> io::Result<Interface> {
 //     if let Some(mac) = interface.mac {
 //         Ok(Interface {
@@ -101,7 +101,6 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 //                            format!("No mac for {}", interface.name)))
 //     }
 // }
-
 /// Represents the stack on one physical interface.
 /// The larger `NetworkStack` comprises multiple of these.
 struct StackInterface {
@@ -128,12 +127,15 @@ impl StackInterface {
         }
     }
 
-    fn create_ipv4_listeners(&mut self, ip: Ipv4Addr) -> HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>> {
+    fn create_ipv4_listeners(&mut self,
+                             ip: Ipv4Addr)
+                             -> HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>> {
         let mut proto_listeners = HashMap::new();
 
         let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
         self.udp_listeners.insert(ip, udp_listeners.clone());
-        let udp_ipv4_listener = Box::new(udp::UdpIpv4Listener::new(udp_listeners)) as Box<Ipv4Listener>;
+        let udp_ipv4_listener =
+            Box::new(udp::UdpIpv4Listener::new(udp_listeners)) as Box<Ipv4Listener>;
         proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
 
         // Insert Icmp listener stuff
@@ -207,7 +209,10 @@ impl NetworkStack {
         self.interfaces.get(interface).map(|si| si.get_arp())
     }
 
-    pub fn udp_listen<A: ToSocketAddrs, L: udp::UdpListener + 'static>(&mut self, addr: A, listener: L) -> io::Result<()> {
+    pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<()>
+        where A: ToSocketAddrs,
+              L: udp::UdpListener + 'static
+    {
         match try!(Self::first_socket_addr(addr)) {
             SocketAddr::V4(addr) => {
                 let local_ip = addr.ip();
@@ -222,13 +227,16 @@ impl NetworkStack {
                                 udp_listeners.insert(local_port, Box::new(listener));
                                 return Ok(());
                             } else {
-                                return Err(io::Error::new(io::ErrorKind::AddrInUse, format!("Address/Port is already occupied")));
+                                return Err(io::Error::new(io::ErrorKind::AddrInUse,
+                                                          format!("Address/Port is already \
+                                                                   occupied")));
                             }
                         }
                     }
-                    return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Bind address does not exist in stack")));
+                    return Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                              format!("Bind address does not exist in stack")));
                 }
-            },
+            }
             SocketAddr::V6(_) => panic!("Rips does not support IPv6 yet"),
         }
     }
@@ -237,7 +245,8 @@ impl NetworkStack {
         if let Some(addr) = try!(addr.to_socket_addrs()).next() {
             Ok(addr)
         } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Given bind address did not yield any address")))
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               format!("Given bind address did not yield any address")))
         }
     }
 }

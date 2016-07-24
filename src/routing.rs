@@ -75,9 +75,7 @@ mod tests {
     #[test]
     fn no_default() {
         let mut table = RoutingTable::new();
-        table.add_route(Ipv4Network::from_cidr("10/8").unwrap(),
-                        None,
-                        iface("eth0"));
+        table.add_route(Ipv4Network::from_cidr("10/8").unwrap(), None, iface("eth0"));
         let (gw, out_eth) = table.route(Ipv4Addr::new(10, 0, 0, 1)).unwrap();
         assert_eq!(gw, None);
         assert_eq!(out_eth, iface("eth0"));

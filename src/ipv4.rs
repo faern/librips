@@ -75,9 +75,7 @@ pub struct Ipv4EthernetListener {
 
 impl Ipv4EthernetListener {
     pub fn new(listeners: Arc<Mutex<IpListenerLookup>>) -> Box<EthernetListener> {
-        let this = Ipv4EthernetListener {
-            listeners: listeners,
-        };
+        let this = Ipv4EthernetListener { listeners: listeners };
         Box::new(this) as Box<EthernetListener>
     }
 }

@@ -2,12 +2,12 @@ use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::time::SystemTime;
 
-use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket, EtherTypes};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::icmp::echo_request::EchoRequestPacket;
 use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, icmp_types};
-use pnet::packet::{Packet, MutablePacket};
+use pnet::packet::{MutablePacket, Packet};
 
 use rips::icmp::{Icmp, IcmpListener};
 
@@ -53,7 +53,8 @@ fn recv_icmp() {
     let (_ethernet, icmp_listeners, _, inject_handle, _) = ::dummy_icmp();
     icmp_listeners.lock().unwrap().insert(icmp_types::DestinationUnreachable, mock_icmp_listener);
 
-    let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() + IcmpPacket::minimum_packet_size();
+    let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() +
+               IcmpPacket::minimum_packet_size();
     let mut buffer = vec![0; size];
     {
         let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
