@@ -33,6 +33,21 @@ impl<K, V> CacheMap<K, V>
         }
     }
 
+    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut V>
+        where K: Borrow<Q>,
+              Q: Hash + Eq
+    {
+        if let Some(&mut (ref i, ref mut v)) = self.map.get_mut(k) {
+            if i.elapsed() < self.timeout {
+                Some(v)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn insert(&mut self, k: K, v: V) {
         self.map.insert(k, (Instant::now(), v));
     }

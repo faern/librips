@@ -213,7 +213,7 @@ impl NetworkStack {
         where A: ToSocketAddrs,
               L: udp::UdpListener + 'static
     {
-        match try!(Self::first_socket_addr(addr)) {
+        match try!(util::first_socket_addr(addr)) {
             SocketAddr::V4(addr) => {
                 let local_ip = addr.ip();
                 let local_port = addr.port();
@@ -236,17 +236,10 @@ impl NetworkStack {
                     return Err(io::Error::new(io::ErrorKind::InvalidInput,
                                               format!("Bind address does not exist in stack")));
                 }
+            },
+            SocketAddr::V6(_) => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
             }
-            SocketAddr::V6(_) => panic!("Rips does not support IPv6 yet"),
-        }
-    }
-
-    fn first_socket_addr<A: ToSocketAddrs>(addr: A) -> io::Result<SocketAddr> {
-        if let Some(addr) = try!(addr.to_socket_addrs()).next() {
-            Ok(addr)
-        } else {
-            Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               format!("Given bind address did not yield any address")))
         }
     }
 }

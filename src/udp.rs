@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, ToSocketAddrs, SocketAddr};
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -10,6 +10,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
 use ipv4::{Ipv4, Ipv4Listener};
+use util;
 
 pub trait UdpListener: Send {
     fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> bool;
@@ -44,8 +45,6 @@ impl Ipv4Listener for UdpIpv4Listener {
     }
 }
 
-/// An Icmp communication struct.
-#[derive(Clone)]
 pub struct Udp {
     ipv4: Ipv4,
 }
@@ -82,5 +81,35 @@ impl Udp {
             udp_pkg.set_checksum(checksum);
         };
         self.ipv4.send(dst_ip, total_size, &mut builder_wrapper)
+    }
+}
+
+pub struct UdpSocket {
+    sender_cache: util::CacheMap<Ipv4Addr, Udp>,
+}
+
+impl UdpSocket {
+    pub fn send_to<A: ToSocketAddrs>(&mut self, buf: &[u8], addr: A) -> io::Result<usize> {
+        if buf.len() > ::std::u16::MAX as usize {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Too large payload")));
+        }
+        let len = buf.len() as u16;
+        match try!(util::first_socket_addr(addr)) {
+            SocketAddr::V4(addr) => {
+                let dst_ip = addr.ip();
+                let dst_port = addr.port();
+                if let Some(udp) = self.sender_cache.get_mut(&dst_ip) {
+                    udp.send_to(*dst_ip, dst_port, len, |pkg| {
+                        pkg.set_payload(buf);
+                    });
+                } else {
+                    
+                }
+                Ok(0)
+            },
+            SocketAddr::V6(addr) => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
+            },
+        }
     }
 }
