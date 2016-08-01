@@ -30,7 +30,6 @@ pub struct Ethernet {
     pub interface: Interface,
 
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,
-    reader_tx: Sender<()>,
 }
 
 impl Ethernet {
@@ -43,13 +42,11 @@ impl Ethernet {
         let sender = channel.0;
         let receiver = channel.1;
 
-        let (reader_tx, reader_rx) = mpsc::channel();
-        EthernetReader::new(reader_rx, listeners).spawn(receiver);
+        EthernetReader::new(listeners).spawn(receiver);
 
         Ethernet {
             interface: interface,
             eth_tx: Arc::new(Mutex::new(sender)),
-            reader_tx: reader_tx,
         }
     }
 
@@ -82,15 +79,13 @@ impl Ethernet {
 }
 
 struct EthernetReader {
-    control_rx: Receiver<()>,
     listeners: HashMap<EtherType, Vec<Box<EthernetListener>>>,
 }
 
 impl EthernetReader {
-    pub fn new(control_rx: Receiver<()>, listeners: Vec<Box<EthernetListener>>) -> EthernetReader {
+    pub fn new(listeners: Vec<Box<EthernetListener>>) -> EthernetReader {
         let map_listeners = Self::expand_listeners(listeners);
         EthernetReader {
-            control_rx: control_rx,
             listeners: map_listeners,
         }
     }
@@ -121,9 +116,6 @@ impl EthernetReader {
             match rx_iter.next() {
                 Ok(pkg) => {
                     let time = SystemTime::now();
-                    if self.process_control() {
-                        break;
-                    }
                     let ethertype = pkg.get_ethertype();
                     match self.listeners.get_mut(&ethertype) {
                         Some(listeners) => {
@@ -138,17 +130,5 @@ impl EthernetReader {
             }
         }
         println!("EthernetReader exits main loop");
-    }
-
-    /// Process control messages to the `EthernetReader`.
-    /// Returns `true` when the reader should stop reading, `false` otherwise.
-    fn process_control(&mut self) -> bool {
-        loop {
-            match self.control_rx.try_recv() {
-                Err(TryRecvError::Disconnected) => return true,
-                _ => break,
-            }
-        }
-        false
     }
 }
