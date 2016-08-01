@@ -104,6 +104,7 @@ impl EthernetListener for Ipv4EthernetListener {
 }
 
 /// One IPv4 configuration on one ethernet interface.
+// TODO: Remove concept of gateway. Instead make it able to communicate with the routing table
 #[derive(Clone)]
 pub struct Ipv4 {
     /// Configuration for this `Ipv4` instance

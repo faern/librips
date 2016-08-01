@@ -89,6 +89,10 @@ pub struct UdpSocket {
 }
 
 impl UdpSocket {
+    pub fn bind<A: ToSocketAddrs>(stack: NetworkInterface, addr: A) -> Result<UdpSocket> {
+
+    }
+
     pub fn send_to<A: ToSocketAddrs>(&mut self, buf: &[u8], addr: A) -> io::Result<usize> {
         if buf.len() > ::std::u16::MAX as usize {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Too large payload")));
@@ -103,7 +107,7 @@ impl UdpSocket {
                         pkg.set_payload(buf);
                     });
                 } else {
-                    
+
                 }
                 Ok(0)
             },
