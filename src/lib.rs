@@ -39,7 +39,7 @@ mod util;
 #[cfg(test)]
 mod test;
 
-use ethernet::{Ethernet, EthernetRx};
+use ethernet::{EthernetRx, EthernetTx};
 use arp::{Arp, ArpFactory};
 use ipv4::{Ipv4Config, Ipv4EthernetListener, Ipv4Listener};
 use routing::RoutingTable;
@@ -76,10 +76,27 @@ impl From<io::Error> for TxError {
     }
 }
 
+impl From<TxError> for io::Error {
+    fn from(e: TxError) -> Self {
+        match e {
+            TxError::OutdatedConstructor => io::Error::new(io::ErrorKind::Other, format!("Outdated constructor")),
+            TxError::MutexError => io::Error::new(io::ErrorKind::Other, format!("Poisoned mutex")),
+            TxError::InsufficientBuffer => io::Error::new(io::ErrorKind::Other, format!("Insufficient buffer")),
+            TxError::IoError(e2) => e2,
+        }
+    }
+}
+
 pub type TxResult = Result<(), TxError>;
 
 fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
-    Ok(())
+    match r {
+        None => Err(TxError::InsufficientBuffer),
+        Some(ior) => match ior {
+            Err(e) => Err(TxError::from(e)),
+            Ok(()) => Ok(())
+        }
+    }
 }
 
 pub struct VersionedTx {
@@ -88,18 +105,45 @@ pub struct VersionedTx {
 }
 
 impl VersionedTx {
+    pub fn new(sender: Box<EthernetDataLinkSender>) -> VersionedTx {
+        VersionedTx {
+            sender: sender,
+            current_rev: 0,
+        }
+    }
+
     pub fn inc(&mut self) {
         self.current_rev = self.current_rev.wrapping_add(1);
         println!("VersionedTx ticked to {}", self.current_rev);
     }
 }
 
+enum TxSender {
+    Versioned(Arc<Mutex<VersionedTx>>),
+    Direct(Box<EthernetDataLinkSender>),
+}
+
 pub struct Tx {
-    sender: Arc<Mutex<VersionedTx>>,
+    sender: TxSender,
     rev: u64,
 }
 
 impl Tx {
+    pub fn versioned(vtx: Arc<Mutex<VersionedTx>>) -> Tx {
+        let rev = vtx.lock().expect("Unable to lock StackInterface::tx").current_rev;
+        Tx {
+            sender: TxSender::Versioned(vtx),
+            rev: rev,
+        }
+    }
+
+    pub fn direct(sender: Box<EthernetDataLinkSender>) -> Tx {
+        Tx {
+            sender: TxSender::Direct(sender),
+            rev: 0,
+        }
+    }
+
     pub fn send<T>(&mut self,
                    num_packets: usize,
                    size: usize,
@@ -107,17 +151,33 @@ impl Tx {
                    -> TxResult
         where T: FnMut(MutableEthernetPacket)
     {
-        match self.sender.lock() {
-            Ok(mut sender) => {
-                if self.rev != sender.current_rev {
-                    Err(TxError::OutdatedConstructor)
-                } else {
-                    let result = sender.sender.build_and_send(num_packets, size, &mut builder);
-                    io_result_to_tx_result(result)
+        match self.sender {
+            TxSender::Versioned(ref vtx) => {
+                match vtx.lock() {
+                    Ok(mut sender) => {
+                        if self.rev != sender.current_rev {
+                            Err(TxError::OutdatedConstructor)
+                        } else {
+                            Self::internal_send(&mut sender.sender, num_packets, size, builder)
+                        }
+                    },
+                    Err(_) => Err(TxError::MutexError),
                 }
             },
-            Err(_) => Err(TxError::MutexError),
+            TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),
         }
+    }
+
+    fn internal_send<T>(sender: &mut Box<EthernetDataLinkSender>,
+                        num_packets: usize,
+                        size: usize,
+                        mut builder: T)
+                     -> TxResult
+        where T: FnMut(MutableEthernetPacket)
+    {
+        println!("{} {}", num_packets, size);
+        let result = sender.build_and_send(num_packets, size, &mut builder);
+        io_result_to_tx_result(result)
     }
 }
 
@@ -166,8 +226,9 @@ impl Tx {
 /// Represents the stack on one physical interface.
 /// The larger `NetworkStack` comprises multiple of these.
 struct StackInterface {
+    interface: Interface,
     tx: Arc<Mutex<VersionedTx>>,
-    arp_factory: ArpFactory,
+    _arp_factory: ArpFactory,
     ipv4s: HashMap<Ipv4Addr, Ipv4Config>,
     // ipv6s: HashMap<Ipv6Addr, Ipv6Config>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
@@ -176,6 +237,14 @@ struct StackInterface {
 }
 
 impl StackInterface {
+    fn tx(&self) -> Tx {
+        Tx::versioned(self.tx.clone())
+    }
+
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
+        EthernetTx::new(self.tx(), self.interface.mac, dst)
+    }
+
     pub fn add_ipv4(&mut self, config: Ipv4Config) -> Result<(), ()> {
         let ip = config.ip;
         if !self.ipv4s.contains_key(&ip) {
@@ -233,10 +302,7 @@ impl NetworkStack {
             let sender = channel.0;
             let receiver = channel.1;
 
-            let vtx = Arc::new(Mutex::new(VersionedTx {
-                sender: sender,
-                current_rev: 0,
-            }));
+            let vtx = Arc::new(Mutex::new(VersionedTx::new(sender)));
 
             let arp_factory = ArpFactory::new();
             let arp_ethernet_listener = arp_factory.listener(vtx.clone());
@@ -248,8 +314,9 @@ impl NetworkStack {
             EthernetRx::new(ethernet_listeners).spawn(receiver);
 
             let stack_interface = StackInterface {
+                interface: interface.clone(),
                 tx: vtx,
-                arp_factory: arp_factory,
+                _arp_factory: arp_factory,
                 ipv4s: HashMap::new(),
                 ipv4_listeners: ipv4_listeners,
                 //udp_listeners: HashMap::new(),
@@ -257,6 +324,10 @@ impl NetworkStack {
             self.interfaces.insert(interface.clone(), stack_interface);
             Ok(())
         }
+    }
+
+    pub fn ethernet_tx(&self, interface: &Interface, dst: MacAddr) -> Option<EthernetTx> {
+        self.interfaces.get(interface).map(|si| si.ethernet_tx(dst))
     }
 
     /// Attach a IPv4 network to a an interface.

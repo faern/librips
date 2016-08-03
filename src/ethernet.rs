@@ -26,7 +26,7 @@ pub trait EthernetListener: Send {
 
 /// A Datalink Ethernet manager taking care of one physical network interface.
 #[derive(Clone)]
-pub struct Ethernet {
+struct Ethernet {
     /// The `Interface` this `Ethernet` manages.
     pub interface: Interface,
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,

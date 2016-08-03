@@ -48,7 +48,6 @@ impl Ipv4Listener for IcmpIpv4Listener {
 }
 
 /// An Icmp communication struct.
-#[derive(Clone)]
 pub struct Icmp {
     ipv4: Ipv4,
 }

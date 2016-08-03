@@ -1,4 +1,3 @@
-use std::io;
 use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::convert::From;
@@ -9,13 +8,11 @@ use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
-use pnet::util::MacAddr;
 
 use ipnetwork::{self, Ipv4Network};
 
 use TxResult;
 use ethernet::{EthernetTx, EthernetListener};
-use arp::Arp;
 
 /// Represents an error in an `IpConf`.
 #[derive(Debug)]
