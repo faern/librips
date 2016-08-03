@@ -10,6 +10,7 @@ use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPack
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
+use TxResult;
 use ipv4::{Ipv4, Ipv4Listener};
 
 pub trait IcmpListener: Send {
@@ -63,7 +64,7 @@ impl Icmp {
                    dst_ip: Ipv4Addr,
                    payload_size: u16,
                    mut builder: T)
-                   -> Option<io::Result<()>>
+                   -> TxResult
         where T: FnMut(&mut MutableIcmpPacket)
     {
         let total_size = IcmpPacket::minimum_packet_size() as u16 + payload_size;
@@ -78,7 +79,7 @@ impl Icmp {
         self.ipv4.send(dst_ip, total_size, &mut builder_wrapper)
     }
 
-    pub fn send_echo(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> Option<io::Result<()>> {
+    pub fn send_echo(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> TxResult {
         let total_size = (EchoRequestPacket::minimum_packet_size() -
                           IcmpPacket::minimum_packet_size() +
                           payload.len()) as u16;

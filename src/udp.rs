@@ -9,7 +9,8 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
-use ipv4::{Ipv4, Ipv4Listener};
+use {TxResult, NetworkStack};
+use ipv4::{Ipv4Tx, Ipv4Listener};
 use util;
 
 pub trait UdpListener: Send {
@@ -45,32 +46,36 @@ impl Ipv4Listener for UdpIpv4Listener {
     }
 }
 
-pub struct Udp {
-    ipv4: Ipv4,
+pub struct UdpTx {
+    src: u16,
+    dst: u16,
+    ipv4: Ipv4Tx,
 }
 
-impl Udp {
-    pub fn new(ipv4: Ipv4) -> Udp {
-        Udp { ipv4: ipv4 }
+impl UdpTx {
+    pub fn new(ipv4: Ipv4Tx, src: u16, dst: u16, rev: u64) -> UdpTx {
+        UdpTx {
+            src: src,
+            dst: dst,
+            ipv4: ipv4,
+        }
     }
 
-    pub fn send_to<T>(&mut self,
-                      dst_ip: Ipv4Addr,
-                      dst_port: u16,
-                      payload_size: u16,
-                      mut builder: T)
-                      -> Option<io::Result<()>>
+    pub fn send<T>(&mut self,
+                   payload_size: u16,
+                   mut builder: T)
+                   -> TxResult
         where T: FnMut(&mut MutableUdpPacket)
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
         let mut builder_wrapper = |ip_pkg: &mut MutableIpv4Packet| {
             ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Udp);
-
             let src_ip = ip_pkg.get_source();
             let dst_ip = ip_pkg.get_destination();
+
             let mut udp_pkg = MutableUdpPacket::new(ip_pkg.payload_mut()).unwrap();
-            // TODO: We need source port
-            udp_pkg.set_destination(dst_port);
+            udp_pkg.set_source(self.src);
+            udp_pkg.set_destination(self.dst);
             udp_pkg.set_length(total_size);
             builder(&mut udp_pkg);
             // TODO: Set to zero?
@@ -80,16 +85,16 @@ impl Udp {
                                          IpNextHeaderProtocols::Udp);
             udp_pkg.set_checksum(checksum);
         };
-        self.ipv4.send(dst_ip, total_size, &mut builder_wrapper)
+        self.ipv4.send(total_size, &mut builder_wrapper)
     }
 }
 
 pub struct UdpSocket {
-    sender_cache: util::CacheMap<Ipv4Addr, Udp>,
+    sender_cache: HashMap<Ipv4Addr, UdpTx>,
 }
 
 impl UdpSocket {
-    pub fn bind<A: ToSocketAddrs>(stack: NetworkInterface, addr: A) -> Result<UdpSocket> {
+    pub fn bind<A: ToSocketAddrs>(stack: NetworkStack, addr: A) -> io::Result<UdpSocket> {
 
     }
 
@@ -103,7 +108,7 @@ impl UdpSocket {
                 let dst_ip = addr.ip();
                 let dst_port = addr.port();
                 if let Some(udp) = self.sender_cache.get_mut(&dst_ip) {
-                    udp.send_to(*dst_ip, dst_port, len, |pkg| {
+                    udp.send(len, |pkg| {
                         pkg.set_payload(buf);
                     });
                 } else {

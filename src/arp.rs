@@ -12,7 +12,8 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEther
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
-use ethernet::{Ethernet, EthernetListener};
+use {VersionedTx, TxResult};
+use ethernet::{EthernetTx, EthernetListener};
 
 pub struct ArpFactory {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
@@ -27,14 +28,16 @@ impl ArpFactory {
         }
     }
 
-    pub fn listener(&self) -> Box<EthernetListener> {
+    pub fn listener(&self, tx: Arc<Mutex<VersionedTx>>) -> Box<EthernetListener> {
         Box::new(ArpEthernetListener {
             table: self.table.clone(),
             listeners: self.listeners.clone(),
+            tx: tx,
         }) as Box<EthernetListener>
     }
 
-    pub fn arp(&self, ethernet: Ethernet) -> Arp {
+    pub fn arp(&self, ethernet: EthernetTx) -> Arp {
+        assert_eq!(ethernet.dst, MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
         Arp {
             table: self.table.clone(),
             ethernet: ethernet,
@@ -43,10 +46,10 @@ impl ArpFactory {
     }
 }
 
-#[derive(Clone)]
 pub struct ArpEthernetListener {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
     listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
+    tx: Arc<Mutex<VersionedTx>>,
 }
 
 impl EthernetListener for ArpEthernetListener {
@@ -57,7 +60,11 @@ impl EthernetListener for ArpEthernetListener {
         println!("Arp MAC: {} -> IPv4: {}", mac, ip);
         let mut table =
             self.table.write().expect("Unable to lock ArpEthernetListener::table for writing");
-        table.insert(ip, mac);
+        let old_mac = table.insert(ip, mac);
+        if old_mac.is_none() || old_mac != Some(mac) {
+            // The new MAC is different from the old one, bump tx VersionedTx
+            self.tx.lock().unwrap().inc();
+        }
         let listeners =
             self.listeners.lock().expect("Unable to lock ArpEthernetListener::listeners");
         if let Some(ip_listeners) = listeners.get(&ip) {
@@ -73,16 +80,16 @@ impl EthernetListener for ArpEthernetListener {
 }
 
 /// An Arp table and query interface struct.
-#[derive(Clone)]
 pub struct Arp {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
-    ethernet: Ethernet,
+    ethernet: EthernetTx,
     listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
 }
 
 impl Arp {
     #[deprecated(note = "Use factory")]
-    pub fn new(ethernet: Ethernet) -> Arp {
+    pub fn new(ethernet: EthernetTx) -> Arp {
+        assert_eq!(ethernet.dst, MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
         Arp {
             table: Arc::new(RwLock::new(HashMap::new())),
             ethernet: ethernet,
@@ -102,9 +109,7 @@ impl Arp {
                 return mac.clone();
             }
             let rx = self.add_listener(target_ip);
-            self.send(sender_ip, target_ip)
-                .expect("Too small buffer")
-                .expect("Network send error");
+            self.send(sender_ip, target_ip).expect("Network send error");
             rx
         }; // Release table lock
         mac_rx.recv().expect("Unable to read MAC from mac_rx")
@@ -112,23 +117,20 @@ impl Arp {
 
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
     /// request
-    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Option<io::Result<()>> {
-        let local_mac = self.ethernet.interface.mac;
+    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult {
+        let local_mac = self.ethernet.src;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
-            eth_pkg.set_destination(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
             eth_pkg.set_ethertype(EtherTypes::Arp);
-            {
-                let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
-                arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
-                arp_pkg.set_protocol_type(EtherTypes::Ipv4);
-                arp_pkg.set_hw_addr_len(6);
-                arp_pkg.set_proto_addr_len(4);
-                arp_pkg.set_operation(ArpOperations::Request);
-                arp_pkg.set_sender_hw_addr(local_mac);
-                arp_pkg.set_sender_proto_addr(sender_ip.clone());
-                arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
-                arp_pkg.set_target_proto_addr(target_ip.clone());
-            }
+            let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
+            arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
+            arp_pkg.set_protocol_type(EtherTypes::Ipv4);
+            arp_pkg.set_hw_addr_len(6);
+            arp_pkg.set_proto_addr_len(4);
+            arp_pkg.set_operation(ArpOperations::Request);
+            arp_pkg.set_sender_hw_addr(local_mac);
+            arp_pkg.set_sender_proto_addr(sender_ip);
+            arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
+            arp_pkg.set_target_proto_addr(target_ip);
         };
         self.ethernet.send(1, ArpPacket::minimum_packet_size(), &mut builder_wrapper)
     }

@@ -11,8 +11,9 @@ use std::time::SystemTime;
 
 use pnet::datalink::{EthernetDataLinkReceiver, EthernetDataLinkSender};
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
+use pnet::util::MacAddr;
 
-use {EthernetChannel, Interface};
+use {EthernetChannel, Interface, Tx, TxResult};
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must
 /// implement this.
@@ -28,7 +29,6 @@ pub trait EthernetListener: Send {
 pub struct Ethernet {
     /// The `Interface` this `Ethernet` manages.
     pub interface: Interface,
-
     eth_tx: Arc<Mutex<Box<EthernetDataLinkSender>>>,
 }
 
@@ -42,7 +42,7 @@ impl Ethernet {
         let sender = channel.0;
         let receiver = channel.1;
 
-        EthernetReader::new(listeners).spawn(receiver);
+        EthernetRx::new(listeners).spawn(receiver);
 
         Ethernet {
             interface: interface,
@@ -78,14 +78,60 @@ impl Ethernet {
     }
 }
 
-struct EthernetReader {
+pub struct EthernetTx {
+    pub src: MacAddr,
+    pub dst: MacAddr,
+    tx: Tx,
+}
+
+impl EthernetTx {
+    pub fn new(tx: Tx,
+               src: MacAddr,
+               dst: MacAddr)
+               -> EthernetTx {
+        EthernetTx {
+            src: src,
+            dst: dst,
+            tx: tx,
+        }
+    }
+
+    /// Send ethernet packets to the network.
+    ///
+    /// For every packet, all `header_size+payload_size` bytes will be sent, no
+    /// matter how small payload is provided to the `MutableEthernetPacket` in
+    /// the call to `builder`. So in total `num_packets *
+    /// (header_size+payload_size)` bytes will be sent. This is  usually not a
+    /// problem since the IP layer has the length in the header and the extra
+    /// bytes should thus not cause any trouble.
+    pub fn send<T>(&mut self,
+                   num_packets: usize,
+                   payload_size: usize,
+                   mut builder: T)
+                   -> TxResult
+        where T: FnMut(&mut MutableEthernetPacket)
+    {
+        let total_packet_size = payload_size + EthernetPacket::minimum_packet_size();
+        let (src, dst) = (self.src, self.dst);
+        let mut builder_wrapper = |mut pkg: MutableEthernetPacket| {
+            // Fill in data we are responsible for
+            pkg.set_source(src);
+            pkg.set_destination(dst);
+            // Let the user set fields and payload
+            builder(&mut pkg);
+        };
+        self.tx.send(num_packets, total_packet_size, &mut builder_wrapper)
+    }
+}
+
+pub struct EthernetRx {
     listeners: HashMap<EtherType, Vec<Box<EthernetListener>>>,
 }
 
-impl EthernetReader {
-    pub fn new(listeners: Vec<Box<EthernetListener>>) -> EthernetReader {
+impl EthernetRx {
+    pub fn new(listeners: Vec<Box<EthernetListener>>) -> EthernetRx {
         let map_listeners = Self::expand_listeners(listeners);
-        EthernetReader {
+        EthernetRx {
             listeners: map_listeners,
         }
     }
@@ -126,9 +172,9 @@ impl EthernetReader {
                         None => println!("Ethernet: No listener for {:?}", ethertype),
                     }
                 }
-                Err(e) => panic!("EthernetReader crash: {}", e),
+                Err(e) => panic!("EthernetRx crash: {}", e),
             }
         }
-        println!("EthernetReader exits main loop");
+        println!("EthernetRx exits main loop");
     }
 }
