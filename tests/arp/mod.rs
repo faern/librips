@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{sleep, spawn};
 use std::time::Duration;
 use std::net::Ipv4Addr;
@@ -22,7 +22,9 @@ fn arp_invalidate_on_update() {
     EthernetRx::new(vec![arp_factory.listener(vtx.clone())]).spawn(channel.1);
 
     let tx = Tx::versioned(vtx);
-    let ethernet_tx = EthernetTx::new(tx, MacAddr::new(0, 0, 0, 0, 0, 0), MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
+    let ethernet_tx = EthernetTx::new(tx,
+                                      MacAddr::new(0, 0, 0, 0, 0, 0),
+                                      MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
     let mut arp = arp_factory.arp_tx(ethernet_tx);
 
     // Send should work before table is updated
@@ -47,7 +49,9 @@ fn test_arp_locking() {
     // Spawn `thread_count` threads that all try to request the same ip
     for i in 0..thread_count {
         let tx = Tx::versioned(vtx.clone());
-        let ethernet_tx = EthernetTx::new(tx, MacAddr::new(1, 2, 3, 4, 5, 7), MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
+        let ethernet_tx = EthernetTx::new(tx,
+                                          MacAddr::new(1, 2, 3, 4, 5, 7),
+                                          MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
         let mut arp = arp_factory.arp_tx(ethernet_tx);
         let arp_thread_tx = arp_thread_tx.clone();
         spawn(move || {
@@ -64,8 +68,10 @@ fn test_arp_locking() {
     let arp_request_u8 = read_handle.recv().unwrap();
     let arp_request_eth = EthernetPacket::new(&arp_request_u8[..]).unwrap();
     let arp_request = ArpPacket::new(arp_request_eth.payload()).unwrap();
-    assert_eq!(MacAddr::new(1, 2, 3, 4, 5, 7), arp_request.get_sender_hw_addr());
-    assert_eq!(Ipv4Addr::new(10, 0, 0, 1), arp_request.get_target_proto_addr());
+    assert_eq!(MacAddr::new(1, 2, 3, 4, 5, 7),
+               arp_request.get_sender_hw_addr());
+    assert_eq!(Ipv4Addr::new(10, 0, 0, 1),
+               arp_request.get_target_proto_addr());
 
     // Inject Arp packet and wait for processing
     send_arp(inject_handle);
@@ -73,7 +79,9 @@ fn test_arp_locking() {
 
     // Make sure all threads returned already, otherwise too slow
     for _ in 0..thread_count {
-        let mac = arp_thread_rx.recv().expect("Arp thread did not return yet, too slow!").expect("ArpTx did not return a successful MacAddr response");
+        let mac = arp_thread_rx.recv()
+            .expect("Arp thread did not return yet, too slow!")
+            .expect("ArpTx did not return a successful MacAddr response");
         assert_eq!(MacAddr::new(9, 8, 7, 6, 5, 4), mac);
     }
     assert!(arp_thread_rx.try_recv().is_err());

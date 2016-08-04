@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::SystemTime;
 
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
@@ -6,7 +6,7 @@ use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
 
 use rips::Tx;
-use rips::ethernet::{EthernetTx, EthernetRx, EthernetListener};
+use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -60,9 +60,10 @@ fn test_ethernet_send() {
     let mut ethernet_tx = EthernetTx::new(tx, src, dst);
 
     ethernet_tx.send(1, 1, |pkg| {
-        pkg.set_ethertype(EtherTypes::Rarp);
-        pkg.set_payload(&[57]);
-    }).expect("Unable to send to ethernet");
+            pkg.set_ethertype(EtherTypes::Rarp);
+            pkg.set_payload(&[57]);
+        })
+        .expect("Unable to send to ethernet");
 
     let sent_buffer = read_handle.try_recv().expect("Expected a packet to have been sent");
     assert_eq!(15, sent_buffer.len());

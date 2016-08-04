@@ -13,7 +13,7 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::util::MacAddr;
 
 use rips::{EthernetChannel, Interface, NetworkStack};
-use rips::ethernet::{EthernetRx, EthernetListener};
+use rips::ethernet::{EthernetListener, EthernetRx};
 // use rips::arp::ArpFactory;
 // use rips::ipv4::{IpListenerLookup, Ipv4Tx, Ipv4Config, Ipv4EthernetListener};
 // use rips::icmp::{IcmpIpv4Listener, IcmpListenerLookup};
@@ -22,11 +22,12 @@ use rips::ethernet::{EthernetRx, EthernetListener};
 mod ethernet;
 // mod stack;
 mod arp;
-//mod ipv4;
-//mod icmp;
+// mod ipv4;
+// mod icmp;
 
-fn dummy_ethernet(iface_i: u8)
-                  -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+fn dummy_ethernet
+    (iface_i: u8)
+     -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let iface = dummy::dummy_interface(iface_i);
     let mac = iface.mac.unwrap();
     let interface = Interface {
@@ -48,18 +49,21 @@ fn dummy_ethernet(iface_i: u8)
 
 // fn dummy_stack() {
 //     let mut stack = NetworkStack::new();
-//     stack.add_channel(interface.clone(), channel).expect("Not able to add dummy channel to stack");
+// stack.add_channel(interface.clone(), channel).expect("Not able to add
+// dummy channel to stack");
 // }
 
 // fn dummy_ipv4(listeners: Arc<Mutex<IpListenerLookup>>)
-//               -> (Ethernet, ArpFactory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+// -> (Ethernet, ArpFactory, Sender<io::Result<Box<[u8]>>>,
+// Receiver<Box<[u8]>>) {
 //     let arp_factory = ArpFactory::new();
 //     let arp_listener = arp_factory.listener();
 //
 //     let ipv4_listener = Ipv4EthernetListener::new(listeners);
 //     let ethernet_listeners = vec![arp_listener, ipv4_listener];
 //
-//     let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0, ethernet_listeners);
+// let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0,
+// ethernet_listeners);
 //     (ethernet, arp_factory, inject_handle, read_handle)
 // }
 //
@@ -85,7 +89,8 @@ fn dummy_ethernet(iface_i: u8)
 //     let mut arp = arp_factory.arp(ethernet.clone());
 //     arp.insert(Ipv4Addr::new(10, 0, 0, 1), MacAddr::new(9, 8, 7, 6, 5, 4));
 //
-//     let ip_config = Ipv4Config::new(Ipv4Addr::new(10, 0, 0, 2), 24, Ipv4Addr::new(10, 0, 0, 1))
+// let ip_config = Ipv4Config::new(Ipv4Addr::new(10, 0, 0, 2), 24,
+// Ipv4Addr::new(10, 0, 0, 1))
 //         .unwrap();
 //     let ipv4 = Ipv4::new(ethernet.clone(), arp, ip_config);
 //
