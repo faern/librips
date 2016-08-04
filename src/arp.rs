@@ -28,17 +28,17 @@ impl ArpFactory {
         }
     }
 
-    pub fn listener(&self, tx: Arc<Mutex<VersionedTx>>) -> Box<EthernetListener> {
-        Box::new(ArpEthernetListener {
+    pub fn listener(&self, vtx: Arc<Mutex<VersionedTx>>) -> Box<EthernetListener> {
+        Box::new(ArpRx {
             table: self.table.clone(),
             listeners: self.listeners.clone(),
-            tx: tx,
+            vtx: vtx,
         }) as Box<EthernetListener>
     }
 
-    pub fn arp(&self, ethernet: EthernetTx) -> Arp {
+    pub fn arp_tx(&self, ethernet: EthernetTx) -> ArpTx {
         assert_eq!(ethernet.dst, MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
-        Arp {
+        ArpTx {
             table: self.table.clone(),
             ethernet: ethernet,
             listeners: self.listeners.clone(),
@@ -46,13 +46,13 @@ impl ArpFactory {
     }
 }
 
-pub struct ArpEthernetListener {
+pub struct ArpRx {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
     listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
-    tx: Arc<Mutex<VersionedTx>>,
+    vtx: Arc<Mutex<VersionedTx>>,
 }
 
-impl EthernetListener for ArpEthernetListener {
+impl EthernetListener for ArpRx {
     fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) {
         let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
         let ip = arp_pkg.get_sender_proto_addr();
@@ -63,7 +63,7 @@ impl EthernetListener for ArpEthernetListener {
         let old_mac = table.insert(ip, mac);
         if old_mac.is_none() || old_mac != Some(mac) {
             // The new MAC is different from the old one, bump tx VersionedTx
-            self.tx.lock().unwrap().inc();
+            self.vtx.lock().unwrap().inc();
         }
         let listeners =
             self.listeners.lock().expect("Unable to lock ArpEthernetListener::listeners");
@@ -80,27 +80,16 @@ impl EthernetListener for ArpEthernetListener {
 }
 
 /// An Arp table and query interface struct.
-pub struct Arp {
+pub struct ArpTx {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
     ethernet: EthernetTx,
     listeners: Arc<Mutex<HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>>>,
 }
 
-impl Arp {
-    #[deprecated(note = "Use factory")]
-    pub fn new(ethernet: EthernetTx) -> Arp {
-        assert_eq!(ethernet.dst, MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
-        Arp {
-            table: Arc::new(RwLock::new(HashMap::new())),
-            ethernet: ethernet,
-            listeners: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
+impl ArpTx {
     /// Queries the table for a MAC. If it does not exist a request is sent and
     /// the call is blocked
     /// until a reply has arrived
-    // TODO: Rewrite with match on table.get and a drop(table)
     pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> MacAddr {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
@@ -147,6 +136,7 @@ impl Arp {
     }
 
     /// Manually insert an IP -> MAC mapping into this Arp table
+    // TODO: This should also invalidate the Tx
     pub fn insert(&mut self, ip: Ipv4Addr, mac: MacAddr) {
         let mut table = self.table.write().expect("Unable to lock Arp::table for writing");
         table.insert(ip, mac);

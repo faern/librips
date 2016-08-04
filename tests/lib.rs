@@ -12,7 +12,7 @@ use pnet::datalink::{Channel, dummy};
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::util::MacAddr;
 
-use rips::{EthernetChannel, Interface, VersionedTx};
+use rips::{EthernetChannel, Interface, NetworkStack};
 use rips::ethernet::{EthernetRx, EthernetListener};
 // use rips::arp::ArpFactory;
 // use rips::ipv4::{IpListenerLookup, Ipv4Tx, Ipv4Config, Ipv4EthernetListener};
@@ -21,13 +21,12 @@ use rips::ethernet::{EthernetRx, EthernetListener};
 // Modules containing tests.
 mod ethernet;
 // mod stack;
-//mod arp;
+mod arp;
 //mod ipv4;
 //mod icmp;
 
-fn dummy_ethernet(iface_i: u8,
-                  listeners: Vec<Box<EthernetListener>>)
-                  -> (VersionedTx, MacAddr, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+fn dummy_ethernet(iface_i: u8)
+                  -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let iface = dummy::dummy_interface(iface_i);
     let mac = iface.mac.unwrap();
     let interface = Interface {
@@ -43,11 +42,14 @@ fn dummy_ethernet(iface_i: u8,
         Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
         _ => panic!("Invalid channel type returned"),
     };
-    let tx = VersionedTx::new(channel.0);
-    EthernetRx::new(listeners).spawn(channel.1);
 
-    (tx, mac, inject_handle, read_handle)
+    (channel, interface, inject_handle, read_handle)
 }
+
+// fn dummy_stack() {
+//     let mut stack = NetworkStack::new();
+//     stack.add_channel(interface.clone(), channel).expect("Not able to add dummy channel to stack");
+// }
 
 // fn dummy_ipv4(listeners: Arc<Mutex<IpListenerLookup>>)
 //               -> (Ethernet, ArpFactory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {

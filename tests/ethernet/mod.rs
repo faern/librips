@@ -5,8 +5,8 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEther
 use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
 
-use rips::ethernet::{EthernetTx, EthernetListener};
 use rips::Tx;
+use rips::ethernet::{EthernetTx, EthernetRx, EthernetListener};
 
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -28,7 +28,8 @@ fn test_ethernet_recv() {
     let mock_listener = MockEthernetListener { tx: listener_tx };
     let listeners = vec![Box::new(mock_listener) as Box<EthernetListener>];
 
-    let (_, _, inject_handle, _) = ::dummy_ethernet(0, listeners);
+    let (channel, _, inject_handle, _) = ::dummy_ethernet(0);
+    EthernetRx::new(listeners).spawn(channel.1);
 
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() + 3];
     {
@@ -52,22 +53,22 @@ fn test_ethernet_recv() {
 
 #[test]
 fn test_ethernet_send() {
-    let (vtx, mac, _, read_handle) = ::dummy_ethernet(99, vec![]);
-    let tx = Tx::versioned(Arc::new(Mutex::new(vtx)));
-    let mut ethernet_tx = EthernetTx::new(tx, mac, MacAddr::new(6, 7, 8, 9, 10, 11));
+    let src = MacAddr::new(1, 2, 3, 4, 5, 99);
+    let dst = MacAddr::new(6, 7, 8, 9, 10, 11);
+    let (channel, interface, _, read_handle) = ::dummy_ethernet(99);
+    let tx = Tx::direct(channel.0);
+    let mut ethernet_tx = EthernetTx::new(tx, src, dst);
 
     ethernet_tx.send(1, 1, |pkg| {
         pkg.set_ethertype(EtherTypes::Rarp);
         pkg.set_payload(&[57]);
-    });
+    }).expect("Unable to send to ethernet");
 
     let sent_buffer = read_handle.try_recv().expect("Expected a packet to have been sent");
     assert_eq!(15, sent_buffer.len());
     let sent_pkg = EthernetPacket::new(&sent_buffer[..]).expect("Expected buffer to fit a frame");
-    assert_eq!((1, 2, 3, 4, 5, 99),
-               sent_pkg.get_source().to_primitive_values());
-    assert_eq!((6, 7, 8, 9, 10, 11),
-               sent_pkg.get_destination().to_primitive_values());
+    assert_eq!(src, sent_pkg.get_source());
+    assert_eq!(dst, sent_pkg.get_destination());
     assert_eq!(0x8035, sent_pkg.get_ethertype().to_primitive_values().0);
     assert_eq!(57, sent_pkg.payload()[0]);
 }

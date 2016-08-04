@@ -40,7 +40,7 @@ mod util;
 mod test;
 
 use ethernet::{EthernetRx, EthernetTx};
-use arp::{Arp, ArpFactory};
+use arp::{ArpTx, ArpFactory};
 use ipv4::{Ipv4Config, Ipv4EthernetListener, Ipv4Listener};
 use routing::RoutingTable;
 
@@ -227,7 +227,7 @@ impl Tx {
 struct StackInterface {
     interface: Interface,
     tx: Arc<Mutex<VersionedTx>>,
-    _arp_factory: ArpFactory,
+    arp_factory: ArpFactory,
     ipv4s: HashMap<Ipv4Addr, Ipv4Config>,
     // ipv6s: HashMap<Ipv6Addr, Ipv6Config>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
@@ -242,6 +242,10 @@ impl StackInterface {
 
     pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTx {
         EthernetTx::new(self.tx(), self.interface.mac, dst)
+    }
+
+    pub fn arp_tx(&self) -> ArpTx {
+        self.arp_factory.arp_tx(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
     }
 
     pub fn add_ipv4(&mut self, config: Ipv4Config) -> Result<(), ()> {
@@ -315,7 +319,7 @@ impl NetworkStack {
             let stack_interface = StackInterface {
                 interface: interface.clone(),
                 tx: vtx,
-                _arp_factory: arp_factory,
+                arp_factory: arp_factory,
                 ipv4s: HashMap::new(),
                 ipv4_listeners: ipv4_listeners,
                 //udp_listeners: HashMap::new(),
@@ -327,6 +331,10 @@ impl NetworkStack {
 
     pub fn ethernet_tx(&self, interface: &Interface, dst: MacAddr) -> Option<EthernetTx> {
         self.interfaces.get(interface).map(|si| si.ethernet_tx(dst))
+    }
+
+    pub fn arp_tx(&self, interface: &Interface) -> Option<ArpTx> {
+        self.interfaces.get(interface).map(|si| si.arp_tx())
     }
 
     /// Attach a IPv4 network to a an interface.
