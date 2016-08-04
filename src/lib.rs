@@ -147,7 +147,7 @@ impl Tx {
     pub fn send<T>(&mut self,
                    num_packets: usize,
                    size: usize,
-                   mut builder: T)
+                   builder: T)
                    -> TxResult
         where T: FnMut(MutableEthernetPacket)
     {
@@ -175,7 +175,6 @@ impl Tx {
                      -> TxResult
         where T: FnMut(MutableEthernetPacket)
     {
-        println!("{} {}", num_packets, size);
         let result = sender.build_and_send(num_packets, size, &mut builder);
         io_result_to_tx_result(result)
     }
