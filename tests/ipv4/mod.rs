@@ -3,13 +3,15 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
+use ipnetwork::Ipv4Network;
+
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
-use rips::ipv4::{Ipv4Tx, Ipv4Config, Ipv4Listener};
+use rips::ipv4::{Ipv4Tx, Ipv4Listener};
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -23,21 +25,21 @@ impl Ipv4Listener for MockIpv4Listener {
 }
 
 #[test]
-fn test_simple_send() {
+fn simple_send() {
     let source_ip = Ipv4Addr::new(10, 1, 2, 3);
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
     let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let (stack, interface, _, read_handle) = ::dummy_stack(0);
+    let (mut stack, interface, _, read_handle) = ::dummy_stack(0);
 
     // Inject an Arp entry so Ipv4 knows where to send
-    let arp = stack.arp_tx(interface);
+    let mut  arp = stack.arp_tx(&interface).unwrap();
     arp.insert(target_ip, target_mac);
 
-    let config = Ipv4Config::new(source_ip, 24, Ipv4Addr::new(10, 1, 2, 1)).unwrap();
-    stack.add_ipv4(&interface, config)
+    let config = Ipv4Network::new(source_ip, 24).unwrap();
+    stack.add_ipv4(&interface, config);
 
-    let mut ipv4_tx = stack.ipv4_tx(&interface, config.ip, target_ip);
+    let mut ipv4_tx = stack.ipv4_tx(target_ip).unwrap();
     ipv4_tx.send(2, |pkg| {
         pkg.set_payload(&[101, 204]);
     });

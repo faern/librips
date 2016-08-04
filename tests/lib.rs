@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 extern crate pnet;
+extern crate ipnetwork;
 extern crate rips;
 
 use std::sync::mpsc::{Receiver, Sender};

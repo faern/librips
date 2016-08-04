@@ -67,7 +67,6 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 #[derive(Debug)]
 pub enum TxError {
     OutdatedConstructor,
-    IllegalArgument,
     IoError(io::Error),
     Other(String),
 }
@@ -82,7 +81,6 @@ impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
         match e {
             TxError::OutdatedConstructor => io::Error::new(io::ErrorKind::Other, format!("Outdated constructor")),
-            TxError::IllegalArgument => io::Error::new(io::ErrorKind::Other, format!("Illegal argument")),
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => io::Error::new(io::ErrorKind::Other, format!("Other: {}", msg)),
         }
@@ -100,6 +98,20 @@ fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult<()> {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum StackError {
+    IllegalArgument,
+    TxError(TxError),
+}
+
+impl From<TxError> for StackError {
+    fn from(e: TxError) -> Self {
+        StackError::TxError(e)
+    }
+}
+
+pub type StackResult<T> = Result<T, StackError>;
 
 pub struct VersionedTx {
     sender: Box<EthernetDataLinkSender>,
@@ -276,19 +288,24 @@ impl StackInterface {
         }
     }
 
-    pub fn ipv4_tx(&self, src: Ipv4Addr, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> TxResult<Ipv4Tx> {
-        if let Some(ip_net) = self.ipv4s.get(&src) {
-            let local_dst = gw.unwrap_or(dst);
-            if ip_net.contains(local_dst) {
-                let dst_mac = try!(self.arp_tx().get(src, local_dst));
-                let ethernet_tx = self.ethernet_tx(dst_mac);
-                Ok(Ipv4Tx::new(ethernet_tx, src, dst))
-            } else {
-                Err(TxError::IllegalArgument)
-            }
+    pub fn ipv4_tx(&self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> StackResult<Ipv4Tx> {
+        let local_dst = gw.unwrap_or(dst);
+        if let Some(src) = self.closest_local_ip(local_dst) {
+            let dst_mac = try!(self.arp_tx().get(src, local_dst));
+            let ethernet_tx = self.ethernet_tx(dst_mac);
+            Ok(Ipv4Tx::new(ethernet_tx, src, dst))
         } else {
-            Err(TxError::IllegalArgument)
+            Err(StackError::IllegalArgument)
         }
+    }
+
+    fn closest_local_ip(&self, dst: Ipv4Addr) -> Option<Ipv4Addr> {
+        for (ip, net) in &self.ipv4s {
+            if net.contains(dst) {
+                return Some(*ip);
+            }
+        }
+        None
     }
 
     fn create_ipv4_listeners(&mut self,
@@ -313,14 +330,14 @@ impl StackInterface {
 /// of this is still unimplemented.
 pub struct NetworkStack {
     interfaces: HashMap<Interface, StackInterface>,
-    _routing_table: RoutingTable,
+    routing_table: RoutingTable,
 }
 
 impl NetworkStack {
     pub fn new() -> NetworkStack {
         NetworkStack {
             interfaces: HashMap::new(),
-            _routing_table: RoutingTable::new(),
+            routing_table: RoutingTable::new(),
         }
     }
 
@@ -347,20 +364,27 @@ impl NetworkStack {
     }
 
     /// Attach a IPv4 network to a an interface.
-    pub fn add_ipv4(&mut self, interface: &Interface, config: Ipv4Network) -> Result<(), ()> {
+    pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> Result<(), ()> {
         if let Some(stack_interface) = self.interfaces.get_mut(interface) {
-            stack_interface.add_ipv4(config)
+            let result = stack_interface.add_ipv4(ip_net);
+            if result.is_ok() {
+                self.routing_table.add_route(ip_net, None, interface.clone());
+            }
+            result
         } else {
             Err(())
         }
     }
 
-    pub fn ipv4_tx(&self, interface: &Interface, src: Ipv4Addr, dst: Ipv4Addr) -> TxResult<Ipv4Tx> {
-        if let Some(stack_interface) = self.interfaces.get(interface) {
-            // TODO: Perform routing here and send proper gw
-            stack_interface.ipv4_tx(src, dst, None)
+    pub fn ipv4_tx(&self, dst: Ipv4Addr) -> StackResult<Ipv4Tx> {
+        if let Some((gw, interface)) = self.routing_table.route(dst) {
+            if let Some(stack_interface) = self.interfaces.get(&interface) {
+                stack_interface.ipv4_tx(dst, gw)
+            } else {
+                Err(StackError::IllegalArgument)
+            }
         } else {
-            Err(TxError::IllegalArgument)
+            Err(StackError::IllegalArgument)
         }
     }
 
