@@ -13,6 +13,8 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 
+use ipnetwork::Ipv4Network;
+
 use pnet::datalink;
 use pnet::util::MacAddr;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
@@ -41,7 +43,7 @@ mod test;
 
 use ethernet::{EthernetRx, EthernetTx};
 use arp::{ArpTx, ArpFactory};
-use ipv4::{Ipv4Config, Ipv4EthernetListener, Ipv4Listener};
+use ipv4::{Ipv4Rx, Ipv4Tx, Ipv4Listener};
 use routing::RoutingTable;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -65,7 +67,7 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 #[derive(Debug)]
 pub enum TxError {
     OutdatedConstructor,
-    MutexError,
+    IllegalArgument,
     IoError(io::Error),
     Other(String),
 }
@@ -80,7 +82,7 @@ impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
         match e {
             TxError::OutdatedConstructor => io::Error::new(io::ErrorKind::Other, format!("Outdated constructor")),
-            TxError::MutexError => io::Error::new(io::ErrorKind::Other, format!("Poisoned mutex")),
+            TxError::IllegalArgument => io::Error::new(io::ErrorKind::Other, format!("Illegal argument")),
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => io::Error::new(io::ErrorKind::Other, format!("Other: {}", msg)),
         }
@@ -161,7 +163,7 @@ impl Tx {
                             Self::internal_send(&mut sender.sender, num_packets, size, builder)
                         }
                     },
-                    Err(_) => Err(TxError::MutexError),
+                    Err(_) => Err(TxError::Other(format!("Unable to lock mutex"))),
                 }
             },
             TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),
@@ -198,18 +200,6 @@ impl Tx {
 //     Ok(NetworkStack::new(&ethernets[..]))
 // }
 //
-// fn create_ethernet(interface: NetworkInterface,
-//                    listeners: Vec<Box<EthernetListener>>)
-//                    -> io::Result<Ethernet> {
-//     let config = datalink::Config::default();
-//     let channel = match try!(datalink::channel(&interface, config)) {
-//         datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
-//         _ => panic!("Invalid channel type returned"),
-//     };
-//     let internal_interface = try!(convert_interface(interface));
-//     Ok(Ethernet::new(internal_interface, channel, listeners))
-// }
-//
 // fn convert_interface(interface: NetworkInterface) -> io::Result<Interface> {
 //     if let Some(mac) = interface.mac {
 //         Ok(Interface {
@@ -228,7 +218,7 @@ struct StackInterface {
     interface: Interface,
     tx: Arc<Mutex<VersionedTx>>,
     arp_factory: ArpFactory,
-    ipv4s: HashMap<Ipv4Addr, Ipv4Config>,
+    ipv4s: HashMap<Ipv4Addr, Ipv4Network>,
     // ipv6s: HashMap<Ipv6Addr, Ipv6Config>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
     // ipv6_listeners...
@@ -236,6 +226,31 @@ struct StackInterface {
 }
 
 impl StackInterface {
+    pub fn new(interface: Interface, channel: EthernetChannel) -> StackInterface {
+        let sender = channel.0;
+        let receiver = channel.1;
+
+        let vtx = Arc::new(Mutex::new(VersionedTx::new(sender)));
+
+        let arp_factory = ArpFactory::new();
+        let arp_ethernet_listener = arp_factory.listener(vtx.clone());
+
+        let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
+        let ipv4_ethernet_listener = Ipv4Rx::new(ipv4_listeners.clone());
+
+        let ethernet_listeners = vec![arp_ethernet_listener, ipv4_ethernet_listener];
+        EthernetRx::new(ethernet_listeners).spawn(receiver);
+
+        StackInterface {
+            interface: interface.clone(),
+            tx: vtx,
+            arp_factory: arp_factory,
+            ipv4s: HashMap::new(),
+            ipv4_listeners: ipv4_listeners,
+            //udp_listeners: HashMap::new(),
+        }
+    }
+
     fn tx(&self) -> Tx {
         Tx::versioned(self.tx.clone())
     }
@@ -248,10 +263,10 @@ impl StackInterface {
         self.arp_factory.arp_tx(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
     }
 
-    pub fn add_ipv4(&mut self, config: Ipv4Config) -> Result<(), ()> {
-        let ip = config.ip;
+    pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> Result<(), ()> {
+        let ip = ip_net.ip();
         if !self.ipv4s.contains_key(&ip) {
-            self.ipv4s.insert(ip, config);
+            self.ipv4s.insert(ip, ip_net);
             let ipv4_listeners = self.create_ipv4_listeners(ip);
             let mut iface_ipv4_listeners = self.ipv4_listeners.lock().unwrap();
             iface_ipv4_listeners.insert(ip, ipv4_listeners);
@@ -261,10 +276,25 @@ impl StackInterface {
         }
     }
 
+    pub fn ipv4_tx(&self, src: Ipv4Addr, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> TxResult<Ipv4Tx> {
+        if let Some(ip_net) = self.ipv4s.get(&src) {
+            let local_dst = gw.unwrap_or(dst);
+            if ip_net.contains(local_dst) {
+                let dst_mac = try!(self.arp_tx().get(src, local_dst));
+                let ethernet_tx = self.ethernet_tx(dst_mac);
+                Ok(Ipv4Tx::new(ethernet_tx, src, dst))
+            } else {
+                Err(TxError::IllegalArgument)
+            }
+        } else {
+            Err(TxError::IllegalArgument)
+        }
+    }
+
     fn create_ipv4_listeners(&mut self,
-                             ip: Ipv4Addr)
+                             _ip: Ipv4Addr)
                              -> HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>> {
-        let mut proto_listeners = HashMap::new();
+        let proto_listeners = HashMap::new();
         //
         // let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
         // self.udp_listeners.insert(ip, udp_listeners.clone());
@@ -302,29 +332,8 @@ impl NetworkStack {
         if self.interfaces.contains_key(&interface) {
             Err(())
         } else {
-            let sender = channel.0;
-            let receiver = channel.1;
-
-            let vtx = Arc::new(Mutex::new(VersionedTx::new(sender)));
-
-            let arp_factory = ArpFactory::new();
-            let arp_ethernet_listener = arp_factory.listener(vtx.clone());
-
-            let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
-            let ipv4_ethernet_listener = Ipv4EthernetListener::new(ipv4_listeners.clone());
-
-            let ethernet_listeners = vec![arp_ethernet_listener, ipv4_ethernet_listener];
-            EthernetRx::new(ethernet_listeners).spawn(receiver);
-
-            let stack_interface = StackInterface {
-                interface: interface.clone(),
-                tx: vtx,
-                arp_factory: arp_factory,
-                ipv4s: HashMap::new(),
-                ipv4_listeners: ipv4_listeners,
-                //udp_listeners: HashMap::new(),
-            };
-            self.interfaces.insert(interface.clone(), stack_interface);
+            let stack_interface = StackInterface::new(interface.clone(), channel);
+            self.interfaces.insert(interface, stack_interface);
             Ok(())
         }
     }
@@ -338,11 +347,20 @@ impl NetworkStack {
     }
 
     /// Attach a IPv4 network to a an interface.
-    pub fn add_ipv4(&mut self, interface: &Interface, config: Ipv4Config) -> Result<(), ()> {
+    pub fn add_ipv4(&mut self, interface: &Interface, config: Ipv4Network) -> Result<(), ()> {
         if let Some(stack_interface) = self.interfaces.get_mut(interface) {
             stack_interface.add_ipv4(config)
         } else {
             Err(())
+        }
+    }
+
+    pub fn ipv4_tx(&self, interface: &Interface, src: Ipv4Addr, dst: Ipv4Addr) -> TxResult<Ipv4Tx> {
+        if let Some(stack_interface) = self.interfaces.get(interface) {
+            // TODO: Perform routing here and send proper gw
+            stack_interface.ipv4_tx(src, dst, None)
+        } else {
+            Err(TxError::IllegalArgument)
         }
     }
 

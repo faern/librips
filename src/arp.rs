@@ -93,7 +93,7 @@ impl ArpTx {
     pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<MacAddr> {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
-            let table = try!(table_arc.read().map_err(|_| TxError::MutexError));
+            let table = try!(table_arc.read().map_err(|_| TxError::Other(format!("Unable to lock mutex"))));
             if let Some(mac) = table.get(&target_ip) {
                 return Ok(mac.clone());
             }

@@ -31,33 +31,6 @@ impl From<ipnetwork::IpNetworkError> for IpConfError {
     }
 }
 
-/// IP settings for one `Ipv4` instance
-#[derive(Clone)]
-pub struct Ipv4Config {
-    /// The ip of the local host represented by this `Ipv4Config`
-    pub ip: Ipv4Addr,
-
-    gw: Ipv4Addr,
-    net: Ipv4Network,
-}
-
-impl Ipv4Config {
-    /// Creates a new `Ipv4Config`.
-    /// Checks so the gateways is inside the network, returns None otherwise.
-    pub fn new(ip: Ipv4Addr, prefix: u8, gw: Ipv4Addr) -> Result<Ipv4Config, IpConfError> {
-        let net = try!(Ipv4Network::new(ip, prefix));
-        if !net.contains(gw) {
-            Err(IpConfError::GwNotInNetwork)
-        } else {
-            Ok(Ipv4Config {
-                ip: ip,
-                gw: gw,
-                net: net,
-            })
-        }
-    }
-}
-
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
@@ -67,18 +40,18 @@ pub trait Ipv4Listener: Send {
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
 
 /// Struct listening for ethernet frames containing IPv4 packets.
-pub struct Ipv4EthernetListener {
+pub struct Ipv4Rx {
     listeners: Arc<Mutex<IpListenerLookup>>,
 }
 
-impl Ipv4EthernetListener {
+impl Ipv4Rx {
     pub fn new(listeners: Arc<Mutex<IpListenerLookup>>) -> Box<EthernetListener> {
-        let this = Ipv4EthernetListener { listeners: listeners };
+        let this = Ipv4Rx { listeners: listeners };
         Box::new(this) as Box<EthernetListener>
     }
 }
 
-impl EthernetListener for Ipv4EthernetListener {
+impl EthernetListener for Ipv4Rx {
     fn recv(&mut self, time: SystemTime, pkg: &EthernetPacket) {
         let ip_pkg = Ipv4Packet::new(pkg.payload()).unwrap();
         let dest_ip = ip_pkg.get_destination();

@@ -22,11 +22,10 @@ use rips::ethernet::{EthernetListener, EthernetRx};
 mod ethernet;
 // mod stack;
 mod arp;
-// mod ipv4;
+mod ipv4;
 // mod icmp;
 
-fn dummy_ethernet
-    (iface_i: u8)
+fn dummy_ethernet(iface_i: u8)
      -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
     let iface = dummy::dummy_interface(iface_i);
     let mac = iface.mac.unwrap();
@@ -47,26 +46,24 @@ fn dummy_ethernet
     (channel, interface, inject_handle, read_handle)
 }
 
-// fn dummy_stack() {
-//     let mut stack = NetworkStack::new();
-// stack.add_channel(interface.clone(), channel).expect("Not able to add
-// dummy channel to stack");
-// }
+fn dummy_stack(iface_i: u8) -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+    let (channel, interface, inject_handle, read_handle) = dummy_ethernet(iface_i);
+    let mut stack = NetworkStack::new();
+    stack.add_channel(interface.clone(), channel).expect("Not able to add dummy channel to stack");
+    (stack, interface, inject_handle, read_handle)
+}
 
-// fn dummy_ipv4(listeners: Arc<Mutex<IpListenerLookup>>)
-// -> (Ethernet, ArpFactory, Sender<io::Result<Box<[u8]>>>,
-// Receiver<Box<[u8]>>) {
+// fn dummy_ipv4(listeners: Arc<Mutex<IpListenerLookup>>) -> (Ethernet, ArpFactory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
 //     let arp_factory = ArpFactory::new();
 //     let arp_listener = arp_factory.listener();
 //
 //     let ipv4_listener = Ipv4EthernetListener::new(listeners);
 //     let ethernet_listeners = vec![arp_listener, ipv4_listener];
 //
-// let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0,
-// ethernet_listeners);
+//     let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0, ethernet_listeners);
 //     (ethernet, arp_factory, inject_handle, read_handle)
 // }
-//
+
 // fn dummy_icmp()
 //     -> (Ethernet,
 //         Arc<Mutex<IcmpListenerLookup>>,
