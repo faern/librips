@@ -12,7 +12,7 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEther
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
-use {VersionedTx, TxResult};
+use {VersionedTx, TxResult, TxError};
 use ethernet::{EthernetTx, EthernetListener};
 
 pub struct ArpFactory {
@@ -90,23 +90,23 @@ impl ArpTx {
     /// Queries the table for a MAC. If it does not exist a request is sent and
     /// the call is blocked
     /// until a reply has arrived
-    pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> MacAddr {
+    pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<MacAddr> {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
-            let table = table_arc.read().expect("Unable to lock Arp::table for reading");
+            let table = try!(table_arc.read().map_err(|_| TxError::MutexError));
             if let Some(mac) = table.get(&target_ip) {
-                return mac.clone();
+                return Ok(mac.clone());
             }
             let rx = self.add_listener(target_ip);
             self.send(sender_ip, target_ip).expect("Network send error");
             rx
         }; // Release table lock
-        mac_rx.recv().expect("Unable to read MAC from mac_rx")
+        mac_rx.recv().map_err(|_| TxError::Other(format!("Unable to read MAC from mac_rx")))
     }
 
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
     /// request
-    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult {
+    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<()> {
         let local_mac = self.ethernet.src;
         let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
             eth_pkg.set_ethertype(EtherTypes::Arp);

@@ -108,7 +108,7 @@ impl EthernetTx {
                    num_packets: usize,
                    payload_size: usize,
                    mut builder: T)
-                   -> TxResult
+                   -> TxResult<()>
         where T: FnMut(&mut MutableEthernetPacket)
     {
         let total_packet_size = payload_size + EthernetPacket::minimum_packet_size();

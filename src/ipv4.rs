@@ -123,7 +123,7 @@ impl Ipv4Tx {
     pub fn send<T>(&mut self,
                    payload_size: u16,
                    mut builder: T)
-                   -> TxResult
+                   -> TxResult<()>
         where T: FnMut(&mut MutableIpv4Packet)
     {
         let total_size = Ipv4Packet::minimum_packet_size() as u16 + payload_size;

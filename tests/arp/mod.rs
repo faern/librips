@@ -73,7 +73,7 @@ fn test_arp_locking() {
 
     // Make sure all threads returned already, otherwise too slow
     for _ in 0..thread_count {
-        let mac = arp_thread_rx.recv().expect("Arp thread did not return yet, too slow!");
+        let mac = arp_thread_rx.recv().expect("Arp thread did not return yet, too slow!").expect("ArpTx did not return a successful MacAddr response");
         assert_eq!(MacAddr::new(9, 8, 7, 6, 5, 4), mac);
     }
     assert!(arp_thread_rx.try_recv().is_err());

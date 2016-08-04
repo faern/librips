@@ -66,8 +66,8 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 pub enum TxError {
     OutdatedConstructor,
     MutexError,
-    InsufficientBuffer,
     IoError(io::Error),
+    Other(String),
 }
 
 impl From<io::Error> for TxError {
@@ -81,17 +81,17 @@ impl From<TxError> for io::Error {
         match e {
             TxError::OutdatedConstructor => io::Error::new(io::ErrorKind::Other, format!("Outdated constructor")),
             TxError::MutexError => io::Error::new(io::ErrorKind::Other, format!("Poisoned mutex")),
-            TxError::InsufficientBuffer => io::Error::new(io::ErrorKind::Other, format!("Insufficient buffer")),
             TxError::IoError(e2) => e2,
+            TxError::Other(msg) => io::Error::new(io::ErrorKind::Other, format!("Other: {}", msg)),
         }
     }
 }
 
-pub type TxResult = Result<(), TxError>;
+pub type TxResult<T> = Result<T, TxError>;
 
-fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
+fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult<()> {
     match r {
-        None => Err(TxError::InsufficientBuffer),
+        None => Err(TxError::Other(format!("Insufficient buffer space"))),
         Some(ior) => match ior {
             Err(e) => Err(TxError::from(e)),
             Ok(()) => Ok(())
@@ -148,7 +148,7 @@ impl Tx {
                    num_packets: usize,
                    size: usize,
                    builder: T)
-                   -> TxResult
+                   -> TxResult<()>
         where T: FnMut(MutableEthernetPacket)
     {
         match self.sender {
@@ -172,7 +172,7 @@ impl Tx {
                         num_packets: usize,
                         size: usize,
                         mut builder: T)
-                     -> TxResult
+                     -> TxResult<()>
         where T: FnMut(MutableEthernetPacket)
     {
         let result = sender.build_and_send(num_packets, size, &mut builder);
