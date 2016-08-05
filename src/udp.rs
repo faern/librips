@@ -79,7 +79,8 @@ impl UdpTx {
             udp_pkg.set_destination(dst);
             udp_pkg.set_length(total_size);
             builder(&mut udp_pkg);
-            // TODO: Set to zero?
+
+            udp_pkg.set_checksum(0);
             let checksum = ipv4_checksum(&udp_pkg.to_immutable(),
                                          src_ip,
                                          dst_ip,
