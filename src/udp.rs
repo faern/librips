@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, ToSocketAddrs, SocketAddr};
+use std::net::{ToSocketAddrs, SocketAddr, SocketAddrV4};
 use std::io;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
-use {TxResult, NetworkStack};
+use {TxResult, TxError, StackResult, StackError, NetworkStack};
 use ipv4::{Ipv4Tx, Ipv4Listener};
 use util;
 
@@ -19,17 +19,17 @@ pub trait UdpListener: Send {
 
 pub type UdpListenerLookup = HashMap<u16, Box<UdpListener>>;
 
-pub struct UdpIpv4Listener {
+pub struct UdpRx {
     listeners: Arc<Mutex<UdpListenerLookup>>,
 }
 
-impl UdpIpv4Listener {
-    pub fn new(listeners: Arc<Mutex<UdpListenerLookup>>) -> UdpIpv4Listener {
-        UdpIpv4Listener { listeners: listeners }
+impl UdpRx {
+    pub fn new(listeners: Arc<Mutex<UdpListenerLookup>>) -> UdpRx {
+        UdpRx { listeners: listeners }
     }
 }
 
-impl Ipv4Listener for UdpIpv4Listener {
+impl Ipv4Listener for UdpRx {
     fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) {
         let port = {
             let udp_pkg = UdpPacket::new(ip_pkg.payload()).unwrap();
@@ -53,7 +53,7 @@ pub struct UdpTx {
 }
 
 impl UdpTx {
-    pub fn new(ipv4: Ipv4Tx, src: u16, dst: u16, rev: u64) -> UdpTx {
+    pub fn new(ipv4: Ipv4Tx, src: u16, dst: u16) -> UdpTx {
         UdpTx {
             src: src,
             dst: dst,
@@ -64,18 +64,19 @@ impl UdpTx {
     pub fn send<T>(&mut self,
                    payload_size: u16,
                    mut builder: T)
-                   -> TxResult
+                   -> TxResult<()>
         where T: FnMut(&mut MutableUdpPacket)
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
+        let (src, dst) = (self.src, self.dst);
         let mut builder_wrapper = |ip_pkg: &mut MutableIpv4Packet| {
             ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Udp);
             let src_ip = ip_pkg.get_source();
             let dst_ip = ip_pkg.get_destination();
 
             let mut udp_pkg = MutableUdpPacket::new(ip_pkg.payload_mut()).unwrap();
-            udp_pkg.set_source(self.src);
-            udp_pkg.set_destination(self.dst);
+            udp_pkg.set_source(src);
+            udp_pkg.set_destination(dst);
             udp_pkg.set_length(total_size);
             builder(&mut udp_pkg);
             // TODO: Set to zero?
@@ -90,35 +91,56 @@ impl UdpTx {
 }
 
 pub struct UdpSocket {
-    sender_cache: HashMap<Ipv4Addr, UdpTx>,
+    src_port: u16,
+    stack: NetworkStack,
+    tx_cache: HashMap<SocketAddrV4, UdpTx>,
 }
 
 impl UdpSocket {
-    pub fn bind<A: ToSocketAddrs>(stack: NetworkStack, addr: A) -> io::Result<UdpSocket> {
-
-    }
+    // pub fn bind<A: ToSocketAddrs>(stack: NetworkStack, addr: A) -> io::Result<UdpSocket> {
+    //
+    // }
 
     pub fn send_to<A: ToSocketAddrs>(&mut self, buf: &[u8], addr: A) -> io::Result<usize> {
-        if buf.len() > ::std::u16::MAX as usize {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Too large payload")));
-        }
-        let len = buf.len() as u16;
         match try!(util::first_socket_addr(addr)) {
-            SocketAddr::V4(addr) => {
-                let dst_ip = addr.ip();
-                let dst_port = addr.port();
-                if let Some(udp) = self.sender_cache.get_mut(&dst_ip) {
-                    udp.send(len, |pkg| {
-                        pkg.set_payload(buf);
-                    });
-                } else {
-
-                }
-                Ok(0)
+            SocketAddr::V4(dst) => {
+                self.internal_send(buf, dst).map(|_| buf.len()).map(|_| buf.len()).map_err(|e| match e {
+                    StackError::TxError(TxError::IoError(io_e)) => io_e,
+                    StackError::TxError(TxError::Other(msg)) => io::Error::new(io::ErrorKind::Other, msg),
+                    _ => unreachable!(),
+                })
             },
-            SocketAddr::V6(addr) => {
+            SocketAddr::V6(_dst) => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
             },
+        }
+    }
+
+    fn internal_send(&mut self, buf: &[u8], dst: SocketAddrV4) -> StackResult<()> {
+        match self.internal_send_on_cached_tx(buf, dst) {
+            Err(TxError::OutdatedConstructor) => {
+                let (dst_ip, dst_port) = (*dst.ip(), dst.port());
+                let new_udp_tx = try!(self.stack.udp_tx(dst_ip, self.src_port, dst_port));
+                self.tx_cache.insert(dst, new_udp_tx);
+                self.internal_send(buf, dst)
+            },
+            result => result.map_err(|e| StackError::TxError(e))
+        }
+    }
+
+    fn internal_send_on_cached_tx(&mut self, buf: &[u8], dst: SocketAddrV4) -> TxResult<()> {
+        if buf.len() > ::std::u16::MAX as usize {
+            return Err(TxError::TooLargePayload);
+        }
+        let len = buf.len() as u16;
+
+        if let Some(udp_tx) = self.tx_cache.get_mut(&dst) {
+            udp_tx.send(len, |pkg| {
+                pkg.set_payload(buf);
+            })
+        } else {
+            // No cached UdpTx is treated as an existing but outdated one
+            Err(TxError::OutdatedConstructor)
         }
     }
 }

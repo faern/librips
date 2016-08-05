@@ -32,7 +32,7 @@ pub mod ipv4;
 /// Module for Icmp functionality
 //pub mod icmp;
 
-//pub mod udp;
+pub mod udp;
 
 pub mod routing;
 
@@ -44,6 +44,7 @@ mod test;
 use ethernet::{EthernetRx, EthernetTx};
 use arp::{ArpTx, ArpFactory};
 use ipv4::{Ipv4Rx, Ipv4Tx, Ipv4Listener};
+use udp::UdpTx;
 use routing::RoutingTable;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -67,6 +68,7 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 #[derive(Debug)]
 pub enum TxError {
     OutdatedConstructor,
+    TooLargePayload,
     IoError(io::Error),
     Other(String),
 }
@@ -81,6 +83,7 @@ impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
         match e {
             TxError::OutdatedConstructor => io::Error::new(io::ErrorKind::Other, format!("Outdated constructor")),
+            TxError::TooLargePayload => io::Error::new(io::ErrorKind::Other, format!("Too large payload")),
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => io::Error::new(io::ErrorKind::Other, format!("Other: {}", msg)),
         }
@@ -275,7 +278,7 @@ impl StackInterface {
         self.arp_factory.arp_tx(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
     }
 
-    pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> Result<(), ()> {
+    pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> StackResult<()> {
         let ip = ip_net.ip();
         if !self.ipv4s.contains_key(&ip) {
             self.ipv4s.insert(ip, ip_net);
@@ -284,7 +287,7 @@ impl StackInterface {
             iface_ipv4_listeners.insert(ip, ipv4_listeners);
             Ok(())
         } else {
-            Err(())
+            Err(StackError::IllegalArgument)
         }
     }
 
@@ -364,7 +367,7 @@ impl NetworkStack {
     }
 
     /// Attach a IPv4 network to a an interface.
-    pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> Result<(), ()> {
+    pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
         if let Some(stack_interface) = self.interfaces.get_mut(interface) {
             let result = stack_interface.add_ipv4(ip_net);
             if result.is_ok() {
@@ -372,7 +375,7 @@ impl NetworkStack {
             }
             result
         } else {
-            Err(())
+            Err(StackError::IllegalArgument)
         }
     }
 
@@ -386,6 +389,11 @@ impl NetworkStack {
         } else {
             Err(StackError::IllegalArgument)
         }
+    }
+
+    pub fn udp_tx(&self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<UdpTx> {
+        let ipv4_tx = try!(self.ipv4_tx(dst_ip));
+        Ok(UdpTx::new(ipv4_tx, src, dst_port))
     }
 
     // pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<()>
