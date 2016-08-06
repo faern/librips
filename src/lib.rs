@@ -234,10 +234,8 @@ struct StackInterface {
     tx: Arc<Mutex<VersionedTx>>,
     arp_factory: ArpFactory,
     ipv4s: HashMap<Ipv4Addr, Ipv4Network>,
-    // ipv6s: HashMap<Ipv6Addr, Ipv6Config>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
-    // ipv6_listeners...
-    //udp_listeners: HashMap<Ipv4Addr, Arc<Mutex<udp::UdpListenerLookup>>>,
+    udp_listeners: HashMap<Ipv4Addr, Arc<Mutex<udp::UdpListenerLookup>>>,
 }
 
 impl StackInterface {
@@ -262,7 +260,7 @@ impl StackInterface {
             arp_factory: arp_factory,
             ipv4s: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
-            //udp_listeners: HashMap::new(),
+            udp_listeners: HashMap::new(),
         }
     }
 
@@ -312,15 +310,15 @@ impl StackInterface {
     }
 
     fn create_ipv4_listeners(&mut self,
-                             _ip: Ipv4Addr)
+                             ip: Ipv4Addr)
                              -> HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>> {
-        let proto_listeners = HashMap::new();
-        //
-        // let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
-        // self.udp_listeners.insert(ip, udp_listeners.clone());
-        // let udp_ipv4_listener =
-        //     Box::new(udp::UdpIpv4Listener::new(udp_listeners)) as Box<Ipv4Listener>;
-        // proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
+        let mut proto_listeners = HashMap::new();
+
+        let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
+        self.udp_listeners.insert(ip, udp_listeners.clone());
+        let udp_rx = udp::UdpRx::new(udp_listeners);
+        let udp_ipv4_listener = Box::new(udp_rx) as Box<Ipv4Listener>;
+        proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
 
         // Insert Icmp listener stuff
 
@@ -396,37 +394,37 @@ impl NetworkStack {
         Ok(UdpTx::new(ipv4_tx, src, dst_port))
     }
 
-    // pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<()>
-    //     where A: ToSocketAddrs,
-    //           L: udp::UdpListener + 'static
-    // {
-    //     match try!(util::first_socket_addr(addr)) {
-    //         SocketAddr::V4(addr) => {
-    //             let local_ip = addr.ip();
-    //             let local_port = addr.port();
-    //             if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
-    //                 panic!("Rips does not support listening to all interfaces yet");
-    //             } else {
-    //                 for stack_interface in self.interfaces.values() {
-    //                     if let Some(udp_listeners) = stack_interface.udp_listeners.get(local_ip) {
-    //                         let mut udp_listeners = udp_listeners.lock().unwrap();
-    //                         if !udp_listeners.contains_key(&local_port) {
-    //                             udp_listeners.insert(local_port, Box::new(listener));
-    //                             return Ok(());
-    //                         } else {
-    //                             return Err(io::Error::new(io::ErrorKind::AddrInUse,
-    //                                                       format!("Address/Port is already \
-    //                                                                occupied")));
-    //                         }
-    //                     }
-    //                 }
-    //                 return Err(io::Error::new(io::ErrorKind::InvalidInput,
-    //                                           format!("Bind address does not exist in stack")));
-    //             }
-    //         },
-    //         SocketAddr::V6(_) => {
-    //             Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
-    //         }
-    //     }
-    // }
+    pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<()>
+        where A: ToSocketAddrs,
+              L: udp::UdpListener + 'static
+    {
+        match try!(util::first_socket_addr(addr)) {
+            SocketAddr::V4(addr) => {
+                let local_ip = addr.ip();
+                let local_port = addr.port();
+                if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
+                    panic!("Rips does not support listening to all interfaces yet");
+                } else {
+                    for stack_interface in self.interfaces.values() {
+                        if let Some(udp_listeners) = stack_interface.udp_listeners.get(local_ip) {
+                            let mut udp_listeners = udp_listeners.lock().unwrap();
+                            if !udp_listeners.contains_key(&local_port) {
+                                udp_listeners.insert(local_port, Box::new(listener));
+                                return Ok(());
+                            } else {
+                                let msg = format!("Port {} is already occupied on {}",
+                                                  local_port, local_ip);
+                                return Err(io::Error::new(io::ErrorKind::AddrInUse, msg));
+                            }
+                        }
+                    }
+                    let msg = format!("Bind address does not exist in stack");
+                    Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+                }
+            },
+            SocketAddr::V6(_) => {
+                Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
+            }
+        }
+    }
 }
