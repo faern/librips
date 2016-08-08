@@ -394,7 +394,7 @@ impl NetworkStack {
         Ok(UdpTx::new(ipv4_tx, src, dst_port))
     }
 
-    pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<()>
+    pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<SocketAddr>
         where A: ToSocketAddrs,
               L: udp::UdpListener + 'static
     {
@@ -410,7 +410,7 @@ impl NetworkStack {
                             let mut udp_listeners = udp_listeners.lock().unwrap();
                             if !udp_listeners.contains_key(&local_port) {
                                 udp_listeners.insert(local_port, Box::new(listener));
-                                return Ok(());
+                                return Ok(SocketAddr::V4(addr));
                             } else {
                                 let msg = format!("Port {} is already occupied on {}",
                                                   local_port, local_ip);

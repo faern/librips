@@ -6,7 +6,6 @@ use std::io;
 use std::thread;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::time::SystemTime;
 
 use pnet::datalink::{EthernetDataLinkReceiver, EthernetDataLinkSender};

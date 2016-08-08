@@ -1,6 +1,6 @@
 use std::net::{ToSocketAddrs, SocketAddr, SocketAddrV4};
 use std::io;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
@@ -91,16 +91,72 @@ impl UdpTx {
     }
 }
 
+struct UdpSocketListener {
+    chan: mpsc::Sender<(SystemTime, Box<[u8]>)>,
+}
+
+impl UdpListener for UdpSocketListener {
+    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> bool {
+        let data = packet.packet().to_vec().into_boxed_slice();
+        self.chan.send((time, data)).is_ok()
+    }
+}
+
+struct UdpSocketReader {
+    port: mpsc::Receiver<(SystemTime, Box<[u8]>)>,
+    chan: Option<UdpSocketListener>,
+}
+
+impl UdpSocketReader {
+    pub fn new() -> UdpSocketReader {
+        let (tx, rx) = mpsc::channel();
+        UdpSocketReader {
+            port: rx,
+            chan: Some(UdpSocketListener { chan: tx }),
+        }
+    }
+
+    pub fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+        let (_time, data) = self.port.recv().unwrap();
+        let ipv4_pkg = Ipv4Packet::new(&data).unwrap();
+        let ip = ipv4_pkg.get_source();
+        let udp_pkg = UdpPacket::new(ipv4_pkg.payload()).unwrap();
+        let port = udp_pkg.get_source();
+        let data = udp_pkg.payload();
+        buf.clone_from_slice(data);
+        Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
+    }
+
+    pub fn listener(&mut self) -> Option<UdpSocketListener> {
+        self.chan.take()
+    }
+}
+
 pub struct UdpSocket {
     src_port: u16,
-    stack: NetworkStack,
+    stack: Arc<Mutex<NetworkStack>>,
     tx_cache: HashMap<SocketAddrV4, UdpTx>,
+    rx: Option<UdpSocketReader>,
 }
 
 impl UdpSocket {
-    // pub fn bind<A: ToSocketAddrs>(stack: NetworkStack, addr: A) -> io::Result<UdpSocket> {
-    //
-    // }
+    pub fn bind<A: ToSocketAddrs>(stack: Arc<Mutex<NetworkStack>>, addr: A) -> io::Result<UdpSocket> {
+        let mut socket_reader = UdpSocketReader::new();
+        let socket_addr = {
+            let mut stack = stack.lock().unwrap();
+            try!(stack.udp_listen(addr, socket_reader.listener().unwrap()))
+        };
+        Ok(UdpSocket {
+            src_port: socket_addr.port(),
+            stack: stack,
+            tx_cache: HashMap::new(),
+            rx: Some(socket_reader),
+        })
+    }
+
+    pub fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+        self.rx.as_ref().unwrap().recv_from(buf)
+    }
 
     pub fn send_to<A: ToSocketAddrs>(&mut self, buf: &[u8], addr: A) -> io::Result<usize> {
         match try!(util::first_socket_addr(addr)) {
@@ -121,7 +177,10 @@ impl UdpSocket {
         match self.internal_send_on_cached_tx(buf, dst) {
             Err(TxError::OutdatedConstructor) => {
                 let (dst_ip, dst_port) = (*dst.ip(), dst.port());
-                let new_udp_tx = try!(self.stack.udp_tx(dst_ip, self.src_port, dst_port));
+                let new_udp_tx = {
+                    let stack = self.stack.lock().unwrap();
+                    try!(stack.udp_tx(dst_ip, self.src_port, dst_port))
+                };
                 self.tx_cache.insert(dst, new_udp_tx);
                 self.internal_send(buf, dst)
             },

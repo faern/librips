@@ -25,6 +25,7 @@ mod ethernet;
 mod arp;
 mod ipv4;
 // mod icmp;
+mod udp;
 
 fn dummy_ethernet(iface_i: u8)
      -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
