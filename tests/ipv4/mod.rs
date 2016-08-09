@@ -81,6 +81,7 @@ fn custom_igmp_recv() {
         eth_pkg.set_ethertype(EtherTypes::Ipv4);
         let mut ip_pkg = MutableIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
         ip_pkg.set_header_length(5); // 5 is for no option fields
+        ip_pkg.set_total_length(20 + 2);
         ip_pkg.set_source(source_ip);
         ip_pkg.set_destination(target_ip);
         ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Igmp);

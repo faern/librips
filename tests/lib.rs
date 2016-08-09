@@ -55,17 +55,6 @@ fn dummy_stack(iface_i: u8) -> (NetworkStack, Interface, Sender<io::Result<Box<[
     (stack, interface, inject_handle, read_handle)
 }
 
-// fn dummy_ipv4(listeners: Arc<Mutex<IpListenerLookup>>) -> (Ethernet, ArpFactory, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
-//     let arp_factory = ArpFactory::new();
-//     let arp_listener = arp_factory.listener();
-//
-//     let ipv4_listener = Ipv4EthernetListener::new(listeners);
-//     let ethernet_listeners = vec![arp_listener, ipv4_listener];
-//
-//     let (ethernet, _, inject_handle, read_handle) = dummy_ethernet(0, ethernet_listeners);
-//     (ethernet, arp_factory, inject_handle, read_handle)
-// }
-
 // fn dummy_icmp()
 //     -> (Ethernet,
 //         Arc<Mutex<IcmpListenerLookup>>,

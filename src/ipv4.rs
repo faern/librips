@@ -53,7 +53,18 @@ impl Ipv4Rx {
 
 impl EthernetListener for Ipv4Rx {
     fn recv(&mut self, time: SystemTime, pkg: &EthernetPacket) {
-        let ip_pkg = Ipv4Packet::new(pkg.payload()).unwrap();
+        let data = pkg.payload();
+        if data.len() < Ipv4Packet::minimum_packet_size() {
+            return;
+        }
+        let total_length = {
+            let ip_pkg = Ipv4Packet::new(data).unwrap();
+            ip_pkg.get_total_length() as usize
+        };
+        if total_length > data.len() || total_length < Ipv4Packet::minimum_packet_size() {
+            return;
+        }
+        let ip_pkg = Ipv4Packet::new(&data[..total_length]).unwrap();
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);

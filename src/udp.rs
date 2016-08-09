@@ -31,11 +31,17 @@ impl UdpRx {
 
 impl Ipv4Listener for UdpRx {
     fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) {
-        let port = {
-            let udp_pkg = UdpPacket::new(ip_pkg.payload()).unwrap();
-            println!("Udp got a packet with {} bytes!", udp_pkg.payload().len());
-            udp_pkg.get_destination()
+        let payload = ip_pkg.payload();
+        if payload.len() < UdpPacket::minimum_packet_size() {
+            return;
+        }
+        let (port, length) = {
+            let udp_pkg = UdpPacket::new(payload).unwrap();
+            (udp_pkg.get_destination(), udp_pkg.get_length() as usize)
         };
+        if length > payload.len() || length < UdpPacket::minimum_packet_size() {
+            return;
+        }
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(listener) = listeners.get_mut(&port) {
             let _resume = listener.recv(time, &ip_pkg);
@@ -123,8 +129,12 @@ impl UdpSocketReader {
         let udp_pkg = UdpPacket::new(ipv4_pkg.payload()).unwrap();
         let port = udp_pkg.get_source();
         let data = udp_pkg.payload();
-        buf.clone_from_slice(data);
-        Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
+        if data.len() > buf.len() {
+            Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Data does not fit buffer")))
+        } else {
+            buf[..data.len()].clone_from_slice(data);
+            Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
+        }
     }
 
     pub fn listener(&mut self) -> Option<UdpSocketListener> {
