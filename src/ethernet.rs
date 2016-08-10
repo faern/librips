@@ -95,6 +95,10 @@ impl EthernetTx {
         }
     }
 
+    pub fn get_mtu(&self) -> usize {
+        1500
+    }
+
     /// Send ethernet packets to the network.
     ///
     /// For every packet, all `header_size+payload_size` bytes will be sent, no

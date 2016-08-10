@@ -41,8 +41,9 @@ fn simple_send() {
     stack.add_ipv4(&interface, config);
 
     let mut ipv4_tx = stack.ipv4_tx(target_ip).unwrap();
-    ipv4_tx.send(2, |pkg| {
-        pkg.set_payload(&[101, 204]);
+    ipv4_tx.send(2, IpNextHeaderProtocols::Icmp, |pkg| {
+        pkg[0] = 101;
+        pkg[1] = 204;
     });
 
     let pkg = read_handle.recv().unwrap();

@@ -6,10 +6,13 @@ use std::time::SystemTime;
 
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
-use pnet::packet::{MutablePacket, Packet};
+use pnet::packet::ipv4::Ipv4Packet;
+use pnet::packet::Packet;
 
-use {TxResult, TxError, StackResult, StackError, NetworkStack};
+use {TxResult, TxError};
+#[cfg(not(feature = "unit-tests"))]
+use {NetworkStack, StackResult, StackError};
+
 use ipv4::{Ipv4Tx, Ipv4Listener};
 use util;
 
@@ -75,12 +78,10 @@ impl UdpTx {
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
         let (src, dst) = (self.src, self.dst);
-        let mut builder_wrapper = |ip_pkg: &mut MutableIpv4Packet| {
-            ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Udp);
-            let src_ip = ip_pkg.get_source();
-            let dst_ip = ip_pkg.get_destination();
-
-            let mut udp_pkg = MutableUdpPacket::new(ip_pkg.payload_mut()).unwrap();
+        let src_ip = self.ipv4.src;
+        let dst_ip = self.ipv4.dst;
+        let mut builder_wrapper = |pkg: &mut [u8]| {
+            let mut udp_pkg = MutableUdpPacket::new(pkg).unwrap();
             udp_pkg.set_source(src);
             udp_pkg.set_destination(dst);
             udp_pkg.set_length(total_size);
@@ -93,7 +94,7 @@ impl UdpTx {
                                          IpNextHeaderProtocols::Udp);
             udp_pkg.set_checksum(checksum);
         };
-        self.ipv4.send(total_size, &mut builder_wrapper)
+        self.ipv4.send(total_size, IpNextHeaderProtocols::Udp, &mut builder_wrapper)
     }
 }
 
@@ -132,7 +133,7 @@ impl UdpSocketReader {
         if data.len() > buf.len() {
             Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Data does not fit buffer")))
         } else {
-            buf[..data.len()].clone_from_slice(data);
+            buf[..data.len()].copy_from_slice(data);
             Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
         }
     }
@@ -142,6 +143,7 @@ impl UdpSocketReader {
     }
 }
 
+#[cfg(not(feature = "unit-tests"))]
 pub struct UdpSocket {
     src_port: u16,
     stack: Arc<Mutex<NetworkStack>>,
@@ -149,6 +151,7 @@ pub struct UdpSocket {
     rx: Option<UdpSocketReader>,
 }
 
+#[cfg(not(feature = "unit-tests"))]
 impl UdpSocket {
     pub fn bind<A: ToSocketAddrs>(stack: Arc<Mutex<NetworkStack>>, addr: A) -> io::Result<UdpSocket> {
         let mut socket_reader = UdpSocketReader::new();
