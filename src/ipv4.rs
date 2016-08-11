@@ -135,24 +135,17 @@ impl Ipv4Tx {
         let (src, dst) = (self.src, self.dst);
         let mut builder_wrapper = |payload: &mut [u8]| {
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
-            Self::set_ipv4_header(&mut ip_pkg);
-
+            ip_pkg.set_header_length(5); // 5 is for no option fields
             ip_pkg.set_total_length(total_size);
             ip_pkg.set_identification(0); // Use when implementing fragmentation
             ip_pkg.set_flags(0x000); // Allow routers to fragment it
             ip_pkg.set_fragment_offset(0);
-            ip_pkg.set_ttl(40);
-            ip_pkg.set_next_level_protocol(next_level_protocol);
             ip_pkg.set_source(src);
             ip_pkg.set_destination(dst);
-            // ip_pkg.set_options(vec![]); // We currently don't support options in the
-            // header
 
             builder(ip_pkg.payload_mut());
 
-            ip_pkg.set_checksum(0);
-            let checksum = checksum(&ip_pkg.to_immutable());
-            ip_pkg.set_checksum(checksum);
+            Self::set_ipv4_header(&mut ip_pkg, next_level_protocol);
         };
         self.ethernet.send(1,
                            total_size as usize,
@@ -191,8 +184,7 @@ impl Ipv4Tx {
             let total_size = Ipv4Packet::minimum_packet_size() + current_chunk.len();
 
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
-            Self::set_ipv4_header(&mut ip_pkg);
-
+            ip_pkg.set_header_length(5); // 5 is for no option fields
             ip_pkg.set_total_length(total_size as u16);
             ip_pkg.set_identification(0); // Use when implementing fragmentation
             ip_pkg.set_flags(if is_last_chunk {
@@ -201,29 +193,29 @@ impl Ipv4Tx {
                 0b100 // More fragments set
             });
             ip_pkg.set_fragment_offset(offset / 8);
-            ip_pkg.set_ttl(40);
-            ip_pkg.set_next_level_protocol(next_level_protocol);
             ip_pkg.set_source(src);
             ip_pkg.set_destination(dst);
-            // ip_pkg.set_options(vec![]); // We currently don't support options in the
-            // header
 
             ip_pkg.payload_mut()[..current_chunk.len()].copy_from_slice(current_chunk);
 
-            ip_pkg.set_checksum(0);
-            let checksum = checksum(&ip_pkg.to_immutable());
-            ip_pkg.set_checksum(checksum);
+            Self::set_ipv4_header(&mut ip_pkg, next_level_protocol);
 
             offset += current_chunk.len() as u16;
         };
         self.ethernet.send(num_fragments, mtu, EtherTypes::Ipv4, &mut builder_wrapper)
     }
 
-    fn set_ipv4_header(ip_pkg: &mut MutableIpv4Packet) {
+    fn set_ipv4_header(ip_pkg: &mut MutableIpv4Packet, next_level_protocol: IpNextHeaderProtocol) {
         ip_pkg.set_version(4);
-        ip_pkg.set_header_length(5); // 5 is for no option fields
         ip_pkg.set_dscp(0); // https://en.wikipedia.org/wiki/Differentiated_services
         ip_pkg.set_ecn(0); // https://en.wikipedia.org/wiki/Explicit_Congestion_Notification
+        ip_pkg.set_next_level_protocol(next_level_protocol);
+        ip_pkg.set_ttl(40);
+        // ip_pkg.set_options(vec![]); // We currently don't support options
+
+        ip_pkg.set_checksum(0);
+        let checksum = checksum(&ip_pkg.to_immutable());
+        ip_pkg.set_checksum(checksum);
     }
 }
 
