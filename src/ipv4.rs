@@ -135,10 +135,8 @@ impl Ipv4Tx {
         let (src, dst) = (self.src, self.dst);
         let mut builder_wrapper = |payload: &mut [u8]| {
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
-            ip_pkg.set_version(4);
-            ip_pkg.set_header_length(5); // 5 is for no option fields
-            ip_pkg.set_dscp(0); // https://en.wikipedia.org/wiki/Differentiated_services
-            ip_pkg.set_ecn(0); // https://en.wikipedia.org/wiki/Explicit_Congestion_Notification
+            Self::set_ipv4_header(&mut ip_pkg);
+
             ip_pkg.set_total_length(total_size);
             ip_pkg.set_identification(0); // Use when implementing fragmentation
             ip_pkg.set_flags(0x000); // Allow routers to fragment it
@@ -193,10 +191,8 @@ impl Ipv4Tx {
             let total_size = Ipv4Packet::minimum_packet_size() + current_chunk.len();
 
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
-            ip_pkg.set_version(4);
-            ip_pkg.set_header_length(5); // 5 is for no option fields
-            ip_pkg.set_dscp(0); // https://en.wikipedia.org/wiki/Differentiated_services
-            ip_pkg.set_ecn(0); // https://en.wikipedia.org/wiki/Explicit_Congestion_Notification
+            Self::set_ipv4_header(&mut ip_pkg);
+
             ip_pkg.set_total_length(total_size as u16);
             ip_pkg.set_identification(0); // Use when implementing fragmentation
             ip_pkg.set_flags(if is_last_chunk {
@@ -222,7 +218,15 @@ impl Ipv4Tx {
         };
         self.ethernet.send(num_fragments, mtu, EtherTypes::Ipv4, &mut builder_wrapper)
     }
+
+    fn set_ipv4_header(ip_pkg: &mut MutableIpv4Packet) {
+        ip_pkg.set_version(4);
+        ip_pkg.set_header_length(5); // 5 is for no option fields
+        ip_pkg.set_dscp(0); // https://en.wikipedia.org/wiki/Differentiated_services
+        ip_pkg.set_ecn(0); // https://en.wikipedia.org/wiki/Explicit_Congestion_Notification
+    }
 }
+
 
 #[cfg(all(test, feature = "unit-tests"))]
 mod tests {
@@ -238,7 +242,7 @@ mod tests {
     use test::ethernet;
 
     #[test]
-    fn fragment() {
+    fn fragmented() {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
@@ -246,8 +250,8 @@ mod tests {
         let mtu = eth_tx.get_mtu();
         let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst);
 
-        let frame1_payload_len = mtu - Ipv4Packet::minimum_packet_size();
-        let pkg_size = frame1_payload_len + 5;
+        let max_payload_len = mtu - Ipv4Packet::minimum_packet_size();
+        let pkg_size = max_payload_len + 5;
         let builder_call_count = AtomicUsize::new(0);
         let mut builder = |pkg: &mut [u8]| {
             assert_eq!(pkg.len(), pkg_size);
@@ -264,9 +268,35 @@ mod tests {
         let frame1 = rx.try_recv().expect("Expected a frame to have been sent");
         let frame2 = rx.try_recv().expect("Expected a second frame to have been sent");
         assert!(rx.try_recv().is_err());
-        let id1 = check_pkg(&frame1, src, dst, frame1_payload_len, true, 12, 13);
-        let id2 = check_pkg(&frame2, src, dst, 5, false, 14, 15);
+        let id1 = check_pkg(&frame1, src, dst, max_payload_len, true, 0, 12, 13);
+        let id2 = check_pkg(&frame2, src, dst, 5, false, max_payload_len as u16, 14, 15);
         assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn not_fragmented() {
+        let src = Ipv4Addr::new(192, 168, 10, 2);
+        let dst = Ipv4Addr::new(192, 168, 10, 240);
+
+        let (eth_tx, rx) = ethernet::EthernetTx::new();
+        let mtu = eth_tx.get_mtu();
+        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst);
+
+        let pkg_payload_len = mtu - Ipv4Packet::minimum_packet_size();
+        let pkg_size = pkg_payload_len - 5;
+        let builder_call_count = AtomicUsize::new(0);
+        let mut builder = |pkg: &mut [u8]| {
+            assert_eq!(pkg.len(), pkg_size);
+            pkg[0] = 100;
+            pkg[pkg_size - 1] = 99;
+            builder_call_count.fetch_add(1, Ordering::SeqCst);
+        };
+        assert!(ipv4_tx.send(pkg_size as u16, IpNextHeaderProtocols::Tcp, &mut builder).is_ok());
+        assert_eq!(builder_call_count.load(Ordering::SeqCst), 1);
+
+        let frame = rx.try_recv().expect("Expected a frame to have been sent");
+        assert!(rx.try_recv().is_err());
+        check_pkg(&frame, src, dst, pkg_size, false, 0, 100, 99);
     }
 
     fn check_pkg(payload: &[u8],
@@ -274,6 +304,7 @@ mod tests {
                  dst: Ipv4Addr,
                  payload_len: usize,
                  is_fragment: bool,
+                 offset: u16,
                  first: u8,
                  last: u8)
                  -> u16 {
@@ -284,6 +315,7 @@ mod tests {
                                  Ipv4Packet::minimum_packet_size();
         assert_eq!(actual_payload_len, payload_len);
         assert_eq!(ip_pkg.get_flags() == 0b100, is_fragment);
+        assert_eq!(ip_pkg.get_fragment_offset() * 8, offset);
         let payload = ip_pkg.payload();
         assert_eq!(payload[0], first);
         assert_eq!(payload[payload_len - 1], last);
