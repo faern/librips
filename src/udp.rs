@@ -9,7 +9,7 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
 
-use {TxError, TxResult};
+use {TxError, TxResult, RxResult, RxError};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 
@@ -17,7 +17,7 @@ use ipv4::{Ipv4Listener, Ipv4Tx};
 use util;
 
 pub trait UdpListener: Send {
-    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> bool;
+    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool);
 }
 
 pub type UdpListenerLookup = HashMap<u16, Box<UdpListener>>;
@@ -33,24 +33,25 @@ impl UdpRx {
 }
 
 impl Ipv4Listener for UdpRx {
-    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) {
+    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
         let payload = ip_pkg.payload();
         if payload.len() < UdpPacket::minimum_packet_size() {
-            return;
+            return Err(RxError::InvalidContent);
         }
         let (port, length) = {
             let udp_pkg = UdpPacket::new(payload).unwrap();
             (udp_pkg.get_destination(), udp_pkg.get_length() as usize)
         };
         if length > payload.len() || length < UdpPacket::minimum_packet_size() {
-            return;
+            return Err(RxError::InvalidContent);
         }
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(listener) = listeners.get_mut(&port) {
-            let _resume = listener.recv(time, &ip_pkg);
+            let (result, _resume) = listener.recv(time, &ip_pkg);
+            result
             // TODO: When resume turns false, remove this socket.
         } else {
-            println!("Udp, no listener for port {:?}", port);
+            Err(RxError::NoListener(format!("Udp, no listener for port {:?}", port)))
         }
     }
 }
@@ -100,9 +101,10 @@ struct UdpSocketListener {
 }
 
 impl UdpListener for UdpSocketListener {
-    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> bool {
+    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool) {
         let data = packet.packet().to_vec().into_boxed_slice();
-        self.chan.send((time, data)).is_ok()
+        let resume = self.chan.send((time, data)).is_ok();
+        (Ok(()), resume)
     }
 }
 

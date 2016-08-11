@@ -12,7 +12,7 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::Packet;
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
-use {TxError, TxResult, VersionedTx};
+use {TxError, TxResult, RxResult, RxError, VersionedTx};
 use ethernet::{EthernetListener, EthernetTx};
 
 pub struct ArpFactory {
@@ -54,25 +54,24 @@ pub struct ArpRx {
 }
 
 impl EthernetListener for ArpRx {
-    fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) {
+    fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) -> RxResult {
         let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
         let ip = arp_pkg.get_sender_proto_addr();
         let mac = arp_pkg.get_sender_hw_addr();
         println!("Arp MAC: {} -> IPv4: {}", mac, ip);
-        let mut table =
-            self.table.write().expect("Unable to lock ArpEthernetListener::table for writing");
+        let mut table = try!(self.table.write().or(Err(RxError::PoisonedLock)));
         let old_mac = table.insert(ip, mac);
         if old_mac.is_none() || old_mac != Some(mac) {
             // The new MAC is different from the old one, bump tx VersionedTx
-            self.vtx.lock().unwrap().inc();
+            try!(self.vtx.lock().or(Err(RxError::PoisonedLock))).inc();
         }
-        let listeners =
-            self.listeners.lock().expect("Unable to lock ArpEthernetListener::listeners");
+        let listeners = try!(self.listeners.lock().or(Err(RxError::PoisonedLock)));
         if let Some(ip_listeners) = listeners.get(&ip) {
             for listener in ip_listeners {
-                listener.send(mac).expect("Unable to send MAC to listener");
+                listener.send(mac).unwrap_or(());
             }
         }
+        Ok(())
     }
 
     fn get_ethertype(&self) -> EtherType {

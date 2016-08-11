@@ -102,6 +102,16 @@ fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult<()> {
     }
 }
 
+#[derive(Debug)]
+pub enum RxError {
+    NoListener(String),
+    InvalidContent,
+    PoisonedLock,
+    Other(String),
+}
+
+pub type RxResult = Result<(), RxError>;
+
 pub struct VersionedTx {
     sender: Box<EthernetDataLinkSender>,
     current_rev: u64,

@@ -11,13 +11,13 @@ use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::MutablePacket;
 use pnet::util::MacAddr;
 
-use {Tx, TxResult};
+use {Tx, TxResult, RxResult};
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must
 /// implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
-    fn recv(&mut self, time: SystemTime, packet: &EthernetPacket);
+    fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult;
 
     fn get_ethertype(&self) -> EtherType;
 }
@@ -111,7 +111,9 @@ impl EthernetRx {
                     match self.listeners.get_mut(&ethertype) {
                         Some(listeners) => {
                             for listener in listeners {
-                                listener.recv(time, &pkg);
+                                if let Err(e) = listener.recv(time, &pkg) {
+                                    println!("RxError: {:?}", e);
+                                }
                             }
                         }
                         None => println!("Ethernet: No listener for {:?}", ethertype),

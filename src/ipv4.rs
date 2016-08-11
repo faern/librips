@@ -11,7 +11,7 @@ use pnet::packet::{MutablePacket, Packet};
 
 use ipnetwork;
 
-use TxResult;
+use {TxResult, RxResult, RxError};
 use ethernet::EthernetListener;
 
 #[cfg(all(test, feature = "unit-tests"))]
@@ -39,7 +39,7 @@ impl From<ipnetwork::IpNetworkError> for IpConfError {
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
-    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet);
+    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult;
 }
 
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
@@ -57,17 +57,17 @@ impl Ipv4Rx {
 }
 
 impl EthernetListener for Ipv4Rx {
-    fn recv(&mut self, time: SystemTime, pkg: &EthernetPacket) {
+    fn recv(&mut self, time: SystemTime, pkg: &EthernetPacket) -> RxResult {
         let payload = pkg.payload();
         if payload.len() < Ipv4Packet::minimum_packet_size() {
-            return;
+            return Err(RxError::InvalidContent);
         }
         let total_length = {
             let ip_pkg = Ipv4Packet::new(payload).unwrap();
             ip_pkg.get_total_length() as usize
         };
         if total_length > payload.len() || total_length < Ipv4Packet::minimum_packet_size() {
-            return;
+            return Err(RxError::InvalidContent);
         }
         let ip_pkg = Ipv4Packet::new(&payload[..total_length]).unwrap();
         let dest_ip = ip_pkg.get_destination();
@@ -76,12 +76,12 @@ impl EthernetListener for Ipv4Rx {
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(mut listeners) = listeners.get_mut(&dest_ip) {
             if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
-                listener.recv(time, ip_pkg);
+                listener.recv(time, ip_pkg)
             } else {
-                println!("Ipv4, no one was listening to {:?} :(", next_level_protocol);
+                Err(RxError::NoListener(format!("Ipv4, no one was listening to {:?}", next_level_protocol)))
             }
         } else {
-            println!("Ipv4 is not listening to {} on this interface", dest_ip);
+            Err(RxError::NoListener(format!("Ipv4 is not listening to {} on this interface", dest_ip)))
         }
     }
 
