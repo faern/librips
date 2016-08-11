@@ -258,18 +258,21 @@ mod tests {
         let frame1 = rx.try_recv().expect("Expected a frame to have been sent");
         let frame2 = rx.try_recv().expect("Expected a second frame to have been sent");
         assert!(rx.try_recv().is_err());
-        check_pkg(&frame1, src, dst, mtu - Ipv4Packet::minimum_packet_size(), 12, 13);
-        check_pkg(&frame2, src, dst, 5, 14, 15);
+        let id1 = check_pkg(&frame1, src, dst, mtu - Ipv4Packet::minimum_packet_size(), true, 12, 13);
+        let id2 = check_pkg(&frame2, src, dst, 5, false, 14, 15);
+        assert_eq!(id1, id2);
     }
 
-    fn check_pkg(payload: &[u8], src: Ipv4Addr, dst: Ipv4Addr, payload_len: usize, first: u8, last: u8) {
+    fn check_pkg(payload: &[u8], src: Ipv4Addr, dst: Ipv4Addr, payload_len: usize, is_fragment: bool, first: u8, last: u8) -> u16 {
         let ip_pkg = Ipv4Packet::new(payload).unwrap();
         assert_eq!(ip_pkg.get_source(), src);
         assert_eq!(ip_pkg.get_destination(), dst);
         let actual_payload_len = ip_pkg.get_total_length() as usize - Ipv4Packet::minimum_packet_size();
         assert_eq!(actual_payload_len, payload_len);
+        assert_eq!(ip_pkg.get_flags() == 0b100, is_fragment);
         let payload = ip_pkg.payload();
         assert_eq!(payload[0], first);
         assert_eq!(payload[payload_len - 1], last);
+        ip_pkg.get_identification()
     }
 }
