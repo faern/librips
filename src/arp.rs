@@ -8,8 +8,8 @@ use std::net::Ipv4Addr;
 use std::time::SystemTime;
 
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
-use pnet::packet::{MutablePacket, Packet};
+use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+use pnet::packet::Packet;
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
 use {TxError, TxResult, VersionedTx};

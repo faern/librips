@@ -1,7 +1,7 @@
 use std::io;
 use std::sync::mpsc;
 
-use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::EtherType;
 
 use TxResult;
 
