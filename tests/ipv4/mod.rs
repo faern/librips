@@ -11,7 +11,7 @@ use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
-use rips::ipv4::{Ipv4Tx, Ipv4Rx, Ipv4Listener};
+use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::ethernet::{EthernetListener, EthernetRx};
 
 pub struct MockIpv4Listener {
@@ -34,7 +34,7 @@ fn simple_send() {
     let (mut stack, interface, _, read_handle) = ::dummy_stack(0);
 
     // Inject an Arp entry so Ipv4 knows where to send
-    let mut  arp = stack.arp_tx(&interface).unwrap();
+    let mut arp = stack.arp_tx(&interface).unwrap();
     arp.insert(target_ip, target_mac);
 
     let config = Ipv4Network::new(source_ip, 24).unwrap();

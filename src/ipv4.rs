@@ -125,10 +125,10 @@ impl Ipv4Tx {
     }
 
     fn send_non_fragmented<T>(&mut self,
-                   payload_size: u16,
-                   next_level_protocol: IpNextHeaderProtocol,
-                   mut builder: T)
-                   -> TxResult<()>
+                              payload_size: u16,
+                              next_level_protocol: IpNextHeaderProtocol,
+                              mut builder: T)
+                              -> TxResult<()>
         where T: FnMut(&mut [u8])
     {
         let total_size = Ipv4Packet::minimum_packet_size() as u16 + payload_size;
@@ -147,7 +147,8 @@ impl Ipv4Tx {
             ip_pkg.set_next_level_protocol(next_level_protocol);
             ip_pkg.set_source(src);
             ip_pkg.set_destination(dst);
-            // ip_pkg.set_options(vec![]); // We currently don't support options in the header
+            // ip_pkg.set_options(vec![]); // We currently don't support options in the
+            // header
 
             builder(ip_pkg.payload_mut());
 
@@ -155,14 +156,17 @@ impl Ipv4Tx {
             let checksum = checksum(&ip_pkg.to_immutable());
             ip_pkg.set_checksum(checksum);
         };
-        self.ethernet.send(1, total_size as usize, EtherTypes::Ipv4, &mut builder_wrapper)
+        self.ethernet.send(1,
+                           total_size as usize,
+                           EtherTypes::Ipv4,
+                           &mut builder_wrapper)
     }
 
     fn send_fragmented<T>(&mut self,
-                   payload_size: u16,
-                   next_level_protocol: IpNextHeaderProtocol,
-                   mut builder: T)
-                   -> TxResult<()>
+                          payload_size: u16,
+                          next_level_protocol: IpNextHeaderProtocol,
+                          mut builder: T)
+                          -> TxResult<()>
         where T: FnMut(&mut [u8])
     {
         let payload_size = payload_size as usize;
@@ -205,7 +209,8 @@ impl Ipv4Tx {
             ip_pkg.set_next_level_protocol(next_level_protocol);
             ip_pkg.set_source(src);
             ip_pkg.set_destination(dst);
-            // ip_pkg.set_options(vec![]); // We currently don't support options in the header
+            // ip_pkg.set_options(vec![]); // We currently don't support options in the
+            // header
 
             ip_pkg.payload_mut()[..current_chunk.len()].copy_from_slice(current_chunk);
 
@@ -241,7 +246,8 @@ mod tests {
         let mtu = eth_tx.get_mtu();
         let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst);
 
-        let pkg_size = mtu - Ipv4Packet::minimum_packet_size() + 5;
+        let frame1_payload_len = mtu - Ipv4Packet::minimum_packet_size();
+        let pkg_size = frame1_payload_len + 5;
         let builder_call_count = AtomicUsize::new(0);
         let mut builder = |pkg: &mut [u8]| {
             assert_eq!(pkg.len(), pkg_size);
@@ -258,16 +264,24 @@ mod tests {
         let frame1 = rx.try_recv().expect("Expected a frame to have been sent");
         let frame2 = rx.try_recv().expect("Expected a second frame to have been sent");
         assert!(rx.try_recv().is_err());
-        let id1 = check_pkg(&frame1, src, dst, mtu - Ipv4Packet::minimum_packet_size(), true, 12, 13);
+        let id1 = check_pkg(&frame1, src, dst, frame1_payload_len, true, 12, 13);
         let id2 = check_pkg(&frame2, src, dst, 5, false, 14, 15);
         assert_eq!(id1, id2);
     }
 
-    fn check_pkg(payload: &[u8], src: Ipv4Addr, dst: Ipv4Addr, payload_len: usize, is_fragment: bool, first: u8, last: u8) -> u16 {
+    fn check_pkg(payload: &[u8],
+                 src: Ipv4Addr,
+                 dst: Ipv4Addr,
+                 payload_len: usize,
+                 is_fragment: bool,
+                 first: u8,
+                 last: u8)
+                 -> u16 {
         let ip_pkg = Ipv4Packet::new(payload).unwrap();
         assert_eq!(ip_pkg.get_source(), src);
         assert_eq!(ip_pkg.get_destination(), dst);
-        let actual_payload_len = ip_pkg.get_total_length() as usize - Ipv4Packet::minimum_packet_size();
+        let actual_payload_len = ip_pkg.get_total_length() as usize -
+                                 Ipv4Packet::minimum_packet_size();
         assert_eq!(actual_payload_len, payload_len);
         assert_eq!(ip_pkg.get_flags() == 0b100, is_fragment);
         let payload = ip_pkg.payload();

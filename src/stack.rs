@@ -11,7 +11,7 @@ use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::datalink::EthernetDataLinkSender;
 
-use {Interface, Tx, VersionedTx, TxError, EthernetChannel, RoutingTable};
+use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
 use ethernet;
 use arp;
 use ipv4;
@@ -152,8 +152,7 @@ impl NetworkStack {
     pub fn add_channel(&mut self,
                        interface: Interface,
                        channel: EthernetChannel)
-                       -> Result<(), ()>
-    {
+                       -> Result<(), ()> {
         if self.interfaces.contains_key(&interface) {
             Err(())
         } else {
@@ -220,7 +219,8 @@ impl NetworkStack {
                                 return Ok(SocketAddr::V4(addr));
                             } else {
                                 let msg = format!("Port {} is already occupied on {}",
-                                                  local_port, local_ip);
+                                                  local_port,
+                                                  local_ip);
                                 return Err(io::Error::new(io::ErrorKind::AddrInUse, msg));
                             }
                         }
@@ -228,9 +228,10 @@ impl NetworkStack {
                     let msg = format!("Bind address does not exist in stack");
                     Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
                 }
-            },
+            }
             SocketAddr::V6(_) => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
+                Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                   format!("Rips does not support IPv6 yet")))
             }
         }
     }

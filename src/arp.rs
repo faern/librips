@@ -12,8 +12,8 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEther
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
-use {VersionedTx, TxResult, TxError};
-use ethernet::{EthernetTx, EthernetListener};
+use {TxError, TxResult, VersionedTx};
+use ethernet::{EthernetListener, EthernetTx};
 
 pub struct ArpFactory {
     table: Arc<RwLock<HashMap<Ipv4Addr, MacAddr>>>,
@@ -37,7 +37,8 @@ impl ArpFactory {
     }
 
     pub fn arp_tx(&self, ethernet: EthernetTx) -> ArpTx {
-        assert_eq!(ethernet.dst, MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
+        assert_eq!(ethernet.dst,
+                   MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
         ArpTx {
             table: self.table.clone(),
             ethernet: ethernet,
@@ -93,7 +94,8 @@ impl ArpTx {
     pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<MacAddr> {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
-            let table = try!(table_arc.read().map_err(|_| TxError::Other(format!("Unable to lock mutex"))));
+            let table = try!(table_arc.read()
+                .map_err(|_| TxError::Other(format!("Unable to lock mutex"))));
             if let Some(mac) = table.get(&target_ip) {
                 return Ok(mac.clone());
             }
@@ -120,7 +122,10 @@ impl ArpTx {
             arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
             arp_pkg.set_target_proto_addr(target_ip);
         };
-        self.ethernet.send(1, ArpPacket::minimum_packet_size(), EtherTypes::Arp, &mut builder_wrapper)
+        self.ethernet.send(1,
+                           ArpPacket::minimum_packet_size(),
+                           EtherTypes::Arp,
+                           &mut builder_wrapper)
     }
 
     fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {

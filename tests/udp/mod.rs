@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::net::Ipv4Addr;
 
 use ipnetwork::Ipv4Network;
-use pnet::packet::ethernet::{MutableEthernetPacket, EtherTypes};
+use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
 use pnet::packet::ipv4::MutableIpv4Packet;
 use pnet::packet::udp::MutableUdpPacket;
 use pnet::packet::ip::IpNextHeaderProtocols;

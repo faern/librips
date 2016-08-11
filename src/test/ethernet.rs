@@ -1,7 +1,7 @@
 use std::io;
 use std::sync::mpsc;
 
-use pnet::packet::ethernet::{MutableEthernetPacket, EthernetPacket, EtherType};
+use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 
 use TxResult;
 
@@ -13,9 +13,7 @@ pub struct EthernetTx {
 impl EthernetTx {
     pub fn new() -> (EthernetTx, mpsc::Receiver<Box<[u8]>>) {
         let (tx, rx) = mpsc::channel();
-        (EthernetTx {
-            chan: tx,
-        }, rx)
+        (EthernetTx { chan: tx }, rx)
     }
 
     pub fn get_mtu(&self) -> usize {

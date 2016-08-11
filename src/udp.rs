@@ -1,6 +1,6 @@
-use std::net::{ToSocketAddrs, SocketAddr, SocketAddrV4};
+use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::io;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
@@ -9,11 +9,11 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
 
-use {TxResult, TxError};
+use {TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
-use {NetworkStack, StackResult, StackError};
+use {NetworkStack, StackError, StackResult};
 
-use ipv4::{Ipv4Tx, Ipv4Listener};
+use ipv4::{Ipv4Listener, Ipv4Tx};
 use util;
 
 pub trait UdpListener: Send {
@@ -70,10 +70,7 @@ impl UdpTx {
         }
     }
 
-    pub fn send<T>(&mut self,
-                   payload_size: u16,
-                   mut builder: T)
-                   -> TxResult<()>
+    pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult<()>
         where T: FnMut(&mut MutableUdpPacket)
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
@@ -131,7 +128,8 @@ impl UdpSocketReader {
         let port = udp_pkg.get_source();
         let data = udp_pkg.payload();
         if data.len() > buf.len() {
-            Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Data does not fit buffer")))
+            Err(io::Error::new(io::ErrorKind::InvalidInput,
+                               format!("Data does not fit buffer")))
         } else {
             buf[..data.len()].copy_from_slice(data);
             Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
@@ -153,7 +151,9 @@ pub struct UdpSocket {
 
 #[cfg(not(feature = "unit-tests"))]
 impl UdpSocket {
-    pub fn bind<A: ToSocketAddrs>(stack: Arc<Mutex<NetworkStack>>, addr: A) -> io::Result<UdpSocket> {
+    pub fn bind<A: ToSocketAddrs>(stack: Arc<Mutex<NetworkStack>>,
+                                  addr: A)
+                                  -> io::Result<UdpSocket> {
         let mut socket_reader = UdpSocketReader::new();
         let socket_addr = {
             let mut stack = stack.lock().unwrap();
@@ -174,15 +174,21 @@ impl UdpSocket {
     pub fn send_to<A: ToSocketAddrs>(&mut self, buf: &[u8], addr: A) -> io::Result<usize> {
         match try!(util::first_socket_addr(addr)) {
             SocketAddr::V4(dst) => {
-                self.internal_send(buf, dst).map(|_| buf.len()).map(|_| buf.len()).map_err(|e| match e {
-                    StackError::TxError(TxError::IoError(io_e)) => io_e,
-                    StackError::TxError(TxError::Other(msg)) => io::Error::new(io::ErrorKind::Other, msg),
-                    _ => unreachable!(),
-                })
-            },
+                self.internal_send(buf, dst)
+                    .map(|_| buf.len())
+                    .map(|_| buf.len())
+                    .map_err(|e| match e {
+                        StackError::TxError(TxError::IoError(io_e)) => io_e,
+                        StackError::TxError(TxError::Other(msg)) => {
+                            io::Error::new(io::ErrorKind::Other, msg)
+                        }
+                        _ => unreachable!(),
+                    })
+            }
             SocketAddr::V6(_dst) => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Rips does not support IPv6 yet")))
-            },
+                Err(io::Error::new(io::ErrorKind::InvalidInput,
+                                   format!("Rips does not support IPv6 yet")))
+            }
         }
     }
 
@@ -196,8 +202,8 @@ impl UdpSocket {
                 };
                 self.tx_cache.insert(dst, new_udp_tx);
                 self.internal_send(buf, dst)
-            },
-            result => result.map_err(|e| StackError::TxError(e))
+            }
+            result => result.map_err(|e| StackError::TxError(e)),
         }
     }
 

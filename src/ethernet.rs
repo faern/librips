@@ -29,10 +29,7 @@ pub struct EthernetTx {
 }
 
 impl EthernetTx {
-    pub fn new(tx: Tx,
-               src: MacAddr,
-               dst: MacAddr)
-               -> EthernetTx {
+    pub fn new(tx: Tx, src: MacAddr, dst: MacAddr) -> EthernetTx {
         EthernetTx {
             src: src,
             dst: dst,
@@ -81,9 +78,7 @@ pub struct EthernetRx {
 impl EthernetRx {
     pub fn new(listeners: Vec<Box<EthernetListener>>) -> EthernetRx {
         let map_listeners = Self::expand_listeners(listeners);
-        EthernetRx {
-            listeners: map_listeners,
-        }
+        EthernetRx { listeners: map_listeners }
     }
 
     fn expand_listeners(listeners: Vec<Box<EthernetListener>>)

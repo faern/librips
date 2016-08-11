@@ -22,7 +22,7 @@ pub mod arp;
 
 pub mod ipv4;
 
-//pub mod icmp;
+// pub mod icmp;
 
 pub mod udp;
 
@@ -38,7 +38,7 @@ mod test;
 mod stack;
 
 #[cfg(not(feature = "unit-tests"))]
-pub use stack::{NetworkStack, StackResult, StackError};
+pub use stack::{NetworkStack, StackError, StackResult};
 
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -76,8 +76,12 @@ impl From<io::Error> for TxError {
 impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
         match e {
-            TxError::OutdatedConstructor => io::Error::new(io::ErrorKind::Other, format!("Outdated constructor")),
-            TxError::TooLargePayload => io::Error::new(io::ErrorKind::Other, format!("Too large payload")),
+            TxError::OutdatedConstructor => {
+                io::Error::new(io::ErrorKind::Other, format!("Outdated constructor"))
+            }
+            TxError::TooLargePayload => {
+                io::Error::new(io::ErrorKind::Other, format!("Too large payload"))
+            }
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => io::Error::new(io::ErrorKind::Other, format!("Other: {}", msg)),
         }
@@ -89,9 +93,11 @@ pub type TxResult<T> = Result<T, TxError>;
 fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult<()> {
     match r {
         None => Err(TxError::Other(format!("Insufficient buffer space"))),
-        Some(ior) => match ior {
-            Err(e) => Err(TxError::from(e)),
-            Ok(()) => Ok(())
+        Some(ior) => {
+            match ior {
+                Err(e) => Err(TxError::from(e)),
+                Ok(()) => Ok(()),
+            }
         }
     }
 }
@@ -141,11 +147,7 @@ impl Tx {
         }
     }
 
-    pub fn send<T>(&mut self,
-                   num_packets: usize,
-                   size: usize,
-                   builder: T)
-                   -> TxResult<()>
+    pub fn send<T>(&mut self, num_packets: usize, size: usize, builder: T) -> TxResult<()>
         where T: FnMut(MutableEthernetPacket)
     {
         match self.sender {
@@ -157,10 +159,10 @@ impl Tx {
                         } else {
                             Self::internal_send(&mut sender.sender, num_packets, size, builder)
                         }
-                    },
+                    }
                     Err(_) => Err(TxError::Other(format!("Unable to lock mutex"))),
                 }
-            },
+            }
             TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),
         }
     }
@@ -169,7 +171,7 @@ impl Tx {
                         num_packets: usize,
                         size: usize,
                         mut builder: T)
-                     -> TxResult<()>
+                        -> TxResult<()>
         where T: FnMut(MutableEthernetPacket)
     {
         let result = sender.build_and_send(num_packets, size, &mut builder);

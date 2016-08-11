@@ -31,7 +31,8 @@ mod tests {
     use rips::{EthernetChannel, Interface, NetworkStack};
     use rips::ethernet::{EthernetListener, EthernetRx};
 
-    fn dummy_ethernet(iface_i: u8)
+    fn dummy_ethernet
+        (iface_i: u8)
          -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
         let iface = dummy::dummy_interface(iface_i);
         let mac = iface.mac.unwrap();
@@ -52,10 +53,13 @@ mod tests {
         (channel, interface, inject_handle, read_handle)
     }
 
-    fn dummy_stack(iface_i: u8) -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
+    fn dummy_stack
+        (iface_i: u8)
+         -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
         let (channel, interface, inject_handle, read_handle) = dummy_ethernet(iface_i);
         let mut stack = NetworkStack::new();
-        stack.add_channel(interface.clone(), channel).expect("Not able to add dummy channel to stack");
+        stack.add_channel(interface.clone(), channel)
+            .expect("Not able to add dummy channel to stack");
         (stack, interface, inject_handle, read_handle)
     }
 

@@ -59,11 +59,7 @@ impl Icmp {
     }
 
     /// !
-    pub fn send<T>(&mut self,
-                   dst_ip: Ipv4Addr,
-                   payload_size: u16,
-                   mut builder: T)
-                   -> TxResult
+    pub fn send<T>(&mut self, dst_ip: Ipv4Addr, payload_size: u16, mut builder: T) -> TxResult
         where T: FnMut(&mut MutableIcmpPacket)
     {
         let total_size = IcmpPacket::minimum_packet_size() as u16 + payload_size;
