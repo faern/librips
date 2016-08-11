@@ -18,7 +18,7 @@ fn socket_listen() {
     let target_ip = Ipv4Addr::new(10, 9, 0, 254);
 
     let (mut stack, interface, inject_handle, _) = helper::dummy_stack(0);
-    stack.add_ipv4(&interface, Ipv4Network::from_cidr("10.9.0.254/16").unwrap());
+    stack.add_ipv4(&interface, Ipv4Network::from_cidr("10.9.0.254/16").unwrap()).unwrap();
     let stack = Arc::new(Mutex::new(stack));
 
     let socket = UdpSocket::bind(stack, "10.9.0.254:1024").unwrap();

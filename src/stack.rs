@@ -5,11 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use ipnetwork::Ipv4Network;
 
-use pnet::datalink;
 use pnet::util::MacAddr;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::datalink::EthernetDataLinkSender;
 
 use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
 use ethernet;

@@ -1,4 +1,3 @@
-use std::io;
 use std::sync::mpsc;
 
 use pnet::packet::ethernet::EtherType;

@@ -39,7 +39,7 @@ impl From<ipnetwork::IpNetworkError> for IpConfError {
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
-    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult;
+    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult<()>;
 }
 
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
@@ -56,20 +56,27 @@ impl Ipv4Rx {
     }
 }
 
-impl EthernetListener for Ipv4Rx {
-    fn recv(&mut self, time: SystemTime, pkg: &EthernetPacket) -> RxResult {
-        let payload = pkg.payload();
-        if payload.len() < Ipv4Packet::minimum_packet_size() {
+impl Ipv4Rx {
+    fn get_ipv4_pkg<'a>(eth_pkg: &'a EthernetPacket) -> RxResult<Ipv4Packet<'a>> {
+        let eth_payload = eth_pkg.payload();
+        if eth_payload.len() < Ipv4Packet::minimum_packet_size() {
             return Err(RxError::InvalidContent);
         }
         let total_length = {
-            let ip_pkg = Ipv4Packet::new(payload).unwrap();
+            let ip_pkg = Ipv4Packet::new(eth_payload).unwrap();
             ip_pkg.get_total_length() as usize
         };
-        if total_length > payload.len() || total_length < Ipv4Packet::minimum_packet_size() {
-            return Err(RxError::InvalidContent);
+        if total_length > eth_payload.len() || total_length < Ipv4Packet::minimum_packet_size() {
+            Err(RxError::InvalidContent)
+        } else {
+            Ok(Ipv4Packet::new(&eth_payload[..total_length]).unwrap())
         }
-        let ip_pkg = Ipv4Packet::new(&payload[..total_length]).unwrap();
+    }
+}
+
+impl EthernetListener for Ipv4Rx {
+    fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult<()> {
+        let ip_pkg = try!(Self::get_ipv4_pkg(eth_pkg));
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);

@@ -11,6 +11,7 @@ use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
 use pnet::packet::{MutablePacket, Packet};
 
+use rips::{RxResult};
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::ethernet::{EthernetListener, EthernetRx};
 
@@ -21,9 +22,10 @@ pub struct MockIpv4Listener {
 }
 
 impl Ipv4Listener for MockIpv4Listener {
-    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) {
+    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) -> RxResult<()> {
         println!("MockIpv4Listener got a packet!");
         self.tx.send(packet.packet().to_vec()).unwrap();
+        Ok(())
     }
 }
 

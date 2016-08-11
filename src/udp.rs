@@ -17,7 +17,7 @@ use ipv4::{Ipv4Listener, Ipv4Tx};
 use util;
 
 pub trait UdpListener: Send {
-    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool);
+    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult<()>, bool);
 }
 
 pub type UdpListenerLookup = HashMap<u16, Box<UdpListener>>;
@@ -32,9 +32,9 @@ impl UdpRx {
     }
 }
 
-impl Ipv4Listener for UdpRx {
-    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
-        let payload = ip_pkg.payload();
+impl UdpRx {
+    fn get_port(pkg: &Ipv4Packet) -> RxResult<u16> {
+        let payload = pkg.payload();
         if payload.len() < UdpPacket::minimum_packet_size() {
             return Err(RxError::InvalidContent);
         }
@@ -43,8 +43,16 @@ impl Ipv4Listener for UdpRx {
             (udp_pkg.get_destination(), udp_pkg.get_length() as usize)
         };
         if length > payload.len() || length < UdpPacket::minimum_packet_size() {
-            return Err(RxError::InvalidContent);
+            Err(RxError::InvalidContent)
+        } else {
+            Ok(port)
         }
+    }
+}
+
+impl Ipv4Listener for UdpRx {
+    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult<()> {
+        let port = try!(Self::get_port(&ip_pkg));
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(listener) = listeners.get_mut(&port) {
             let (result, _resume) = listener.recv(time, &ip_pkg);
@@ -101,7 +109,7 @@ struct UdpSocketListener {
 }
 
 impl UdpListener for UdpSocketListener {
-    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool) {
+    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult<()>, bool) {
         let data = packet.packet().to_vec().into_boxed_slice();
         let resume = self.chan.send((time, data)).is_ok();
         (Ok(()), resume)

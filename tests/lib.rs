@@ -18,15 +18,10 @@ mod helper {
     use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::io;
-    use std::net::Ipv4Addr;
-    use std::sync::{Arc, Mutex};
 
     use pnet::datalink::{Channel, dummy};
-    use pnet::packet::ip::IpNextHeaderProtocols;
-    use pnet::util::MacAddr;
 
     use rips::{EthernetChannel, Interface, NetworkStack};
-    use rips::ethernet::{EthernetListener, EthernetRx};
 
     pub fn dummy_ethernet
         (iface_i: u8)

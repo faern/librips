@@ -5,7 +5,7 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEther
 use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
 
-use rips::Tx;
+use rips::{Tx, RxResult};
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 
 use helper;
@@ -15,8 +15,9 @@ pub struct MockEthernetListener {
 }
 
 impl EthernetListener for MockEthernetListener {
-    fn recv(&mut self, _time: SystemTime, packet: &EthernetPacket) {
+    fn recv(&mut self, _time: SystemTime, packet: &EthernetPacket) -> RxResult<()> {
         self.tx.send(packet.packet().to_vec()).unwrap();
+        Ok(())
     }
 
     fn get_ethertype(&self) -> EtherType {

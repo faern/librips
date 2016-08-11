@@ -110,7 +110,7 @@ pub enum RxError {
     Other(String),
 }
 
-pub type RxResult = Result<(), RxError>;
+pub type RxResult<T> = Result<T, RxError>;
 
 pub struct VersionedTx {
     sender: Box<EthernetDataLinkSender>,

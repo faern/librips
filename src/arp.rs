@@ -54,7 +54,7 @@ pub struct ArpRx {
 }
 
 impl EthernetListener for ArpRx {
-    fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) -> RxResult {
+    fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) -> RxResult<()> {
         let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
         let ip = arp_pkg.get_sender_proto_addr();
         let mac = arp_pkg.get_sender_hw_addr();
