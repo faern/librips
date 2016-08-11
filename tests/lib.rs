@@ -14,10 +14,7 @@ mod ipv4;
 mod udp;
 
 #[cfg(all(test, not(feature = "unit-tests")))]
-pub use tests::*;
-
-#[cfg(all(test, not(feature = "unit-tests")))]
-mod tests {
+mod helper {
     use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::io;
@@ -31,7 +28,7 @@ mod tests {
     use rips::{EthernetChannel, Interface, NetworkStack};
     use rips::ethernet::{EthernetListener, EthernetRx};
 
-    fn dummy_ethernet
+    pub fn dummy_ethernet
         (iface_i: u8)
          -> (EthernetChannel, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
         let iface = dummy::dummy_interface(iface_i);
@@ -53,7 +50,7 @@ mod tests {
         (channel, interface, inject_handle, read_handle)
     }
 
-    fn dummy_stack
+    pub fn dummy_stack
         (iface_i: u8)
          -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
         let (channel, interface, inject_handle, read_handle) = dummy_ethernet(iface_i);
@@ -63,7 +60,7 @@ mod tests {
         (stack, interface, inject_handle, read_handle)
     }
 
-    // fn dummy_icmp()
+    // pub fn dummy_icmp()
     //     -> (Ethernet,
     //         Arc<Mutex<IcmpListenerLookup>>,
     //         Ipv4,

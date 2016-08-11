@@ -8,6 +8,8 @@ use pnet::packet::{Packet, PrimitiveValues};
 use rips::Tx;
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 
+use helper;
+
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,
 }
@@ -28,7 +30,7 @@ fn test_ethernet_recv() {
     let mock_listener = MockEthernetListener { tx: listener_tx };
     let listeners = vec![Box::new(mock_listener) as Box<EthernetListener>];
 
-    let (channel, _, inject_handle, _) = ::dummy_ethernet(0);
+    let (channel, _, inject_handle, _) = helper::dummy_ethernet(0);
     EthernetRx::new(listeners).spawn(channel.1);
 
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() + 3];
@@ -55,13 +57,12 @@ fn test_ethernet_recv() {
 fn test_ethernet_send() {
     let src = MacAddr::new(1, 2, 3, 4, 5, 99);
     let dst = MacAddr::new(6, 7, 8, 9, 10, 11);
-    let (channel, interface, _, read_handle) = ::dummy_ethernet(99);
+    let (channel, interface, _, read_handle) = helper::dummy_ethernet(99);
     let tx = Tx::direct(channel.0);
     let mut ethernet_tx = EthernetTx::new(tx, src, dst);
 
-    ethernet_tx.send(1, 1, |pkg| {
-            pkg.set_ethertype(EtherTypes::Rarp);
-            pkg.set_payload(&[57]);
+    ethernet_tx.send(1, 1, EtherTypes::Rarp, |pkg| {
+            pkg[0] = 57;
         })
         .expect("Unable to send to ethernet");
 

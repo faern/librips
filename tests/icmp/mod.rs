@@ -11,6 +11,8 @@ use pnet::packet::{MutablePacket, Packet};
 
 use rips::icmp::{Icmp, IcmpListener};
 
+use helper;
+
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,
 }
@@ -24,7 +26,7 @@ impl IcmpListener for MockIcmpListener {
 
 #[test]
 fn test_ping() {
-    let (_ethernet, _, ipv4, _, read_handle) = ::dummy_icmp();
+    let (_ethernet, _, ipv4, _, read_handle) = helper::dummy_icmp();
 
     let mut icmp = Icmp::new(ipv4);
 
@@ -50,7 +52,7 @@ fn recv_icmp() {
     let (tx, rx) = mpsc::channel();
     let mock_icmp_listener = vec![Box::new(MockIcmpListener { tx: tx }) as Box<IcmpListener>];
 
-    let (_ethernet, icmp_listeners, _, inject_handle, _) = ::dummy_icmp();
+    let (_ethernet, icmp_listeners, _, inject_handle, _) = helper::dummy_icmp();
     icmp_listeners.lock().unwrap().insert(icmp_types::DestinationUnreachable, mock_icmp_listener);
 
     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() +

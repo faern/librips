@@ -13,10 +13,12 @@ use rips::{Tx, VersionedTx};
 use rips::arp::ArpFactory;
 use rips::ethernet::{EthernetRx, EthernetTx};
 
+use helper;
+
 #[test]
 fn arp_invalidate_on_update() {
     let arp_factory = ArpFactory::new();
-    let (channel, _, inject_handle, _) = ::dummy_ethernet(7);
+    let (channel, _, inject_handle, _) = helper::dummy_ethernet(7);
 
     let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
     EthernetRx::new(vec![arp_factory.listener(vtx.clone())]).spawn(channel.1);
@@ -41,7 +43,7 @@ fn test_arp_locking() {
     let thread_count = 100;
 
     let arp_factory = ArpFactory::new();
-    let (channel, _, inject_handle, read_handle) = ::dummy_ethernet(7);
+    let (channel, _, inject_handle, read_handle) = helper::dummy_ethernet(7);
     let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
     EthernetRx::new(vec![arp_factory.listener(vtx.clone())]).spawn(channel.1);
 

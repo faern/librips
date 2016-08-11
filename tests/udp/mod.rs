@@ -10,12 +10,14 @@ use pnet::packet::MutablePacket;
 
 use rips::udp::UdpSocket;
 
+use helper;
+
 #[test]
 fn socket_listen() {
     let source_ip = Ipv4Addr::new(9, 8, 7, 6);
     let target_ip = Ipv4Addr::new(10, 9, 0, 254);
 
-    let (mut stack, interface, inject_handle, _) = ::dummy_stack(0);
+    let (mut stack, interface, inject_handle, _) = helper::dummy_stack(0);
     stack.add_ipv4(&interface, Ipv4Network::from_cidr("10.9.0.254/16").unwrap());
     let stack = Arc::new(Mutex::new(stack));
 
