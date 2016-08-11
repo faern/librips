@@ -9,8 +9,6 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 
-use ipnetwork;
-
 use {TxResult, RxResult, RxError};
 use ethernet::EthernetListener;
 
@@ -18,23 +16,6 @@ use ethernet::EthernetListener;
 use test::ethernet::EthernetTx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
-
-/// Represents an error in an `IpConf`.
-#[derive(Debug)]
-pub enum IpConfError {
-    /// The given network configuration was not valid. For example invalid
-    /// prefix.
-    InvalidNetwork(ipnetwork::IpNetworkError),
-
-    /// The gateway is not inside the local network.
-    GwNotInNetwork,
-}
-
-impl From<ipnetwork::IpNetworkError> for IpConfError {
-    fn from(e: ipnetwork::IpNetworkError) -> Self {
-        IpConfError::InvalidNetwork(e)
-    }
-}
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
@@ -80,15 +61,15 @@ impl EthernetListener for Ipv4Rx {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);
-        let mut listeners = self.listeners.lock().unwrap();
+        let mut listeners = try!(self.listeners.lock().or(Err(RxError::PoisonedLock)));
         if let Some(mut listeners) = listeners.get_mut(&dest_ip) {
             if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
                 listener.recv(time, ip_pkg)
             } else {
-                Err(RxError::NoListener(format!("Ipv4, no one was listening to {:?}", next_level_protocol)))
+                Err(RxError::NoListener(format!("Ipv4 {:?}", next_level_protocol)))
             }
         } else {
-            Err(RxError::NoListener(format!("Ipv4 is not listening to {} on this interface", dest_ip)))
+            Err(RxError::NoListener(format!("Ipv4 {}", dest_ip)))
         }
     }
 
@@ -241,7 +222,7 @@ mod tests {
     use test::ethernet;
 
     #[test]
-    fn fragmented() {
+    fn tx_fragmented() {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
@@ -273,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn not_fragmented() {
+    fn tx_not_fragmented() {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
@@ -296,6 +277,11 @@ mod tests {
         let frame = rx.try_recv().expect("Expected a frame to have been sent");
         assert!(rx.try_recv().is_err());
         check_pkg(&frame, src, dst, pkg_size, false, 0, 100, 99);
+    }
+
+    #[test]
+    fn rx_non_fragmented() {
+
     }
 
     fn check_pkg(payload: &[u8],
