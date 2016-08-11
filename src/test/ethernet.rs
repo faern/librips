@@ -1,7 +1,7 @@
 use std::io;
 use std::sync::mpsc;
 
-use pnet::packet::ethernet::{MutableEthernetPacket, EthernetPacket};
+use pnet::packet::ethernet::{MutableEthernetPacket, EthernetPacket, EtherType};
 
 use TxResult;
 
@@ -25,17 +25,16 @@ impl EthernetTx {
     pub fn send<T>(&mut self,
                    num_packets: usize,
                    payload_size: usize,
+                   _ether_type: EtherType,
                    mut builder: T)
                    -> TxResult<()>
-        where T: FnMut(&mut MutableEthernetPacket)
+        where T: FnMut(&mut [u8])
     {
-        let total_packet_size = payload_size + EthernetPacket::minimum_packet_size();
-        let mut buffer = vec![0; total_packet_size];
-        {
-            let mut pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
-            builder(&mut pkg);
+        for _ in 0..num_packets {
+            let mut buffer = vec![0; payload_size];
+            builder(&mut buffer[..]);
+            self.chan.send(buffer.into_boxed_slice()).unwrap();
         }
-        self.chan.send(buffer.into_boxed_slice()).unwrap();
         Ok(())
     }
 }

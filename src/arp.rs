@@ -108,9 +108,8 @@ impl ArpTx {
     /// request
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<()> {
         let local_mac = self.ethernet.src;
-        let mut builder_wrapper = |eth_pkg: &mut MutableEthernetPacket| {
-            eth_pkg.set_ethertype(EtherTypes::Arp);
-            let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
+        let mut builder_wrapper = |payload: &mut [u8]| {
+            let mut arp_pkg = MutableArpPacket::new(payload).unwrap();
             arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
             arp_pkg.set_protocol_type(EtherTypes::Ipv4);
             arp_pkg.set_hw_addr_len(6);
@@ -121,7 +120,7 @@ impl ArpTx {
             arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
             arp_pkg.set_target_proto_addr(target_ip);
         };
-        self.ethernet.send(1, ArpPacket::minimum_packet_size(), &mut builder_wrapper)
+        self.ethernet.send(1, ArpPacket::minimum_packet_size(), EtherTypes::Arp, &mut builder_wrapper)
     }
 
     fn add_listener(&mut self, ip: Ipv4Addr) -> Receiver<MacAddr> {

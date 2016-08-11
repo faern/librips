@@ -40,6 +40,7 @@ mod stack;
 #[cfg(not(feature = "unit-tests"))]
 pub use stack::{NetworkStack, StackResult, StackError};
 
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Interface {
     pub name: String,
