@@ -19,7 +19,7 @@ use ethernet::EthernetTx;
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
-    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult<()>;
+    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult;
 }
 
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
@@ -72,7 +72,7 @@ impl Ipv4Rx {
 }
 
 impl Ipv4Rx {
-    fn get_ipv4_pkg<'a>(eth_pkg: &'a EthernetPacket) -> RxResult<Ipv4Packet<'a>> {
+    fn get_ipv4_pkg<'a>(eth_pkg: &'a EthernetPacket) -> Result<Ipv4Packet<'a>, RxError> {
         let eth_payload = eth_pkg.payload();
         if eth_payload.len() < Ipv4Packet::minimum_packet_size() {
             return Err(RxError::InvalidContent);
@@ -144,7 +144,7 @@ impl Ipv4Rx {
         (src, dst, ident)
     }
 
-    fn forward(&self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult<()> {
+    fn forward(&self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);
@@ -162,7 +162,7 @@ impl Ipv4Rx {
 }
 
 impl EthernetListener for Ipv4Rx {
-    fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult<()> {
+    fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult {
         let ip_pkg = try!(Self::get_ipv4_pkg(eth_pkg));
         if Self::is_fragment(&ip_pkg) {
             if let Some(reassembled_data) = try!(self.save_fragment(ip_pkg)) {

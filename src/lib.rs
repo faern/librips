@@ -31,8 +31,8 @@ pub use routing::RoutingTable;
 
 mod util;
 
-#[cfg(test)]
-mod test;
+#[cfg(any(test, feature = "integration-tests"))]
+pub mod test;
 
 #[cfg(not(feature = "unit-tests"))]
 mod stack;
@@ -110,7 +110,7 @@ pub enum RxError {
     Other(String),
 }
 
-pub type RxResult<T> = Result<T, RxError>;
+pub type RxResult = Result<(), RxError>;
 
 pub struct VersionedTx {
     sender: Box<EthernetDataLinkSender>,

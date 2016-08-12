@@ -12,7 +12,7 @@ pub struct MockIpv4Listener {
 }
 
 impl Ipv4Listener for MockIpv4Listener {
-    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) -> RxResult<()> {
+    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) -> RxResult {
         println!("MockIpv4Listener got a packet!");
         self.tx.send(packet.packet().to_vec()).unwrap();
         Ok(())

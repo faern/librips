@@ -17,7 +17,7 @@ use {Tx, TxResult, RxResult};
 /// implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
-    fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult<()>;
+    fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult;
 
     fn get_ethertype(&self) -> EtherType;
 }

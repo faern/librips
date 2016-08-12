@@ -15,7 +15,7 @@ pub struct MockEthernetListener {
 }
 
 impl EthernetListener for MockEthernetListener {
-    fn recv(&mut self, _time: SystemTime, packet: &EthernetPacket) -> RxResult<()> {
+    fn recv(&mut self, _time: SystemTime, packet: &EthernetPacket) -> RxResult {
         self.tx.send(packet.packet().to_vec()).unwrap();
         Ok(())
     }
