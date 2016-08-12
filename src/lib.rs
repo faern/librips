@@ -31,7 +31,7 @@ pub use routing::RoutingTable;
 
 mod util;
 
-#[cfg(all(test, feature = "unit-tests"))]
+#[cfg(test)]
 mod test;
 
 #[cfg(not(feature = "unit-tests"))]
@@ -102,7 +102,7 @@ fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult<()> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum RxError {
     NoListener(String),
     InvalidContent,

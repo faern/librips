@@ -14,20 +14,9 @@ use pnet::packet::{MutablePacket, Packet};
 use rips::{RxResult};
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::ethernet::{EthernetListener, EthernetRx};
+use rips::test::ipv4::MockIpv4Listener;
 
 use helper;
-
-pub struct MockIpv4Listener {
-    pub tx: mpsc::Sender<Vec<u8>>,
-}
-
-impl Ipv4Listener for MockIpv4Listener {
-    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) -> RxResult<()> {
-        println!("MockIpv4Listener got a packet!");
-        self.tx.send(packet.packet().to_vec()).unwrap();
-        Ok(())
-    }
-}
 
 #[test]
 fn simple_send() {

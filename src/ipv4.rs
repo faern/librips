@@ -1,6 +1,5 @@
 use std::net::Ipv4Addr;
 use std::collections::HashMap;
-use std::convert::From;
 use std::time::SystemTime;
 use std::sync::{Arc, Mutex};
 
@@ -25,14 +24,49 @@ pub trait Ipv4Listener: Send {
 
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
 
+type FragmentIdent = (Ipv4Addr, Ipv4Addr, u16);
+
+struct Buffer {
+    data: Vec<u8>,
+    lowest_missing: usize,
+}
+
+impl Buffer {
+    pub fn new(capacity: usize) -> Buffer {
+        Buffer {
+            data: vec![0; capacity],
+            lowest_missing: 0,
+        }
+    }
+
+    pub fn push(&mut self, offset: usize, data: &[u8]) -> Result<usize, ()> {
+        if offset == self.lowest_missing {
+            self.lowest_missing += data.len();
+        } else {
+            println!("{} != {}", offset, self.lowest_missing);
+            return Err(())
+        }
+        self.data[offset..offset + data.len()].copy_from_slice(data);
+        Ok(self.lowest_missing)
+    }
+
+    pub fn into_boxed_slice(self) -> Box<[u8]> {
+        self.data[..self.lowest_missing].to_vec().into_boxed_slice()
+    }
+}
+
 /// Struct listening for ethernet frames containing IPv4 packets.
 pub struct Ipv4Rx {
     listeners: Arc<Mutex<IpListenerLookup>>,
+    buffers: HashMap<FragmentIdent, (Buffer, usize)>,
 }
 
 impl Ipv4Rx {
     pub fn new(listeners: Arc<Mutex<IpListenerLookup>>) -> Box<EthernetListener> {
-        let this = Ipv4Rx { listeners: listeners };
+        let this = Ipv4Rx {
+            listeners: listeners,
+            buffers: HashMap::new(),
+        };
         Box::new(this) as Box<EthernetListener>
     }
 }
@@ -53,11 +87,64 @@ impl Ipv4Rx {
             Ok(Ipv4Packet::new(&eth_payload[..total_length]).unwrap())
         }
     }
-}
 
-impl EthernetListener for Ipv4Rx {
-    fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult<()> {
-        let ip_pkg = try!(Self::get_ipv4_pkg(eth_pkg));
+    fn is_fragment(ip_pkg: &Ipv4Packet) -> bool {
+        let mf = (ip_pkg.get_flags() & 0b100) != 0;
+        let offset = ip_pkg.get_fragment_offset() != 0;
+        mf || offset
+    }
+
+    fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Box<[u8]>>, RxError> {
+        let ident = Self::get_fragment_ident(&ip_pkg);
+        if !self.buffers.contains_key(&ident) {
+            let mut buffer = Buffer::new(::std::u16::MAX as usize);
+            buffer.push(0, &ip_pkg.packet()[..Ipv4Packet::minimum_packet_size()]).unwrap();
+            self.buffers.insert(ident, (buffer, 0));
+        }
+        let pkg_done = {
+            let &mut (ref mut buffer, ref mut total_length) = self.buffers.get_mut(&ident).unwrap();
+            let offset = Ipv4Packet::minimum_packet_size() + ip_pkg.get_fragment_offset() as usize * 8;
+            // Check if this is the last fragment
+            if (ip_pkg.get_flags() & 0b100) == 0 {
+                if *total_length != 0 {
+                    println!("Getting last frame twice!");
+                    return Err(RxError::InvalidContent);
+                } else {
+                    *total_length = offset + ip_pkg.payload().len();
+                }
+            }
+            match buffer.push(offset, ip_pkg.payload()) {
+                Ok(i) => i == *total_length,
+                Err(_) => {
+                    println!("Pushing failed");
+                    return Err(RxError::InvalidContent);
+                },
+            }
+        };
+        if pkg_done {
+            let (buffer, _) = self.buffers.remove(&ident).unwrap();
+            let mut data = buffer.into_boxed_slice();
+            let len = data.len() as u16;
+            {
+                let mut ip_pkg = MutableIpv4Packet::new(&mut data[..]).unwrap();
+                ip_pkg.set_flags(0b000);
+                ip_pkg.set_fragment_offset(0);
+                ip_pkg.set_total_length(len);
+            }
+            Ok(Some(data))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_fragment_ident(ip_pkg: &Ipv4Packet) -> FragmentIdent {
+        let src = ip_pkg.get_source();
+        let dst = ip_pkg.get_destination();
+        let ident = ip_pkg.get_identification();
+        (src, dst, ident)
+    }
+
+    fn forward(&self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult<()> {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         println!("Ipv4 got a packet to {}!", dest_ip);
@@ -70,6 +157,22 @@ impl EthernetListener for Ipv4Rx {
             }
         } else {
             Err(RxError::NoListener(format!("Ipv4 {}", dest_ip)))
+        }
+    }
+}
+
+impl EthernetListener for Ipv4Rx {
+    fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult<()> {
+        let ip_pkg = try!(Self::get_ipv4_pkg(eth_pkg));
+        if Self::is_fragment(&ip_pkg) {
+            if let Some(reassembled_data) = try!(self.save_fragment(ip_pkg)) {
+                let reassembled_pkg = Ipv4Packet::new(&reassembled_data[..]).unwrap();
+                self.forward(time, reassembled_pkg)
+            } else {
+                Ok(())
+            }
+        } else {
+            self.forward(time, ip_pkg)
         }
     }
 
@@ -211,15 +314,20 @@ impl Ipv4Tx {
 #[cfg(all(test, feature = "unit-tests"))]
 mod tests {
     use std::net::Ipv4Addr;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, mpsc};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::SystemTime;
+    use std::collections::HashMap;
 
     use pnet::packet::ip::IpNextHeaderProtocols;
-    use pnet::packet::ipv4::Ipv4Packet;
-    use pnet::packet::Packet;
+    use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
+    use pnet::packet::ethernet::MutableEthernetPacket;
+    use pnet::packet::{Packet, MutablePacket};
 
     use super::*;
-    use test::ethernet;
+    use {RxResult, RxError};
+    use test::{ethernet, ipv4};
+    use ethernet::EthernetListener;
 
     #[test]
     fn tx_fragmented() {
@@ -281,7 +389,89 @@ mod tests {
 
     #[test]
     fn rx_non_fragmented() {
+        let dst = Ipv4Addr::new(127, 0, 0, 1);
+        let (mut ipv4_rx, rx) = setup_rx(dst);
 
+        let mut buffer = vec![0; 100];
+        let mut pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
+        {
+            let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
+            ip_pkg.set_destination(dst);
+            ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
+            ip_pkg.set_flags(0b000);
+            ip_pkg.set_header_length(5); // No options
+            ip_pkg.set_total_length(20 + 15);
+        }
+
+        ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
+        let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
+        let rx_ip_pkg = Ipv4Packet::new(&rx_pkg[..]).unwrap();
+        assert_eq!(rx_ip_pkg.get_destination(), dst);
+        assert_eq!(rx_ip_pkg.get_flags(), 0b000);
+        assert_eq!(rx_ip_pkg.get_total_length(), 35);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn rx_fragmented() {
+        let dst = Ipv4Addr::new(127, 0, 0, 1);
+        let (mut ipv4_rx, rx) = setup_rx(dst);
+
+        let mut buffer = vec![0; 100];
+        let mut pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
+        // Send first part of a fragmented packet and make sure nothing is sent to the listener
+        {
+            let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
+            ip_pkg.set_destination(dst);
+            ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
+            ip_pkg.set_flags(0b100);
+            ip_pkg.set_fragment_offset(0);
+            ip_pkg.set_identification(137);
+            ip_pkg.set_header_length(5); // No options
+            ip_pkg.set_total_length(20 + 16);
+        }
+
+        ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
+        assert!(rx.try_recv().is_err());
+
+        // Send a packet with different identification number and make sure it doesn't merge
+        {
+            let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
+            ip_pkg.set_flags(0b000);
+            ip_pkg.set_fragment_offset(16 / 8);
+            ip_pkg.set_identification(299);
+            ip_pkg.set_total_length(20 + 8);
+        }
+        assert_eq!(ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()), Err(RxError::InvalidContent));
+        assert!(rx.try_recv().is_err());
+
+        // Send final part of fragmented packet
+        {
+            let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
+            ip_pkg.set_identification(137);
+        }
+        ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
+        let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
+        let rx_ip_pkg = Ipv4Packet::new(&rx_pkg[..]).unwrap();
+        assert_eq!(rx_ip_pkg.get_destination(), dst);
+        assert_eq!(rx_ip_pkg.get_flags(), 0b000);
+        assert_eq!(rx_ip_pkg.get_total_length(), 20 + 16 + 8);
+        assert!(rx.try_recv().is_err());
+    }
+
+    fn setup_rx(dst: Ipv4Addr) -> (Box<EthernetListener>, mpsc::Receiver<Vec<u8>>) {
+        let (tx, rx) = mpsc::channel();
+        let arp_listener = Box::new(ipv4::MockIpv4Listener{ tx: tx }) as Box<Ipv4Listener>;
+
+        let mut ip_listeners = HashMap::new();
+        ip_listeners.insert(IpNextHeaderProtocols::Icmp, arp_listener);
+
+        let mut listeners = HashMap::new();
+        listeners.insert(dst, ip_listeners);
+
+        let listeners = Arc::new(Mutex::new(listeners));
+        let mut ipv4_rx = Ipv4Rx::new(listeners);
+        (ipv4_rx, rx)
     }
 
     fn check_pkg(payload: &[u8],
