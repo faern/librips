@@ -122,6 +122,5 @@ impl EthernetRx {
                 Err(e) => panic!("EthernetRx crash: {}", e),
             }
         }
-        println!("EthernetRx exits main loop");
     }
 }

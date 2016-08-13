@@ -2,6 +2,7 @@ use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::sync::{Arc, Mutex};
+use std::ops::{Deref, DerefMut};
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
@@ -49,9 +50,19 @@ impl Buffer {
         self.data[offset..offset + data.len()].copy_from_slice(data);
         Ok(self.lowest_missing)
     }
+}
 
-    pub fn into_boxed_slice(self) -> Box<[u8]> {
-        self.data[..self.lowest_missing].to_vec().into_boxed_slice()
+impl Deref for Buffer {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.data[..self.lowest_missing]
+    }
+}
+
+impl DerefMut for Buffer {
+    fn deref_mut(&mut self) -> &mut [u8] {
+        &mut self.data[..self.lowest_missing]
     }
 }
 
@@ -94,7 +105,7 @@ impl Ipv4Rx {
         mf || offset
     }
 
-    fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Box<[u8]>>, RxError> {
+    fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Buffer>, RxError> {
         let ident = Self::get_fragment_ident(&ip_pkg);
         if !self.buffers.contains_key(&ident) {
             let mut buffer = Buffer::new(::std::u16::MAX as usize);
@@ -107,7 +118,6 @@ impl Ipv4Rx {
             // Check if this is the last fragment
             if (ip_pkg.get_flags() & 0b100) == 0 {
                 if *total_length != 0 {
-                    println!("Getting last frame twice!");
                     return Err(RxError::InvalidContent);
                 } else {
                     *total_length = offset + ip_pkg.payload().len();
@@ -116,22 +126,19 @@ impl Ipv4Rx {
             match buffer.push(offset, ip_pkg.payload()) {
                 Ok(i) => i == *total_length,
                 Err(_) => {
-                    println!("Pushing failed");
                     return Err(RxError::InvalidContent);
                 },
             }
         };
         if pkg_done {
-            let (buffer, _) = self.buffers.remove(&ident).unwrap();
-            let mut data = buffer.into_boxed_slice();
-            let len = data.len() as u16;
+            let (mut buffer, len) = self.buffers.remove(&ident).unwrap();
             {
-                let mut ip_pkg = MutableIpv4Packet::new(&mut data[..]).unwrap();
+                let mut ip_pkg = MutableIpv4Packet::new(&mut buffer).unwrap();
                 ip_pkg.set_flags(0b000);
                 ip_pkg.set_fragment_offset(0);
-                ip_pkg.set_total_length(len);
+                ip_pkg.set_total_length(len as u16);
             }
-            Ok(Some(data))
+            Ok(Some(buffer))
         } else {
             Ok(None)
         }
@@ -165,8 +172,8 @@ impl EthernetListener for Ipv4Rx {
     fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult {
         let ip_pkg = try!(Self::get_ipv4_pkg(eth_pkg));
         if Self::is_fragment(&ip_pkg) {
-            if let Some(reassembled_data) = try!(self.save_fragment(ip_pkg)) {
-                let reassembled_pkg = Ipv4Packet::new(&reassembled_data[..]).unwrap();
+            if let Some(buffer) = try!(self.save_fragment(ip_pkg)) {
+                let reassembled_pkg = Ipv4Packet::new(&buffer).unwrap();
                 self.forward(time, reassembled_pkg)
             } else {
                 Ok(())
@@ -260,7 +267,7 @@ impl Ipv4Tx {
 
         let num_fragments = 1 + ((payload_size - 1) / bytes_per_frame);
         let mut payload = vec![0; payload_size];
-        builder(&mut payload[..]);
+        builder(&mut payload);
 
         let mut offset = 0;
         let mut chunks = payload.chunks(bytes_per_frame);
@@ -393,7 +400,7 @@ mod tests {
         let (mut ipv4_rx, rx) = setup_rx(dst);
 
         let mut buffer = vec![0; 100];
-        let mut pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
+        let mut pkg = MutableEthernetPacket::new(&mut buffer).unwrap();
         {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
             ip_pkg.set_destination(dst);
