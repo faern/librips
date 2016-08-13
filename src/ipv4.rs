@@ -2,7 +2,6 @@ use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::sync::{Arc, Mutex};
-use std::ops::{Deref, DerefMut};
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
@@ -11,6 +10,7 @@ use pnet::packet::{MutablePacket, Packet};
 
 use {TxResult, RxResult, RxError};
 use ethernet::EthernetListener;
+use util::Buffer;
 
 #[cfg(all(test, feature = "unit-tests"))]
 use test::ethernet::EthernetTx;
@@ -29,46 +29,8 @@ pub trait Ipv4Listener: Send {
 
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
 
+// Header fields that are used to identify fragments as belonging to the same packet
 type FragmentIdent = (Ipv4Addr, Ipv4Addr, u16);
-
-struct Buffer {
-    data: Vec<u8>,
-    lowest_missing: usize,
-}
-
-impl Buffer {
-    pub fn new(capacity: usize) -> Buffer {
-        Buffer {
-            data: vec![0; capacity],
-            lowest_missing: 0,
-        }
-    }
-
-    pub fn push(&mut self, offset: usize, data: &[u8]) -> Result<usize, ()> {
-        if offset == self.lowest_missing {
-            self.lowest_missing += data.len();
-        } else {
-            println!("{} != {}", offset, self.lowest_missing);
-            return Err(())
-        }
-        self.data[offset..offset + data.len()].copy_from_slice(data);
-        Ok(self.lowest_missing)
-    }
-}
-
-impl Deref for Buffer {
-    type Target = [u8];
-
-    fn deref(&self) -> &[u8] {
-        &self.data[..self.lowest_missing]
-    }
-}
-
-impl DerefMut for Buffer {
-    fn deref_mut(&mut self) -> &mut [u8] {
-        &mut self.data[..self.lowest_missing]
-    }
-}
 
 /// Struct listening for ethernet frames containing IPv4 packets.
 pub struct Ipv4Rx {
