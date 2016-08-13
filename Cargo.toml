@@ -8,14 +8,19 @@ description = "Rust TCP/IP Stack - A full userspace TCP/IP stack written in Rust
 readme = "README.md"
 
 [dependencies]
-#ipnetwork = "0.7.0"
+ipnetwork = "0.9.0"
 pnet = "0.12.0"
+
+[features]
+default = []
+unit-tests = []
+integration-tests = []
 
 #[dependencies.pnet]
 #git = "https://github.com/faern/libpnet"
 #branch = ""
 #path = "../libpnet"
 
-[dependencies.ipnetwork]
-git = "https://github.com/faern/ipnetwork"
+#[dependencies.ipnetwork]
+#git = "https://github.com/faern/ipnetwork"
 #path = "../ipnetwork"
