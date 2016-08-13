@@ -9,3 +9,5 @@ os:
 matrix:
   allow_failures:
     - rust: nightly
+script:
+  - ./test.sh
