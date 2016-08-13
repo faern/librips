@@ -17,6 +17,10 @@ use test::ethernet::EthernetTx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
+pub const MORE_FRAGMENTS: u8 = 0b100;
+pub const DONT_FRAGMENT: u8 = 0b010;
+pub const NO_FLAGS: u8 = 0b000;
+
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
@@ -83,6 +87,7 @@ impl Ipv4Rx {
 }
 
 impl Ipv4Rx {
+    // Returns the Ipv4Packet contained in this EthernetPacket if it looks valid
     fn get_ipv4_pkg<'a>(eth_pkg: &'a EthernetPacket) -> Result<Ipv4Packet<'a>, RxError> {
         let eth_payload = eth_pkg.payload();
         if eth_payload.len() < Ipv4Packet::minimum_packet_size() {
@@ -100,57 +105,65 @@ impl Ipv4Rx {
     }
 
     fn is_fragment(ip_pkg: &Ipv4Packet) -> bool {
-        let mf = (ip_pkg.get_flags() & 0b100) != 0;
+        let mf = (ip_pkg.get_flags() & MORE_FRAGMENTS) != 0;
         let offset = ip_pkg.get_fragment_offset() != 0;
         mf || offset
     }
 
+    // Saves a packet fragment to a buffer for reassembly. If the Ipv4Packet becomes complete
+    // with the addition of `ip_pkg` then the complete reassembled packet is returned in a Buffer.
     fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Buffer>, RxError> {
-        let ident = Self::get_fragment_ident(&ip_pkg);
+        let ident = Self::get_fragment_identification(&ip_pkg);
         if !self.buffers.contains_key(&ident) {
-            let mut buffer = Buffer::new(::std::u16::MAX as usize);
-            buffer.push(0, &ip_pkg.packet()[..Ipv4Packet::minimum_packet_size()]).unwrap();
-            self.buffers.insert(ident, (buffer, 0));
-        }
-        let pkg_done = {
-            let &mut (ref mut buffer, ref mut total_length) = self.buffers.get_mut(&ident).unwrap();
-            let offset = Ipv4Packet::minimum_packet_size() + ip_pkg.get_fragment_offset() as usize * 8;
-            // Check if this is the last fragment
-            if (ip_pkg.get_flags() & 0b100) == 0 {
-                if *total_length != 0 {
-                    return Err(RxError::InvalidContent);
-                } else {
-                    *total_length = offset + ip_pkg.payload().len();
-                }
+            if ip_pkg.get_fragment_offset() == 0 {
+                let mut buffer = Buffer::new(::std::u16::MAX as usize);
+                buffer.push(0, ip_pkg.packet()).unwrap();
+                self.buffers.insert(ident, (buffer, 0));
+                Ok(None)
+            } else {
+                Err(RxError::InvalidContent)
             }
-            match buffer.push(offset, ip_pkg.payload()) {
-                Ok(i) => i == *total_length,
-                Err(_) => {
-                    return Err(RxError::InvalidContent);
-                },
-            }
-        };
-        if pkg_done {
-            let (mut buffer, len) = self.buffers.remove(&ident).unwrap();
-            {
-                let mut ip_pkg = MutableIpv4Packet::new(&mut buffer).unwrap();
-                ip_pkg.set_flags(0b000);
-                ip_pkg.set_fragment_offset(0);
-                ip_pkg.set_total_length(len as u16);
-            }
-            Ok(Some(buffer))
         } else {
-            Ok(None)
+            let pkg_done = {
+                let &mut (ref mut buffer, ref mut total_length) = self.buffers.get_mut(&ident).unwrap();
+                let offset = Ipv4Packet::minimum_packet_size() + ip_pkg.get_fragment_offset() as usize * 8;
+                // Check if this is the last fragment
+                if (ip_pkg.get_flags() & MORE_FRAGMENTS) == 0 {
+                    if *total_length != 0 {
+                        return Err(RxError::InvalidContent);
+                    } else {
+                        *total_length = offset + ip_pkg.payload().len();
+                    }
+                }
+                match buffer.push(offset, ip_pkg.payload()) {
+                    Ok(i) => i == *total_length,
+                    Err(_) => {
+                        return Err(RxError::InvalidContent);
+                    },
+                }
+            };
+            if pkg_done {
+                let (mut buffer, len) = self.buffers.remove(&ident).unwrap();
+                {
+                    let mut ip_pkg = MutableIpv4Packet::new(&mut buffer).unwrap();
+                    ip_pkg.set_flags(NO_FLAGS);
+                    ip_pkg.set_total_length(len as u16);
+                }
+                Ok(Some(buffer))
+            } else {
+                Ok(None)
+            }
         }
     }
 
-    fn get_fragment_ident(ip_pkg: &Ipv4Packet) -> FragmentIdent {
+    fn get_fragment_identification(ip_pkg: &Ipv4Packet) -> FragmentIdent {
         let src = ip_pkg.get_source();
         let dst = ip_pkg.get_destination();
         let ident = ip_pkg.get_identification();
         (src, dst, ident)
     }
 
+    // Forwards a complete packet its listener
     fn forward(&self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
@@ -286,9 +299,9 @@ impl Ipv4Tx {
             ip_pkg.set_total_length(total_size as u16);
             ip_pkg.set_identification(0); // Use when implementing fragmentation
             ip_pkg.set_flags(if is_last_chunk {
-                0b000 // More fragments not set
+                NO_FLAGS // More fragments not set
             } else {
-                0b100 // More fragments set
+                MORE_FRAGMENTS // More fragments set
             });
             ip_pkg.set_fragment_offset(offset / 8);
             ip_pkg.set_source(src);
@@ -405,7 +418,7 @@ mod tests {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
             ip_pkg.set_destination(dst);
             ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
-            ip_pkg.set_flags(0b000);
+            ip_pkg.set_flags(DONT_FRAGMENT);
             ip_pkg.set_header_length(5); // No options
             ip_pkg.set_total_length(20 + 15);
         }
@@ -414,7 +427,7 @@ mod tests {
         let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
         let rx_ip_pkg = Ipv4Packet::new(&rx_pkg[..]).unwrap();
         assert_eq!(rx_ip_pkg.get_destination(), dst);
-        assert_eq!(rx_ip_pkg.get_flags(), 0b000);
+        assert_eq!(rx_ip_pkg.get_flags(), DONT_FRAGMENT);
         assert_eq!(rx_ip_pkg.get_total_length(), 35);
         assert!(rx.try_recv().is_err());
     }
@@ -431,7 +444,7 @@ mod tests {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
             ip_pkg.set_destination(dst);
             ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
-            ip_pkg.set_flags(0b100);
+            ip_pkg.set_flags(MORE_FRAGMENTS);
             ip_pkg.set_fragment_offset(0);
             ip_pkg.set_identification(137);
             ip_pkg.set_header_length(5); // No options
@@ -444,7 +457,7 @@ mod tests {
         // Send a packet with different identification number and make sure it doesn't merge
         {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
-            ip_pkg.set_flags(0b000);
+            ip_pkg.set_flags(NO_FLAGS);
             ip_pkg.set_fragment_offset(16 / 8);
             ip_pkg.set_identification(299);
             ip_pkg.set_total_length(20 + 8);
@@ -461,7 +474,7 @@ mod tests {
         let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
         let rx_ip_pkg = Ipv4Packet::new(&rx_pkg[..]).unwrap();
         assert_eq!(rx_ip_pkg.get_destination(), dst);
-        assert_eq!(rx_ip_pkg.get_flags(), 0b000);
+        assert_eq!(rx_ip_pkg.get_flags(), NO_FLAGS);
         assert_eq!(rx_ip_pkg.get_total_length(), 20 + 16 + 8);
         assert!(rx.try_recv().is_err());
     }
@@ -496,7 +509,7 @@ mod tests {
         let actual_payload_len = ip_pkg.get_total_length() as usize -
                                  Ipv4Packet::minimum_packet_size();
         assert_eq!(actual_payload_len, payload_len);
-        assert_eq!(ip_pkg.get_flags() == 0b100, is_fragment);
+        assert_eq!(ip_pkg.get_flags() == MORE_FRAGMENTS, is_fragment);
         assert_eq!(ip_pkg.get_fragment_offset() * 8, offset);
         let payload = ip_pkg.payload();
         assert_eq!(payload[0], first);
