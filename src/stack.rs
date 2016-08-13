@@ -20,6 +20,8 @@ use util;
 #[derive(Debug)]
 pub enum StackError {
     IllegalArgument,
+    NoRouteToHost,
+    InvalidInterface,
     TxError(TxError),
 }
 
@@ -167,6 +169,10 @@ impl NetworkStack {
         self.interfaces.get(interface).map(|si| si.arp_tx())
     }
 
+    pub fn routing_table(&mut self) -> &mut RoutingTable {
+        &mut self.routing_table
+    }
+
     /// Attach a IPv4 network to a an interface.
     pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
         if let Some(stack_interface) = self.interfaces.get_mut(interface) {
@@ -176,7 +182,7 @@ impl NetworkStack {
             }
             result
         } else {
-            Err(StackError::IllegalArgument)
+            Err(StackError::InvalidInterface)
         }
     }
 
@@ -188,7 +194,8 @@ impl NetworkStack {
                 Err(StackError::IllegalArgument)
             }
         } else {
-            Err(StackError::IllegalArgument)
+            println!("ipv4_tx illegal 2");
+            Err(StackError::NoRouteToHost)
         }
     }
 
