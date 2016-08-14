@@ -22,7 +22,7 @@ pub mod arp;
 
 pub mod ipv4;
 
-// pub mod icmp;
+pub mod icmp;
 
 pub mod udp;
 
@@ -88,9 +88,9 @@ impl From<TxError> for io::Error {
     }
 }
 
-pub type TxResult<T> = Result<T, TxError>;
+pub type TxResult = Result<(), TxError>;
 
-fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult<()> {
+fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
     match r {
         None => Err(TxError::Other(format!("Insufficient buffer space"))),
         Some(ior) => {
@@ -157,7 +157,7 @@ impl Tx {
         }
     }
 
-    pub fn send<T>(&mut self, num_packets: usize, size: usize, builder: T) -> TxResult<()>
+    pub fn send<T>(&mut self, num_packets: usize, size: usize, builder: T) -> TxResult
         where T: FnMut(MutableEthernetPacket)
     {
         match self.sender {
@@ -181,7 +181,7 @@ impl Tx {
                         num_packets: usize,
                         size: usize,
                         mut builder: T)
-                        -> TxResult<()>
+                        -> TxResult
         where T: FnMut(MutableEthernetPacket)
     {
         let result = sender.build_and_send(num_packets, size, &mut builder);

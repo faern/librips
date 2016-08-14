@@ -1,5 +1,3 @@
-use std::net::Ipv4Addr;
-use std::io;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -7,11 +5,16 @@ use std::time::SystemTime;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::icmp::{IcmpPacket, IcmpType, MutableIcmpPacket, checksum, icmp_types};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
+use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::{MutablePacket, Packet};
 
-use TxResult;
-use ipv4::{Ipv4, Ipv4Listener};
+use {TxResult, RxResult, RxError};
+use ipv4::Ipv4Listener;
+
+#[cfg(all(test, feature = "unit-tests"))]
+use test::ipv4::Ipv4Tx;
+#[cfg(not(all(test, feature = "unit-tests")))]
+use ipv4::Ipv4Tx;
 
 pub trait IcmpListener: Send {
     fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet);
@@ -19,18 +22,18 @@ pub trait IcmpListener: Send {
 
 pub type IcmpListenerLookup = HashMap<IcmpType, Vec<Box<IcmpListener>>>;
 
-pub struct IcmpIpv4Listener {
+pub struct IcmpRx {
     listeners: Arc<Mutex<IcmpListenerLookup>>,
 }
 
-impl IcmpIpv4Listener {
+impl IcmpRx {
     pub fn new(listeners: Arc<Mutex<IcmpListenerLookup>>) -> Box<Ipv4Listener> {
-        Box::new(IcmpIpv4Listener { listeners: listeners }) as Box<Ipv4Listener>
+        Box::new(IcmpRx { listeners: listeners }) as Box<Ipv4Listener>
     }
 }
 
-impl Ipv4Listener for IcmpIpv4Listener {
-    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) {
+impl Ipv4Listener for IcmpRx {
+    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
         let (icmp_type, _icmp_code) = {
             let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
             (icmp_pkg.get_icmp_type(), icmp_pkg.get_icmp_code())
@@ -41,40 +44,37 @@ impl Ipv4Listener for IcmpIpv4Listener {
             for listener in type_listeners {
                 listener.recv(time, &ip_pkg);
             }
+            Ok(())
         } else {
-            println!("Icmp, no listener for type {:?}", icmp_type);
+            Err(RxError::NoListener(format!("Icmp, {:?}", icmp_type)))
         }
     }
 }
 
 /// An Icmp communication struct.
-pub struct Icmp {
-    ipv4: Ipv4,
+pub struct IcmpTx {
+    ipv4: Ipv4Tx,
 }
 
-impl Icmp {
-    /// !
-    pub fn new(ipv4: Ipv4) -> Icmp {
-        Icmp { ipv4: ipv4 }
+impl IcmpTx {
+    pub fn new(ipv4: Ipv4Tx) -> IcmpTx {
+        IcmpTx { ipv4: ipv4 }
     }
 
-    /// !
-    pub fn send<T>(&mut self, dst_ip: Ipv4Addr, payload_size: u16, mut builder: T) -> TxResult
+    pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult
         where T: FnMut(&mut MutableIcmpPacket)
     {
         let total_size = IcmpPacket::minimum_packet_size() as u16 + payload_size;
-        let mut builder_wrapper = |ip_pkg: &mut MutableIpv4Packet| {
-            ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
-
-            let mut icmp_pkg = MutableIcmpPacket::new(ip_pkg.payload_mut()).unwrap();
+        let mut builder_wrapper = |payload: &mut [u8]| {
+            let mut icmp_pkg = MutableIcmpPacket::new(payload).unwrap();
             builder(&mut icmp_pkg);
             let checksum = checksum(&icmp_pkg.to_immutable());
             icmp_pkg.set_checksum(checksum);
         };
-        self.ipv4.send(dst_ip, total_size, &mut builder_wrapper)
+        self.ipv4.send(total_size, IpNextHeaderProtocols::Icmp, &mut builder_wrapper)
     }
 
-    pub fn send_echo(&mut self, dst_ip: Ipv4Addr, payload: &[u8]) -> TxResult {
+    pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {
         let total_size = (EchoRequestPacket::minimum_packet_size() -
                           IcmpPacket::minimum_packet_size() +
                           payload.len()) as u16;
@@ -84,7 +84,7 @@ impl Icmp {
             let mut echo_pkg = MutableEchoRequestPacket::new(icmp_pkg.packet_mut()).unwrap();
             echo_pkg.set_payload(payload);
         };
-        self.send(dst_ip, total_size, &mut builder_wrapper)
+        self.send(total_size, &mut builder_wrapper)
     }
 }
 
@@ -106,3 +106,29 @@ impl Icmp {
 //
 //     pub fn take_recv() -> Result<Receiver<Box<[u8]>>, ()>;
 // }
+
+#[cfg(all(test, feature = "unit-tests"))]
+mod tests {
+    use pnet::packet::ip::IpNextHeaderProtocols;
+    use pnet::packet::icmp::icmp_types;
+    use pnet::packet::icmp::echo_request::EchoRequestPacket;
+    use pnet::packet::Packet;
+
+    use super::*;
+    use test::ipv4::Ipv4Tx;
+
+    #[test]
+    fn test_ping() {
+        let (ipv4, read_handle) = Ipv4Tx::new();
+        let mut icmp = IcmpTx::new(ipv4);
+        icmp.send_echo(&[9, 55]).unwrap();
+
+        let (next_level_protocol, data) = read_handle.recv().unwrap();
+        assert_eq!(next_level_protocol, IpNextHeaderProtocols::Icmp);
+        let echo_pkg = EchoRequestPacket::new(&data).unwrap();
+        assert_eq!(echo_pkg.get_icmp_type(), icmp_types::EchoRequest);
+        assert_eq!(echo_pkg.get_icmp_code().0, 0);
+        assert_eq!(echo_pkg.get_checksum(), 61128);
+        assert_eq!(echo_pkg.payload(), [9, 55]);
+    }
+}

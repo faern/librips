@@ -4,18 +4,23 @@ extern crate rips;
 
 #[cfg(all(test, not(feature = "unit-tests")))]
 mod ethernet;
+
 // mod stack;
+
 #[cfg(all(test, not(feature = "unit-tests")))]
 mod arp;
+
 #[cfg(all(test, not(feature = "unit-tests")))]
 mod ipv4;
-// mod icmp;
+
+#[cfg(all(test, not(feature = "unit-tests")))]
+mod icmp;
+
 #[cfg(all(test, not(feature = "unit-tests")))]
 mod udp;
 
 #[cfg(all(test, not(feature = "unit-tests")))]
 mod helper {
-    use std::collections::HashMap;
     use std::sync::mpsc::{Receiver, Sender};
     use std::io;
 

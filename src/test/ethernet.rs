@@ -24,7 +24,7 @@ impl EthernetTx {
                    payload_size: usize,
                    _ether_type: EtherType,
                    mut builder: T)
-                   -> TxResult<()>
+                   -> TxResult
         where T: FnMut(&mut [u8])
     {
         for _ in 0..num_packets {

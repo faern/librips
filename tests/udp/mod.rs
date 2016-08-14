@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use ipnetwork::Ipv4Network;
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
@@ -37,10 +37,14 @@ fn socket_listen() {
         udp_pkg.set_source(9999);
         udp_pkg.set_destination(1024);
         udp_pkg.set_length(8 + 4);
+        udp_pkg.set_payload(&[5, 6, 7, 8]);
     }
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
 
-    let mut buffer = vec![0; 1024];
+    let mut buffer = vec![0; 4];
     let (len, from) = socket.recv_from(&mut buffer[..]).unwrap();
+    assert_eq!(from, SocketAddr::V4(SocketAddrV4::new(source_ip, 9999)));
     assert_eq!(len, 4);
+    assert_eq!(&buffer, &[5, 6, 7, 8]);
+
 }

@@ -12,6 +12,7 @@ use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
 use ethernet;
 use arp;
 use ipv4;
+use icmp;
 use udp;
 
 use util;
@@ -197,6 +198,11 @@ impl NetworkStack {
             println!("ipv4_tx illegal 2");
             Err(StackError::NoRouteToHost)
         }
+    }
+
+    pub fn icmp_tx(&self, dst_ip: Ipv4Addr) -> StackResult<icmp::IcmpTx> {
+        let ipv4_tx = try!(self.ipv4_tx(dst_ip));
+        Ok(icmp::IcmpTx::new(ipv4_tx))
     }
 
     pub fn udp_tx(&self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<udp::UdpTx> {

@@ -54,7 +54,7 @@ impl EthernetTx {
                    payload_size: usize,
                    ether_type: EtherType,
                    mut builder: T)
-                   -> TxResult<()>
+                   -> TxResult
         where T: FnMut(&mut [u8])
     {
         let total_packet_size = payload_size + EthernetPacket::minimum_packet_size();

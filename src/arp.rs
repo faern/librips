@@ -90,7 +90,7 @@ impl ArpTx {
     /// Queries the table for a MAC. If it does not exist a request is sent and
     /// the call is blocked
     /// until a reply has arrived
-    pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<MacAddr> {
+    pub fn get(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Result<MacAddr, TxError> {
         let mac_rx = {
             let table_arc = self.table.clone(); // Must do this to not borrow self
             let table = try!(table_arc.read()
@@ -107,7 +107,7 @@ impl ArpTx {
 
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
     /// request
-    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult<()> {
+    pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult {
         let local_mac = self.ethernet.src;
         let mut builder_wrapper = |payload: &mut [u8]| {
             let mut arp_pkg = MutableArpPacket::new(payload).unwrap();

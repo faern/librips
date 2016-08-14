@@ -167,6 +167,7 @@ pub struct Ipv4Tx {
     pub src: Ipv4Addr,
     pub dst: Ipv4Addr,
     ethernet: EthernetTx,
+    next_identification: u16,
 }
 
 impl Ipv4Tx {
@@ -175,6 +176,7 @@ impl Ipv4Tx {
             src: src,
             dst: dst,
             ethernet: ethernet,
+            next_identification: 0,
         }
     }
 
@@ -186,7 +188,7 @@ impl Ipv4Tx {
                    payload_size: u16,
                    next_level_protocol: IpNextHeaderProtocol,
                    builder: T)
-                   -> TxResult<()>
+                   -> TxResult
         where T: FnMut(&mut [u8])
     {
         let bytes_per_frame = self.ethernet.get_mtu() - Ipv4Packet::minimum_packet_size();
@@ -201,7 +203,7 @@ impl Ipv4Tx {
                               payload_size: u16,
                               next_level_protocol: IpNextHeaderProtocol,
                               mut builder: T)
-                              -> TxResult<()>
+                              -> TxResult
         where T: FnMut(&mut [u8])
     {
         let total_size = Ipv4Packet::minimum_packet_size() as u16 + payload_size;
@@ -210,7 +212,7 @@ impl Ipv4Tx {
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
             ip_pkg.set_header_length(5); // 5 is for no option fields
             ip_pkg.set_total_length(total_size);
-            ip_pkg.set_identification(0); // Use when implementing fragmentation
+            ip_pkg.set_identification(0);
             ip_pkg.set_flags(0x000); // Allow routers to fragment it
             ip_pkg.set_fragment_offset(0);
             ip_pkg.set_source(src);
@@ -230,7 +232,7 @@ impl Ipv4Tx {
                           payload_size: u16,
                           next_level_protocol: IpNextHeaderProtocol,
                           mut builder: T)
-                          -> TxResult<()>
+                          -> TxResult
         where T: FnMut(&mut [u8])
     {
         let payload_size = payload_size as usize;
@@ -249,6 +251,8 @@ impl Ipv4Tx {
         let mut next_chunk = chunks.next();
 
         let (src, dst) = (self.src, self.dst);
+        let identification = self.next_identification;
+        self.next_identification.wrapping_add(1);
 
         let mut builder_wrapper = |payload: &mut [u8]| {
             let current_chunk = next_chunk.unwrap();
@@ -259,7 +263,7 @@ impl Ipv4Tx {
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
             ip_pkg.set_header_length(5); // 5 is for no option fields
             ip_pkg.set_total_length(total_size as u16);
-            ip_pkg.set_identification(0); // Use when implementing fragmentation
+            ip_pkg.set_identification(identification);
             ip_pkg.set_flags(if is_last_chunk {
                 NO_FLAGS // More fragments not set
             } else {

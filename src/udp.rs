@@ -79,7 +79,7 @@ impl UdpTx {
         }
     }
 
-    pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult<()>
+    pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult
         where T: FnMut(&mut MutableUdpPacket)
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
@@ -217,7 +217,7 @@ impl UdpSocket {
         }
     }
 
-    fn internal_send_on_cached_tx(&mut self, buf: &[u8], dst: SocketAddrV4) -> TxResult<()> {
+    fn internal_send_on_cached_tx(&mut self, buf: &[u8], dst: SocketAddrV4) -> TxResult {
         if buf.len() > ::std::u16::MAX as usize {
             return Err(TxError::TooLargePayload);
         }
