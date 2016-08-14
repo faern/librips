@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use pnet::datalink;
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::datalink::EthernetDataLinkSender;
+use pnet::datalink::{EthernetDataLinkSender, NetworkInterface};
 
 pub mod ethernet;
 
@@ -189,30 +189,32 @@ impl Tx {
     }
 }
 
-// pub fn stack() -> io::Result<NetworkStack> {
-// let icmp_factory = IcmpListenerFactory::new(); // Save to stack for
-// adding listeners
-//     let icmp_listener = icmp_factory.ipv4_listener();
-//
-//     let arp_factory = ArpFactory::new();
-//     let mut ipv4_factory = Ipv4Factory::new(arp_factory, ipv4_listeners);
-//
-//     let mut ethernets = vec![];
-//     for interface in datalink::interfaces() {
-//         let ethernet = try!(create_ethernet(interface));
-//         ethernets.push(ethernet);
-//     }
-//     Ok(NetworkStack::new(&ethernets[..]))
-// }
-//
-// fn convert_interface(interface: NetworkInterface) -> io::Result<Interface> {
-//     if let Some(mac) = interface.mac {
-//         Ok(Interface {
-//             name: interface.name,
-//             mac: mac,
-//         })
-//     } else {
-//         Err(io::Error::new(io::ErrorKind::Other,
-//                            format!("No mac for {}", interface.name)))
-//     }
-// }
+#[cfg(not(feature = "unit-tests"))]
+pub fn default_stack() -> StackResult<NetworkStack> {
+    let mut stack = NetworkStack::new();
+    let config = datalink::Config::default();
+    for interface in datalink::interfaces() {
+        if let Ok(rips_interface) = convert_interface(&interface) {
+            let channel = match try!(datalink::channel(&interface, config).map_err(|e| StackError::from(e))) {
+                datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
+                _ => unreachable!(),
+            };
+            try!(stack.add_interface(rips_interface, channel));
+        }
+    }
+    Ok(stack)
+}
+
+/// Converts a pnet `NetworkInterface` into a rips `Interface`.
+/// Will fail if the given NetworkInterface does not have an associated MAC address.
+/// Can be changed into a `TryFrom` impl when that trait is stabilized
+pub fn convert_interface(interface: &NetworkInterface) -> Result<Interface, ()> {
+    if let Some(mac) = interface.mac {
+        Ok(Interface {
+            name: interface.name.clone(),
+            mac: mac,
+        })
+    } else {
+        Err(())
+    }
+}

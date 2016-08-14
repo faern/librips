@@ -24,11 +24,18 @@ pub enum StackError {
     NoRouteToHost,
     InvalidInterface,
     TxError(TxError),
+    IoError(io::Error),
 }
 
 impl From<TxError> for StackError {
     fn from(e: TxError) -> Self {
         StackError::TxError(e)
+    }
+}
+
+impl From<io::Error> for StackError {
+    fn from(e: io::Error) -> Self {
+        StackError::IoError(e)
     }
 }
 
@@ -149,17 +156,30 @@ impl NetworkStack {
         }
     }
 
-    pub fn add_channel(&mut self,
-                       interface: Interface,
-                       channel: EthernetChannel)
-                       -> Result<(), ()> {
+    pub fn add_interface(&mut self,
+                         interface: Interface,
+                         channel: EthernetChannel)
+                         -> StackResult<()> {
         if self.interfaces.contains_key(&interface) {
-            Err(())
+            Err(StackError::InvalidInterface)
         } else {
             let stack_interface = StackInterface::new(interface.clone(), channel);
             self.interfaces.insert(interface, stack_interface);
             Ok(())
         }
+    }
+
+    pub fn interfaces(&self) -> Vec<&Interface> {
+        self.interfaces.keys().collect()
+    }
+
+    pub fn interface_from_name(&self, name: &str) -> Option<&Interface> {
+        for interface in self.interfaces.keys() {
+            if interface.name == name {
+                return Some(interface);
+            }
+        }
+        None
     }
 
     pub fn ethernet_tx(&self, interface: &Interface, dst: MacAddr) -> Option<ethernet::EthernetTx> {

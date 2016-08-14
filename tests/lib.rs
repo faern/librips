@@ -55,7 +55,7 @@ mod helper {
          -> (NetworkStack, Interface, Sender<io::Result<Box<[u8]>>>, Receiver<Box<[u8]>>) {
         let (channel, interface, inject_handle, read_handle) = dummy_ethernet(iface_i);
         let mut stack = NetworkStack::new();
-        stack.add_channel(interface.clone(), channel)
+        stack.add_interface(interface.clone(), channel)
             .expect("Not able to add dummy channel to stack");
         (stack, interface, inject_handle, read_handle)
     }
