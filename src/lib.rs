@@ -61,8 +61,9 @@ pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
 
 #[derive(Debug)]
 pub enum TxError {
-    OutdatedConstructor,
+    InvalidTx,
     TooLargePayload,
+    PoisonedLock,
     IoError(io::Error),
     Other(String),
 }
@@ -75,15 +76,13 @@ impl From<io::Error> for TxError {
 
 impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
+        let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
         match e {
-            TxError::OutdatedConstructor => {
-                io::Error::new(io::ErrorKind::Other, format!("Outdated constructor"))
-            }
-            TxError::TooLargePayload => {
-                io::Error::new(io::ErrorKind::Other, format!("Too large payload"))
-            }
+            TxError::InvalidTx => other(format!("Outdated constructor")),
+            TxError::TooLargePayload => other(format!("Too large payload")),
+            TxError::PoisonedLock => other(format!("Poisoned lock")),
             TxError::IoError(e2) => e2,
-            TxError::Other(msg) => io::Error::new(io::ErrorKind::Other, format!("Other: {}", msg)),
+            TxError::Other(msg) => other(format!("Other: {}", msg)),
         }
     }
 }
@@ -165,7 +164,7 @@ impl Tx {
                 match vtx.lock() {
                     Ok(mut sender) => {
                         if self.rev != sender.current_rev {
-                            Err(TxError::OutdatedConstructor)
+                            Err(TxError::InvalidTx)
                         } else {
                             Self::internal_send(&mut sender.sender, num_packets, size, builder)
                         }

@@ -28,14 +28,27 @@ pub enum StackError {
 }
 
 impl From<TxError> for StackError {
-    fn from(e: TxError) -> Self {
+    fn from(e: TxError) -> StackError {
         StackError::TxError(e)
     }
 }
 
 impl From<io::Error> for StackError {
-    fn from(e: io::Error) -> Self {
+    fn from(e: io::Error) -> StackError {
         StackError::IoError(e)
+    }
+}
+
+impl From<StackError> for io::Error {
+    fn from(e: StackError) -> io::Error {
+        let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
+        match e {
+            StackError::IllegalArgument => other(format!("Illegal argument")),
+            StackError::InvalidInterface => other(format!("Invalid interface")),
+            StackError::NoRouteToHost => other(format!("No route to host")),
+            StackError::IoError(io_e) => io_e,
+            StackError::TxError(txe) => txe.into(),
+        }
     }
 }
 
@@ -46,7 +59,7 @@ pub type StackResult<T> = Result<T, StackError>;
 struct StackInterface {
     interface: Interface,
     tx: Arc<Mutex<VersionedTx>>,
-    arp_factory: arp::ArpFactory,
+    arp_table: arp::ArpTable,
     ipv4s: HashMap<Ipv4Addr, Ipv4Network>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
     udp_listeners: HashMap<Ipv4Addr, Arc<Mutex<udp::UdpListenerLookup>>>,
@@ -59,8 +72,8 @@ impl StackInterface {
 
         let vtx = Arc::new(Mutex::new(VersionedTx::new(sender)));
 
-        let arp_factory = arp::ArpFactory::new();
-        let arp_ethernet_listener = arp_factory.listener(vtx.clone());
+        let arp_table = arp::ArpTable::new();
+        let arp_ethernet_listener = arp_table.arp_rx(vtx.clone());
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
         let ipv4_ethernet_listener = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
@@ -71,7 +84,7 @@ impl StackInterface {
         StackInterface {
             interface: interface.clone(),
             tx: vtx,
-            arp_factory: arp_factory,
+            arp_table: arp_table,
             ipv4s: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
             udp_listeners: HashMap::new(),
@@ -87,7 +100,11 @@ impl StackInterface {
     }
 
     pub fn arp_tx(&self) -> arp::ArpTx {
-        self.arp_factory.arp_tx(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
+        arp::ArpTx::new(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
+    }
+
+    pub fn arp_table(&self) -> arp::ArpTable {
+        self.arp_table.clone()
     }
 
     pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> StackResult<()> {
@@ -103,10 +120,16 @@ impl StackInterface {
         }
     }
 
-    pub fn ipv4_tx(&self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> StackResult<ipv4::Ipv4Tx> {
+    pub fn ipv4_tx(&mut self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> StackResult<ipv4::Ipv4Tx> {
         let local_dst = gw.unwrap_or(dst);
         if let Some(src) = self.closest_local_ip(local_dst) {
-            let dst_mac = try!(self.arp_tx().get(src, local_dst));
+            let dst_mac = match self.arp_table.get(local_dst) {
+                Ok(mac) => mac,
+                Err(rx) => {
+                    try!(self.arp_tx().send(src, dst));
+                    rx.recv().unwrap()
+                },
+            };
             let ethernet_tx = self.ethernet_tx(dst_mac);
             Ok(ipv4::Ipv4Tx::new(ethernet_tx, src, dst))
         } else {
@@ -190,6 +213,10 @@ impl NetworkStack {
         self.interfaces.get(interface).map(|si| si.arp_tx())
     }
 
+    pub fn arp_table(&self, interface: &Interface) -> Option<arp::ArpTable> {
+        self.interfaces.get(interface).map(|si| si.arp_table())
+    }
+
     pub fn routing_table(&mut self) -> &mut RoutingTable {
         &mut self.routing_table
     }
@@ -207,9 +234,9 @@ impl NetworkStack {
         }
     }
 
-    pub fn ipv4_tx(&self, dst: Ipv4Addr) -> StackResult<ipv4::Ipv4Tx> {
+    pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<ipv4::Ipv4Tx> {
         if let Some((gw, interface)) = self.routing_table.route(dst) {
-            if let Some(stack_interface) = self.interfaces.get(&interface) {
+            if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
                 stack_interface.ipv4_tx(dst, gw)
             } else {
                 Err(StackError::IllegalArgument)
@@ -220,12 +247,12 @@ impl NetworkStack {
         }
     }
 
-    pub fn icmp_tx(&self, dst_ip: Ipv4Addr) -> StackResult<icmp::IcmpTx> {
+    pub fn icmp_tx(&mut self, dst_ip: Ipv4Addr) -> StackResult<icmp::IcmpTx> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(icmp::IcmpTx::new(ipv4_tx))
     }
 
-    pub fn udp_tx(&self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<udp::UdpTx> {
+    pub fn udp_tx(&mut self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<udp::UdpTx> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(udp::UdpTx::new(ipv4_tx, src, dst_port))
     }

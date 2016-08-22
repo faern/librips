@@ -17,7 +17,7 @@ use test::ethernet::EthernetTx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
-pub const MORE_FRAGMENTS: u8 = 0b100;
+pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
 pub const NO_FLAGS: u8 = 0b000;
 
@@ -213,7 +213,7 @@ impl Ipv4Tx {
             ip_pkg.set_header_length(5); // 5 is for no option fields
             ip_pkg.set_total_length(total_size);
             ip_pkg.set_identification(0);
-            ip_pkg.set_flags(0x000); // Allow routers to fragment it
+            ip_pkg.set_flags(NO_FLAGS); // Allow routers to fragment it
             ip_pkg.set_fragment_offset(0);
             ip_pkg.set_source(src);
             ip_pkg.set_destination(dst);

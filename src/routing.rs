@@ -26,6 +26,7 @@ impl RoutingTable {
     }
 
     // TODO: Check for collision
+    // TODO: Increment Tx version counter
     pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) {
         let prefix = net.prefix();
         let entry = Entry {

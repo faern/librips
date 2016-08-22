@@ -27,7 +27,7 @@ fn simple_send() {
     let (mut stack, interface, _, read_handle) = helper::dummy_stack(0);
 
     // Inject an Arp entry so Ipv4 knows where to send
-    let mut arp = stack.arp_tx(&interface).unwrap();
+    let mut arp = stack.arp_table(&interface).unwrap();
     arp.insert(target_ip, target_mac);
 
     let config = Ipv4Network::new(source_ip, 24).unwrap();

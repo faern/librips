@@ -186,14 +186,7 @@ impl UdpSocket {
             SocketAddr::V4(dst) => {
                 self.internal_send(buf, dst)
                     .map(|_| buf.len())
-                    .map(|_| buf.len())
-                    .map_err(|e| match e {
-                        StackError::TxError(TxError::IoError(io_e)) => io_e,
-                        StackError::TxError(TxError::Other(msg)) => {
-                            io::Error::new(io::ErrorKind::Other, msg)
-                        }
-                        _ => unreachable!(),
-                    })
+                    .map_err(|e| e.into())
             }
             SocketAddr::V6(_dst) => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
@@ -204,10 +197,10 @@ impl UdpSocket {
 
     fn internal_send(&mut self, buf: &[u8], dst: SocketAddrV4) -> StackResult<()> {
         match self.internal_send_on_cached_tx(buf, dst) {
-            Err(TxError::OutdatedConstructor) => {
+            Err(TxError::InvalidTx) => {
                 let (dst_ip, dst_port) = (*dst.ip(), dst.port());
                 let new_udp_tx = {
-                    let stack = self.stack.lock().unwrap();
+                    let mut stack = self.stack.lock().unwrap();
                     try!(stack.udp_tx(dst_ip, self.src_port, dst_port))
                 };
                 self.tx_cache.insert(dst, new_udp_tx);
@@ -229,7 +222,7 @@ impl UdpSocket {
             })
         } else {
             // No cached UdpTx is treated as an existing but outdated one
-            Err(TxError::OutdatedConstructor)
+            Err(TxError::InvalidTx)
         }
     }
 }
