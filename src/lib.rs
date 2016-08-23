@@ -11,6 +11,9 @@ extern crate ipnetwork;
 use std::io;
 use std::sync::{Arc, Mutex};
 
+#[macro_use]
+extern crate log;
+
 use pnet::datalink;
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::MutableEthernetPacket;
@@ -126,7 +129,7 @@ impl VersionedTx {
 
     pub fn inc(&mut self) {
         self.current_rev = self.current_rev.wrapping_add(1);
-        println!("VersionedTx ticked to {}", self.current_rev);
+        debug!("VersionedTx ticked to {}", self.current_rev);
     }
 }
 

@@ -112,11 +112,11 @@ impl EthernetRx {
                         Some(listeners) => {
                             for listener in listeners {
                                 if let Err(e) = listener.recv(time, &pkg) {
-                                    println!("RxError: {:?}", e);
+                                    warn!("RxError: {:?}", e);
                                 }
                             }
                         }
-                        None => println!("Ethernet: No listener for {:?}", ethertype),
+                        None => debug!("Ethernet: No listener for {:?}", ethertype),
                     }
                 }
                 Err(e) => panic!("EthernetRx crash: {}", e),

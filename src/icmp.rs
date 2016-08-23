@@ -38,7 +38,7 @@ impl Ipv4Listener for IcmpRx {
             let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
             (icmp_pkg.get_icmp_type(), icmp_pkg.get_icmp_code())
         };
-        println!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
+        debug!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(type_listeners) = listeners.get_mut(&icmp_type) {
             for listener in type_listeners {

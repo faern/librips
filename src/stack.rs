@@ -242,7 +242,6 @@ impl NetworkStack {
                 Err(StackError::IllegalArgument)
             }
         } else {
-            println!("ipv4_tx illegal 2");
             Err(StackError::NoRouteToHost)
         }
     }
