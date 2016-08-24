@@ -171,7 +171,7 @@ impl Tx {
                             Self::internal_send(&mut sender.sender, num_packets, size, builder)
                         }
                     }
-                    Err(_) => Err(TxError::Other(format!("Unable to lock mutex"))),
+                    Err(_) => Err(TxError::PoisonedLock),
                 }
             }
             TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),
