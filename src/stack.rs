@@ -126,7 +126,7 @@ impl StackInterface {
             let dst_mac = match self.arp_table.get(local_dst) {
                 Ok(mac) => mac,
                 Err(rx) => {
-                    try!(self.arp_tx().send(src, local_dst));
+                    try!(tx_send!(|| self.arp_tx(); src, local_dst));
                     rx.recv().unwrap()
                 },
             };

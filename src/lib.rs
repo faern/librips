@@ -18,6 +18,9 @@ use pnet::datalink::{self, EthernetDataLinkSender, NetworkInterface};
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::MutableEthernetPacket;
 
+#[macro_use]
+mod macros;
+
 pub mod ethernet;
 
 pub mod arp;
