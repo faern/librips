@@ -126,7 +126,7 @@ impl StackInterface {
             let dst_mac = match self.arp_table.get(local_dst) {
                 Ok(mac) => mac,
                 Err(rx) => {
-                    try!(self.arp_tx().send(src, dst));
+                    try!(self.arp_tx().send(src, local_dst));
                     rx.recv().unwrap()
                 },
             };
@@ -143,7 +143,7 @@ impl StackInterface {
                 return Some(*ip);
             }
         }
-        None
+        self.ipv4s.keys().next().map(|ip| *ip)
     }
 
     fn create_ipv4_listeners(&mut self,
