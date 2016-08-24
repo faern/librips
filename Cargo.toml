@@ -14,8 +14,8 @@ log = "0.3"
 
 [features]
 default = []
-unit-tests = []
-integration-tests = []
+unit-tests = [] # Activate this to build for unit testing
+integration-tests = [] # Activate to build for integration testing
 
 #[dependencies.pnet]
 #git = "https://github.com/faern/libpnet"

@@ -104,6 +104,7 @@ impl UdpTx {
     }
 }
 
+#[derive(Clone)]
 struct UdpSocketListener {
     chan: mpsc::Sender<(SystemTime, Box<[u8]>)>,
 }
@@ -118,7 +119,7 @@ impl UdpListener for UdpSocketListener {
 
 struct UdpSocketReader {
     port: mpsc::Receiver<(SystemTime, Box<[u8]>)>,
-    chan: Option<UdpSocketListener>,
+    chan: UdpSocketListener,
 }
 
 impl UdpSocketReader {
@@ -126,7 +127,7 @@ impl UdpSocketReader {
         let (tx, rx) = mpsc::channel();
         UdpSocketReader {
             port: rx,
-            chan: Some(UdpSocketListener { chan: tx }),
+            chan: UdpSocketListener { chan: tx },
         }
     }
 
@@ -146,14 +147,14 @@ impl UdpSocketReader {
         }
     }
 
-    pub fn listener(&mut self) -> Option<UdpSocketListener> {
-        self.chan.take()
+    pub fn listener(&mut self) -> UdpSocketListener {
+        self.chan.clone()
     }
 }
 
 #[cfg(not(feature = "unit-tests"))]
 pub struct UdpSocket {
-    src_port: u16,
+    socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
     tx_cache: HashMap<SocketAddrV4, UdpTx>,
     rx: Option<UdpSocketReader>,
@@ -167,10 +168,10 @@ impl UdpSocket {
         let mut socket_reader = UdpSocketReader::new();
         let socket_addr = {
             let mut stack = stack.lock().unwrap();
-            try!(stack.udp_listen(addr, socket_reader.listener().unwrap()))
+            try!(stack.udp_listen(addr, socket_reader.listener()))
         };
         Ok(UdpSocket {
-            src_port: socket_addr.port(),
+            socket_addr: socket_addr,
             stack: stack,
             tx_cache: HashMap::new(),
             rx: Some(socket_reader),
@@ -195,13 +196,26 @@ impl UdpSocket {
         }
     }
 
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        Ok(self.socket_addr)
+    }
+
+    pub fn try_clone(&self) -> io::Result<UdpSocket> {
+        Ok(UdpSocket {
+            socket_addr: self.socket_addr,
+            stack: self.stack.clone(),
+            tx_cache: HashMap::new(),
+            rx: None,
+        })
+    }
+
     fn internal_send(&mut self, buf: &[u8], dst: SocketAddrV4) -> StackResult<()> {
         match self.internal_send_on_cached_tx(buf, dst) {
             Err(TxError::InvalidTx) => {
                 let (dst_ip, dst_port) = (*dst.ip(), dst.port());
                 let new_udp_tx = {
                     let mut stack = self.stack.lock().unwrap();
-                    try!(stack.udp_tx(dst_ip, self.src_port, dst_port))
+                    try!(stack.udp_tx(dst_ip, self.socket_addr.port(), dst_port))
                 };
                 self.tx_cache.insert(dst, new_udp_tx);
                 self.internal_send(buf, dst)

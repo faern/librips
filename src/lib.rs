@@ -14,10 +14,9 @@ use std::sync::{Arc, Mutex};
 #[macro_use]
 extern crate log;
 
-use pnet::datalink;
+use pnet::datalink::{self, EthernetDataLinkSender, NetworkInterface};
 use pnet::util::MacAddr;
 use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::datalink::{EthernetDataLinkSender, NetworkInterface};
 
 pub mod ethernet;
 
@@ -191,21 +190,28 @@ impl Tx {
     }
 }
 
-#[cfg(not(feature = "unit-tests"))]
-pub fn default_stack() -> StackResult<NetworkStack> {
-    let mut stack = NetworkStack::new();
-    let config = datalink::Config::default();
-    for interface in datalink::interfaces() {
-        if let Ok(rips_interface) = convert_interface(&interface) {
-            let channel = match try!(datalink::channel(&interface, config).map_err(|e| StackError::from(e))) {
-                datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
-                _ => unreachable!(),
-            };
-            try!(stack.add_interface(rips_interface, channel));
-        }
-    }
-    Ok(stack)
-}
+// #[cfg(not(feature = "unit-tests"))]
+// pub fn stack<Datalink>(_datalink_provider: Datalink) -> StackResult<NetworkStack>
+//     where Datalink: datalink::Datalink
+// {
+//     let mut stack = NetworkStack::new();
+//     for interface in Datalink::interfaces() {
+//         if let Ok(rips_interface) = convert_interface(&interface) {
+//             let config = Datalink::default_config();
+//             let channel = match try!(Datalink::channel(&interface, config).map_err(|e| StackError::from(e))) {
+//                 datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
+//                 _ => unreachable!(),
+//             };
+//             try!(stack.add_interface(rips_interface, channel));
+//         }
+//     }
+//     Ok(stack)
+// }
+//
+// #[cfg(not(feature = "unit-tests"))]
+// pub fn default_stack() -> StackResult<NetworkStack> {
+//     stack(datalink::DefaultDatalink)
+// }
 
 /// Converts a pnet `NetworkInterface` into a rips `Interface`.
 /// Will fail if the given NetworkInterface does not have an associated MAC address.
