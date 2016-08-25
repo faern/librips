@@ -28,8 +28,9 @@
 //!
 //! ## Examples
 //!
-//! ```rust
+//! ```rust,ignore
 //! let stack = rips::default_stack();
+//! // TODO: Implement this example after doc tests work.
 //! ```
 //!
 //! ## Features
