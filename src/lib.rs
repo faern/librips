@@ -109,7 +109,18 @@ fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
 #[derive(Debug, Eq, PartialEq)]
 pub enum RxError {
     NoListener(String),
+
+    /// When a packet contains an invalid checksum
+    InvalidChecksum,
+
+    /// When the length of the packet does not match the
+    /// requirements or header content of a protocol
+    InvalidLength,
+
+    /// When other packet content is invalid
     InvalidContent,
+
+    /// When a lock inside the stack is poisoned so locking can't be performed. Should not happen.
     PoisonedLock,
     Other(String),
 }

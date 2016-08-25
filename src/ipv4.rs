@@ -53,16 +53,21 @@ impl Ipv4Rx {
     fn get_ipv4_pkg<'a>(eth_pkg: &'a EthernetPacket) -> Result<Ipv4Packet<'a>, RxError> {
         let eth_payload = eth_pkg.payload();
         if eth_payload.len() < Ipv4Packet::minimum_packet_size() {
-            return Err(RxError::InvalidContent);
+            return Err(RxError::InvalidLength);
         }
         let total_length = {
             let ip_pkg = Ipv4Packet::new(eth_payload).unwrap();
             ip_pkg.get_total_length() as usize
         };
         if total_length > eth_payload.len() || total_length < Ipv4Packet::minimum_packet_size() {
-            Err(RxError::InvalidContent)
+            Err(RxError::InvalidLength)
         } else {
-            Ok(Ipv4Packet::new(&eth_payload[..total_length]).unwrap())
+            let ip_pkg = Ipv4Packet::new(&eth_payload[..total_length]).unwrap();
+            if ip_pkg.get_checksum() != checksum(&ip_pkg) {
+                Err(RxError::InvalidChecksum)
+            } else {
+                Ok(ip_pkg)
+            }
         }
     }
 
@@ -77,14 +82,8 @@ impl Ipv4Rx {
     fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Buffer>, RxError> {
         let ident = Self::get_fragment_identification(&ip_pkg);
         if !self.buffers.contains_key(&ident) {
-            if ip_pkg.get_fragment_offset() == 0 {
-                let mut buffer = Buffer::new(::std::u16::MAX as usize);
-                buffer.push(0, ip_pkg.packet()).unwrap();
-                self.buffers.insert(ident, (buffer, 0));
-                Ok(None)
-            } else {
-                Err(RxError::InvalidContent)
-            }
+            try!(self.start_new_fragment(ip_pkg, ident));
+            Ok(None)
         } else {
             let pkg_done = {
                 let &mut (ref mut buffer, ref mut total_length) = self.buffers.get_mut(&ident).unwrap();
@@ -110,11 +109,24 @@ impl Ipv4Rx {
                     let mut ip_pkg = MutableIpv4Packet::new(&mut buffer).unwrap();
                     ip_pkg.set_flags(NO_FLAGS);
                     ip_pkg.set_total_length(len as u16);
+                    let csum = checksum(&ip_pkg.to_immutable());
+                    ip_pkg.set_checksum(csum);
                 }
                 Ok(Some(buffer))
             } else {
                 Ok(None)
             }
+        }
+    }
+
+    fn start_new_fragment(&mut self, ip_pkg: Ipv4Packet, ident: FragmentIdent) -> RxResult {
+        if ip_pkg.get_fragment_offset() == 0 {
+            let mut buffer = Buffer::new(::std::u16::MAX as usize);
+            buffer.push(0, ip_pkg.packet()).unwrap();
+            self.buffers.insert(ident, (buffer, 0));
+            Ok(())
+        } else {
+            Err(RxError::InvalidContent)
         }
     }
 
@@ -125,7 +137,7 @@ impl Ipv4Rx {
         (src, dst, ident)
     }
 
-    // Forwards a complete packet its listener
+    /// Forwards a complete packet to its listener
     fn forward(&self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
@@ -290,7 +302,6 @@ impl Ipv4Tx {
         ip_pkg.set_ttl(40);
         // ip_pkg.set_options(vec![]); // We currently don't support options
 
-        ip_pkg.set_checksum(0);
         let checksum = checksum(&ip_pkg.to_immutable());
         ip_pkg.set_checksum(checksum);
     }
@@ -306,7 +317,7 @@ mod tests {
     use std::collections::HashMap;
 
     use pnet::packet::ip::IpNextHeaderProtocols;
-    use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
+    use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
     use pnet::packet::ethernet::MutableEthernetPacket;
     use pnet::packet::{Packet, MutablePacket};
 
@@ -387,6 +398,8 @@ mod tests {
             ip_pkg.set_flags(DONT_FRAGMENT);
             ip_pkg.set_header_length(5); // No options
             ip_pkg.set_total_length(20 + 15);
+            let csum = checksum(&ip_pkg.to_immutable());
+            ip_pkg.set_checksum(csum);
         }
 
         ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
@@ -415,6 +428,8 @@ mod tests {
             ip_pkg.set_identification(137);
             ip_pkg.set_header_length(5); // No options
             ip_pkg.set_total_length(20 + 16);
+            let csum = checksum(&ip_pkg.to_immutable());
+            ip_pkg.set_checksum(csum);
         }
 
         ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
@@ -427,6 +442,8 @@ mod tests {
             ip_pkg.set_fragment_offset(16 / 8);
             ip_pkg.set_identification(299);
             ip_pkg.set_total_length(20 + 8);
+            let csum = checksum(&ip_pkg.to_immutable());
+            ip_pkg.set_checksum(csum);
         }
         assert_eq!(ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()), Err(RxError::InvalidContent));
         assert!(rx.try_recv().is_err());
@@ -435,6 +452,8 @@ mod tests {
         {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
             ip_pkg.set_identification(137);
+            let csum = checksum(&ip_pkg.to_immutable());
+            ip_pkg.set_checksum(csum);
         }
         ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
         let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
