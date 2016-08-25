@@ -49,6 +49,8 @@ impl IcmpListener for MockIcmpListener {
 //         ip_pkg.set_source(source_ip);
 //         ip_pkg.set_destination(target_ip);
 //         ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
+//         let csum = checksum(&ip_pkg.to_immutable());
+//         ip_pkg.set_checksum(csum);
 //         let mut icmp_pkg = MutableIcmpPacket::new(ip_pkg.payload_mut()).unwrap();
 //         icmp_pkg.set_icmp_type(icmp_types::DestinationUnreachable);
 //     }
