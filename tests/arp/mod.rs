@@ -39,7 +39,7 @@ fn arp_invalidate_on_update() {
 }
 
 #[test]
-fn test_arp_locking() {
+fn arp_locking() {
     let thread_count = 100;
     let dst = Ipv4Addr::new(10, 0, 0, 1);
 

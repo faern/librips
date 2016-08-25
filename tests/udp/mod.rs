@@ -3,7 +3,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use ipnetwork::Ipv4Network;
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
-use pnet::packet::ipv4::MutableIpv4Packet;
+use pnet::packet::ipv4::{MutableIpv4Packet, checksum};
 use pnet::packet::udp::MutableUdpPacket;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::MutablePacket;
@@ -33,6 +33,8 @@ fn socket_listen() {
         ip_pkg.set_source(source_ip);
         ip_pkg.set_destination(target_ip);
         ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Udp);
+        let csum = checksum(&ip_pkg.to_immutable());
+        ip_pkg.set_checksum(csum);
         let mut udp_pkg = MutableUdpPacket::new(ip_pkg.payload_mut()).unwrap();
         udp_pkg.set_source(9999);
         udp_pkg.set_destination(1024);

@@ -8,7 +8,7 @@ use ipnetwork::Ipv4Network;
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
+use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::{MutablePacket, Packet};
 
 use rips::{RxResult};
@@ -75,11 +75,13 @@ fn custom_igmp_recv() {
         eth_pkg.set_ethertype(EtherTypes::Ipv4);
         let mut ip_pkg = MutableIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
         ip_pkg.set_header_length(5); // 5 is for no option fields
-        ip_pkg.set_total_length(20 + 2);
         ip_pkg.set_source(source_ip);
         ip_pkg.set_destination(target_ip);
         ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Igmp);
+        ip_pkg.set_total_length(20 + 2);
         ip_pkg.set_payload(&[67, 99]);
+        let csum = checksum(&ip_pkg.to_immutable());
+        ip_pkg.set_checksum(csum);
     }
 
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
