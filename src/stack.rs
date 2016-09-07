@@ -17,7 +17,7 @@ use udp;
 
 use util;
 
-
+/// Error returned upon invalid usage or state of the stack.
 #[derive(Debug)]
 pub enum StackError {
     IllegalArgument,
