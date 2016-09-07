@@ -8,7 +8,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 
-use {TxResult, RxResult, RxError};
+use {RxError, RxResult, TxResult};
 use ethernet::EthernetListener;
 use util::Buffer;
 
@@ -29,7 +29,8 @@ pub trait Ipv4Listener: Send {
 
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
 
-// Header fields that are used to identify fragments as belonging to the same packet
+// Header fields that are used to identify fragments as belonging to the same
+// packet
 type FragmentIdent = (Ipv4Addr, Ipv4Addr, u16);
 
 /// Struct listening for ethernet frames containing IPv4 packets.
@@ -77,8 +78,10 @@ impl Ipv4Rx {
         mf || offset
     }
 
-    // Saves a packet fragment to a buffer for reassembly. If the Ipv4Packet becomes complete
-    // with the addition of `ip_pkg` then the complete reassembled packet is returned in a Buffer.
+    // Saves a packet fragment to a buffer for reassembly. If the Ipv4Packet
+    // becomes complete
+    // with the addition of `ip_pkg` then the complete reassembled packet is
+    // returned in a Buffer.
     fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Buffer>, RxError> {
         let ident = Self::get_fragment_identification(&ip_pkg);
         if !self.buffers.contains_key(&ident) {
@@ -86,8 +89,10 @@ impl Ipv4Rx {
             Ok(None)
         } else {
             let pkg_done = {
-                let &mut (ref mut buffer, ref mut total_length) = self.buffers.get_mut(&ident).unwrap();
-                let offset = Ipv4Packet::minimum_packet_size() + ip_pkg.get_fragment_offset() as usize * 8;
+                let &mut (ref mut buffer, ref mut total_length) =
+                    self.buffers.get_mut(&ident).unwrap();
+                let offset = Ipv4Packet::minimum_packet_size() +
+                             ip_pkg.get_fragment_offset() as usize * 8;
                 // Check if this is the last fragment
                 if (ip_pkg.get_flags() & MORE_FRAGMENTS) == 0 {
                     if *total_length != 0 {
@@ -100,7 +105,7 @@ impl Ipv4Rx {
                     Ok(i) => i == *total_length,
                     Err(_) => {
                         return Err(RxError::InvalidContent);
-                    },
+                    }
                 }
             };
             if pkg_done {
@@ -319,10 +324,10 @@ mod tests {
     use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
     use pnet::packet::ethernet::MutableEthernetPacket;
-    use pnet::packet::{Packet, MutablePacket};
+    use pnet::packet::{MutablePacket, Packet};
 
     use super::*;
-    use {RxResult, RxError};
+    use {RxError, RxResult};
     use test::{ethernet, ipv4};
     use ethernet::EthernetListener;
 
@@ -418,7 +423,8 @@ mod tests {
 
         let mut buffer = vec![0; 100];
         let mut pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
-        // Send first part of a fragmented packet and make sure nothing is sent to the listener
+        // Send first part of a fragmented packet and make sure nothing is sent to the
+        // listener
         {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
             ip_pkg.set_destination(dst);
@@ -435,7 +441,8 @@ mod tests {
         ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
         assert!(rx.try_recv().is_err());
 
-        // Send a packet with different identification number and make sure it doesn't merge
+        // Send a packet with different identification number and make sure it doesn't
+        // merge
         {
             let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
             ip_pkg.set_flags(NO_FLAGS);
@@ -445,7 +452,8 @@ mod tests {
             let csum = checksum(&ip_pkg.to_immutable());
             ip_pkg.set_checksum(csum);
         }
-        assert_eq!(ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()), Err(RxError::InvalidContent));
+        assert_eq!(ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()),
+                   Err(RxError::InvalidContent));
         assert!(rx.try_recv().is_err());
 
         // Send final part of fragmented packet
@@ -466,7 +474,7 @@ mod tests {
 
     fn setup_rx(dst: Ipv4Addr) -> (Box<EthernetListener>, mpsc::Receiver<Vec<u8>>) {
         let (tx, rx) = mpsc::channel();
-        let arp_listener = Box::new(ipv4::MockIpv4Listener{ tx: tx }) as Box<Ipv4Listener>;
+        let arp_listener = Box::new(ipv4::MockIpv4Listener { tx: tx }) as Box<Ipv4Listener>;
 
         let mut ip_listeners = HashMap::new();
         ip_listeners.insert(IpNextHeaderProtocols::Icmp, arp_listener);

@@ -12,7 +12,7 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::Packet;
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
-use {TxResult, RxResult, RxError, VersionedTx};
+use {RxError, RxResult, TxResult, VersionedTx};
 use ethernet::{EthernetListener, EthernetTx};
 
 struct TableData {
@@ -31,9 +31,7 @@ impl ArpTable {
             table: HashMap::new(),
             listeners: HashMap::new(),
         }));
-        ArpTable {
-            data: data,
-        }
+        ArpTable { data: data }
     }
 
     pub fn arp_rx(&self, vtx: Arc<Mutex<VersionedTx>>) -> Box<EthernetListener> {
@@ -109,9 +107,7 @@ pub struct ArpTx {
 
 impl ArpTx {
     pub fn new(ethernet: EthernetTx) -> ArpTx {
-        ArpTx {
-            ethernet: ethernet,
-        }
+        ArpTx { ethernet: ethernet }
     }
 
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet

@@ -9,7 +9,7 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
 
-use {TxError, TxResult, RxResult, RxError};
+use {RxError, RxResult, TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 

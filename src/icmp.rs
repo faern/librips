@@ -8,7 +8,7 @@ use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPack
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::{MutablePacket, Packet};
 
-use {TxResult, RxResult, RxError};
+use {RxError, RxResult, TxResult};
 use ipv4::Ipv4Listener;
 
 #[cfg(all(test, feature = "unit-tests"))]
@@ -71,7 +71,9 @@ impl IcmpTx {
             let checksum = checksum(&icmp_pkg.to_immutable());
             icmp_pkg.set_checksum(checksum);
         };
-        self.ipv4.send(total_size, IpNextHeaderProtocols::Icmp, &mut builder_wrapper)
+        self.ipv4.send(total_size,
+                       IpNextHeaderProtocols::Icmp,
+                       &mut builder_wrapper)
     }
 
     pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {

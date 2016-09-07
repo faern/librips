@@ -11,7 +11,7 @@ use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::MutablePacket;
 use pnet::util::MacAddr;
 
-use {Tx, TxResult, RxResult};
+use {RxResult, Tx, TxResult};
 
 /// Anyone interested in receiving ethernet frames from `Ethernet` must
 /// implement this.

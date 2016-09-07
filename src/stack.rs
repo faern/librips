@@ -128,7 +128,7 @@ impl StackInterface {
                 Err(rx) => {
                     try!(tx_send!(|| self.arp_tx(); src, local_dst));
                     rx.recv().unwrap()
-                },
+                }
             };
             let ethernet_tx = self.ethernet_tx(dst_mac);
             Ok(ipv4::Ipv4Tx::new(ethernet_tx, src, dst))
