@@ -9,7 +9,7 @@ readme = "README.md"
 
 [dependencies]
 ipnetwork = "0.9.0"
-pnet = "0.12.0"
+#pnet = "0.12.0"
 log = "0.3"
 
 [features]
@@ -17,9 +17,9 @@ default = []
 unit-tests = [] # Activate this to build for unit testing
 integration-tests = [] # Activate to build for integration testing
 
-#[dependencies.pnet]
-#git = "https://github.com/faern/libpnet"
-#branch = ""
+[dependencies.pnet]
+git = "https://github.com/faern/libpnet"
+branch = "checksum-improvement"
 #path = "../libpnet"
 
 #[dependencies.ipnetwork]
