@@ -16,17 +16,24 @@ use test::ipv4::Ipv4Tx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ipv4::Ipv4Tx;
 
+/// Trait that must be implemented by any struct who want to receive Icmp
+/// packets.
 pub trait IcmpListener: Send {
+    /// Called by `IcmpRx` when there is a incoming packet for this listener
     fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet);
 }
 
+/// Type binding for how the listeners in `IcmpRx` are structured.
 pub type IcmpListenerLookup = HashMap<IcmpType, Vec<Box<IcmpListener>>>;
 
+/// Listener and parser of Icmp packets.
 pub struct IcmpRx {
     listeners: Arc<Mutex<IcmpListenerLookup>>,
 }
 
 impl IcmpRx {
+    /// Constructs a new `IcmpRx` with the given listeners.
+    /// Casted before return to make it easy to add to the desired `Ipv4Rx`.
     pub fn new(listeners: Arc<Mutex<IcmpListenerLookup>>) -> Box<Ipv4Listener> {
         Box::new(IcmpRx { listeners: listeners }) as Box<Ipv4Listener>
     }
@@ -51,16 +58,19 @@ impl Ipv4Listener for IcmpRx {
     }
 }
 
-/// An Icmp communication struct.
+/// Icmp packet builder and sender struct.
 pub struct IcmpTx {
     ipv4: Ipv4Tx,
 }
 
 impl IcmpTx {
+    /// Creates a new `IcmpTx` based on `ipv4`
     pub fn new(ipv4: Ipv4Tx) -> IcmpTx {
         IcmpTx { ipv4: ipv4 }
     }
 
+    /// Sends a general Icmp packet. Should not be called directly in general,
+    /// instead use the specialized `send_echo` for ping packets.
     pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult
         where T: FnMut(&mut MutableIcmpPacket)
     {
@@ -76,6 +86,7 @@ impl IcmpTx {
                        &mut builder_wrapper)
     }
 
+    /// Sends an Echo Request packet (ping) with the given payload.
     pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {
         let total_size = (EchoRequestPacket::minimum_packet_size() -
                           IcmpPacket::minimum_packet_size() +

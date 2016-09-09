@@ -20,12 +20,16 @@ struct TableData {
     listeners: HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>,
 }
 
+/// The main Arp table struct. Contains the actual data behind a `Mutex` so it
+/// can be shared
+/// with `ArpRx` instances.
 #[derive(Clone)]
 pub struct ArpTable {
     data: Arc<Mutex<TableData>>,
 }
 
 impl ArpTable {
+    /// Creates a new `ArpTable` with no entries in it.
     pub fn new() -> ArpTable {
         let data = Arc::new(Mutex::new(TableData {
             table: HashMap::new(),
@@ -34,6 +38,12 @@ impl ArpTable {
         ArpTable { data: data }
     }
 
+    /// Creates a new `ArpRx` cast to a `Box<EthernetListener>` so that it can
+    /// easily be added
+    /// to a `Vec` and passed to `EthernetRx` as a listener.
+    /// The `ArpRx` created here will share the table with this `ArpTable`.
+    /// The given `VersionedTx` will have its revision bumped upon incoming Arp
+    /// packet.
     pub fn arp_rx(&self, vtx: Arc<Mutex<VersionedTx>>) -> Box<EthernetListener> {
         Box::new(ArpRx {
             data: self.data.clone(),
@@ -70,6 +80,10 @@ impl ArpTable {
     }
 }
 
+/// Receiver and parser of Arp packets. Shares table instance with the
+/// `ArpTable` that created it. Upon valid incoming Arp packet the table will
+/// be updated and the `VersionedTx` referenced in the struct will have its
+/// revision bumped.
 pub struct ArpRx {
     data: Arc<Mutex<TableData>>,
     vtx: Arc<Mutex<VersionedTx>>,
@@ -101,11 +115,13 @@ impl EthernetListener for ArpRx {
     }
 }
 
+/// Arp packet building and sending struct.
 pub struct ArpTx {
     ethernet: EthernetTx,
 }
 
 impl ArpTx {
+    /// Creates a new `ArpTx` that will transmit through `ethernet`.
     pub fn new(ethernet: EthernetTx) -> ArpTx {
         ArpTx { ethernet: ethernet }
     }

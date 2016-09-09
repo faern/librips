@@ -17,9 +17,9 @@ use test::ethernet::EthernetTx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
-pub const MORE_FRAGMENTS: u8 = 0b001;
-pub const DONT_FRAGMENT: u8 = 0b010;
-pub const NO_FLAGS: u8 = 0b000;
+const MORE_FRAGMENTS: u8 = 0b001;
+const DONT_FRAGMENT: u8 = 0b010;
+const NO_FLAGS: u8 = 0b000;
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {
@@ -27,19 +27,25 @@ pub trait Ipv4Listener: Send {
     fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult;
 }
 
+/// Type binding for how the listeners in `Ipv4Rx` are structured.
 pub type IpListenerLookup = HashMap<Ipv4Addr, HashMap<IpNextHeaderProtocol, Box<Ipv4Listener>>>;
 
 // Header fields that are used to identify fragments as belonging to the same
 // packet
 type FragmentIdent = (Ipv4Addr, Ipv4Addr, u16);
 
-/// Struct listening for ethernet frames containing IPv4 packets.
+/// Listener and parser for IPv4 packets. Receives ethernet frames from the
+/// `EthernetRx` it's owned by and forwards them to the correct `Ipv4Listener`.
+/// Will cache and reassemble fragmented packets before forwarding them.
 pub struct Ipv4Rx {
     listeners: Arc<Mutex<IpListenerLookup>>,
     buffers: HashMap<FragmentIdent, (Buffer, usize)>,
 }
 
 impl Ipv4Rx {
+    /// Creates a new `Ipv4Rx` with the given listeners. Listeners can't be
+    /// changed later. Returns the instance casted for easy addition to
+    /// the `EthernetRx` listener `Vec`.
     pub fn new(listeners: Arc<Mutex<IpListenerLookup>>) -> Box<EthernetListener> {
         let this = Ipv4Rx {
             listeners: listeners,
@@ -50,7 +56,8 @@ impl Ipv4Rx {
 }
 
 impl Ipv4Rx {
-    // Returns the Ipv4Packet contained in this EthernetPacket if it looks valid
+    /// Returns the Ipv4Packet contained in this EthernetPacket if it looks
+    /// valid
     fn get_ipv4_pkg<'a>(eth_pkg: &'a EthernetPacket) -> Result<Ipv4Packet<'a>, RxError> {
         let eth_payload = eth_pkg.payload();
         if eth_payload.len() < Ipv4Packet::minimum_packet_size() {
@@ -78,10 +85,9 @@ impl Ipv4Rx {
         mf || offset
     }
 
-    // Saves a packet fragment to a buffer for reassembly. If the Ipv4Packet
-    // becomes complete
-    // with the addition of `ip_pkg` then the complete reassembled packet is
-    // returned in a Buffer.
+    /// Saves a packet fragment to a buffer for reassembly. If the Ipv4Packet
+    /// becomes complete with the addition of `ip_pkg` then the complete
+    /// reassembled packet is returned in a Buffer.
     fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Buffer>, RxError> {
         let ident = Self::get_fragment_identification(&ip_pkg);
         if !self.buffers.contains_key(&ident) {
@@ -180,14 +186,21 @@ impl EthernetListener for Ipv4Rx {
     }
 }
 
+/// IPv4 packet builder and sender. Will fragment packets larger than the
+/// MTU reported by the underlying `EthernetTx` given to the constructor.
 pub struct Ipv4Tx {
+    /// The source IP of packets built by this instance.
     pub src: Ipv4Addr,
+
+    /// The destination IP of the packets built by this instance.
     pub dst: Ipv4Addr,
+
     ethernet: EthernetTx,
     next_identification: u16,
 }
 
 impl Ipv4Tx {
+    /// Constructs a new `Ipv4Tx`.
     pub fn new(ethernet: EthernetTx, src: Ipv4Addr, dst: Ipv4Addr) -> Ipv4Tx {
         Ipv4Tx {
             src: src,

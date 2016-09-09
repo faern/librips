@@ -13,22 +13,31 @@ use pnet::util::MacAddr;
 
 use {RxResult, Tx, TxResult};
 
-/// Anyone interested in receiving ethernet frames from `Ethernet` must
+/// Anyone interested in receiving ethernet frames from an `EthernetRx` must
 /// implement this.
 pub trait EthernetListener: Send {
     /// Called by the library to deliver an `EthernetPacket` to a listener.
     fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult;
 
+    /// Should return the `EtherType` this `EthernetListener` wants to listen
+    /// to. This is so that `EthernetRx` can take a list of listeners and build
+    /// a map internally.
     fn get_ethertype(&self) -> EtherType;
 }
 
+/// Transmit struct for the ethernet layer
 pub struct EthernetTx {
+    /// The source MAC address of frames sent from this `EthernetTx`
     pub src: MacAddr,
+
+    /// The destination MAC address of frames sent from this `EthernetTx`
     pub dst: MacAddr,
+
     tx: Tx,
 }
 
 impl EthernetTx {
+    /// Creates a new `EthernetTx` with the given parameters
     pub fn new(tx: Tx, src: MacAddr, dst: MacAddr) -> EthernetTx {
         EthernetTx {
             src: src,
@@ -37,6 +46,8 @@ impl EthernetTx {
         }
     }
 
+    /// Returns the maximum transmission unit (MTU) of this `EthernetTx`. Is
+    /// hardcoded at the moment, but the plan is to make it configurable.
     pub fn get_mtu(&self) -> usize {
         1500
     }
@@ -71,11 +82,17 @@ impl EthernetTx {
     }
 }
 
+/// Receiver and parser of ethernet frames. Distributes them to
+/// `EthernetListener`s based on `EtherType` in the frame.
+/// This is the lowest level *Rx* type. This one is operating in its
+/// own thread and reads from the `pnet` backend.
 pub struct EthernetRx {
     listeners: HashMap<EtherType, Vec<Box<EthernetListener>>>,
 }
 
 impl EthernetRx {
+    /// Constructs a new `EthernetRx` with the given listeners. Listeners can
+    /// only be given to the constructor, so they can't be changed later.
     pub fn new(listeners: Vec<Box<EthernetListener>>) -> EthernetRx {
         let map_listeners = Self::expand_listeners(listeners);
         EthernetRx { listeners: map_listeners }
@@ -95,6 +112,9 @@ impl EthernetRx {
         map_listeners
     }
 
+    /// Start a new thread and move the `EthernetRx` to it. This thread will
+    /// constantly read from the given `EthernetDataLinkReceiver` and
+    /// distribute the packets to its listeners.
     pub fn spawn(self, receiver: Box<EthernetDataLinkReceiver>) {
         thread::spawn(move || {
             self.run(receiver);
