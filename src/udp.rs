@@ -83,13 +83,13 @@ impl UdpTx {
         where T: FnMut(&mut MutableUdpPacket)
     {
         let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
-        let (src, dst) = (self.src, self.dst);
+        let (src_port, dst_port) = (self.src, self.dst);
         let src_ip = self.ipv4.src;
         let dst_ip = self.ipv4.dst;
         let mut builder_wrapper = |pkg: &mut [u8]| {
             let mut udp_pkg = MutableUdpPacket::new(pkg).unwrap();
-            udp_pkg.set_source(src);
-            udp_pkg.set_destination(dst);
+            udp_pkg.set_source(src_port);
+            udp_pkg.set_destination(dst_port);
             udp_pkg.set_length(total_size);
             builder(&mut udp_pkg);
 

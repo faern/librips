@@ -237,7 +237,7 @@ impl Ipv4Tx {
         where T: FnMut(&mut [u8])
     {
         let total_size = Ipv4Packet::minimum_packet_size() as u16 + payload_size;
-        let (src, dst) = (self.src, self.dst);
+        let (src_ip, dst_ip) = (self.src, self.dst);
         let mut builder_wrapper = |payload: &mut [u8]| {
             let mut ip_pkg = MutableIpv4Packet::new(payload).unwrap();
             ip_pkg.set_header_length(5); // 5 is for no option fields
@@ -245,8 +245,8 @@ impl Ipv4Tx {
             ip_pkg.set_identification(0);
             ip_pkg.set_flags(NO_FLAGS); // Allow routers to fragment it
             ip_pkg.set_fragment_offset(0);
-            ip_pkg.set_source(src);
-            ip_pkg.set_destination(dst);
+            ip_pkg.set_source(src_ip);
+            ip_pkg.set_destination(dst_ip);
 
             builder(ip_pkg.payload_mut());
 
