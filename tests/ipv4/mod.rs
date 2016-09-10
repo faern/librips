@@ -11,7 +11,6 @@ use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::{MutablePacket, Packet};
 
-use rips::{RxResult};
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::ethernet::{EthernetListener, EthernetRx};
 use rips::test::ipv4::MockIpv4Listener;
@@ -64,7 +63,7 @@ fn custom_igmp_recv() {
     let mut ipv4_listeners = HashMap::new();
     ipv4_listeners.insert(target_ip, ipv4_ip_listeners);
 
-    let (mut channel, interface, inject_handle, _) = helper::dummy_ethernet(0);
+    let (channel, interface, inject_handle, _) = helper::dummy_ethernet(0);
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
     let ethernet_rx = EthernetRx::new(vec![ipv4_rx]).spawn(channel.1);
 

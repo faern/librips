@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc;
 use std::time::SystemTime;
 
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
@@ -58,7 +58,7 @@ fn test_ethernet_recv() {
 fn test_ethernet_send() {
     let src = MacAddr::new(1, 2, 3, 4, 5, 99);
     let dst = MacAddr::new(6, 7, 8, 9, 10, 11);
-    let (channel, interface, _, read_handle) = helper::dummy_ethernet(99);
+    let (channel, _, _, read_handle) = helper::dummy_ethernet(99);
     let tx = Tx::direct(channel.0);
     let mut ethernet_tx = EthernetTx::new(tx, src, dst);
 

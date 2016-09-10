@@ -13,6 +13,7 @@ struct RouteEntry {
     pub interface: Interface,
 }
 
+#[derive(Default)]
 pub struct RoutingTable {
     table: BTreeMap<u8, Vec<RouteEntry>>,
 }

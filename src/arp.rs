@@ -71,14 +71,17 @@ impl ArpTable {
 
     fn add_listener(data: &mut TableData, ip: Ipv4Addr) -> Receiver<MacAddr> {
         let (tx, rx) = channel();
-        if !data.listeners.contains_key(&ip) {
-            data.listeners.insert(ip, vec![tx]);
-        } else {
-            data.listeners.get_mut(&ip).unwrap().push(tx);
-        }
+        data.listeners.entry(ip).or_insert(vec![]).push(tx);
         rx
     }
 }
+
+impl Default for ArpTable {
+    fn default() -> Self {
+       Self::new()
+    }
+}
+
 
 /// Receiver and parser of Arp packets. Shares table instance with the
 /// `ArpTable` that created it. Upon valid incoming Arp packet the table will

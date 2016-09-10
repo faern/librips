@@ -102,7 +102,7 @@
 //! `Mutex` is locked and the counter from the creation of that `Tx` is
 //! compared to the counter behind the lock.
 //! If the counters are equal the packet is transmitted on the network,
-//! otherwise a TxError::InvalidTx is returned. The reason for this is that
+//! otherwise a `TxError::InvalidTx` is returned. The reason for this is that
 //! every tx-object should be kept simple and not do any lookups against routing
 //! tables etc when they construct their packets.
 //! As long as nothing changes inside the stack all transmissions can go ahead
@@ -159,7 +159,6 @@
 //!
 
 // #![deny(missing_docs)]
-#[allow(unused_imports)]
 
 extern crate pnet;
 extern crate ipnetwork;
@@ -472,7 +471,7 @@ pub fn default_stack() -> StackResult<NetworkStack> {
 // }
 
 /// Converts a pnet `NetworkInterface` into a rips `Interface`.
-/// Will fail if the given NetworkInterface does not have an associated MAC
+/// Will fail if the given `NetworkInterface` does not have an associated MAC
 /// address.
 /// Can be changed into a `TryFrom` impl when that trait is stabilized
 pub fn convert_interface(interface: &NetworkInterface) -> Result<Interface, ()> {

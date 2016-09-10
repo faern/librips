@@ -140,7 +140,7 @@ impl UdpSocketReader {
         let data = udp_pkg.payload();
         if data.len() > buf.len() {
             Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               format!("Data does not fit buffer")))
+                               "Data does not fit buffer".to_owned()))
         } else {
             buf[..data.len()].copy_from_slice(data);
             Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
@@ -191,7 +191,7 @@ impl UdpSocket {
             }
             SocketAddr::V6(_dst) => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   format!("Rips does not support IPv6 yet")))
+                                   "Rips does not support IPv6 yet".to_owned()))
             }
         }
     }
@@ -220,7 +220,7 @@ impl UdpSocket {
                 self.tx_cache.insert(dst, new_udp_tx);
                 self.internal_send(buf, dst)
             }
-            result => result.map_err(|e| StackError::TxError(e)),
+            result => result.map_err(StackError::TxError),
         }
     }
 

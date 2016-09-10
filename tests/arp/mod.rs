@@ -50,7 +50,7 @@ fn arp_locking() {
 
     let (arp_thread_tx, arp_thread_rx) = mpsc::channel();
     // Spawn `thread_count` threads that all try to request the same ip
-    for i in 0..thread_count {
+    for _ in 0..thread_count {
         let mut thread_arp_table = arp_table.clone();
         let arp_thread_tx = arp_thread_tx.clone();
         spawn(move || {
@@ -67,7 +67,7 @@ fn arp_locking() {
                                       MacAddr::new(1, 2, 3, 4, 5, 7),
                                       MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
     let mut arp_tx = ArpTx::new(ethernet_tx);
-    arp_tx.send(Ipv4Addr::new(10, 0, 0, 34), dst);
+    arp_tx.send(Ipv4Addr::new(10, 0, 0, 34), dst).unwrap();
 
     sleep(Duration::new(1, 0));
 

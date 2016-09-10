@@ -103,11 +103,7 @@ impl EthernetRx {
         let mut map_listeners = HashMap::new();
         for listener in listeners.into_iter() {
             let ethertype = listener.get_ethertype();
-            if !map_listeners.contains_key(&ethertype) {
-                map_listeners.insert(ethertype, vec![listener]);
-            } else {
-                map_listeners.get_mut(&ethertype).unwrap().push(listener);
-            }
+            map_listeners.entry(ethertype).or_insert(vec![]).push(listener);
         }
         map_listeners
     }
