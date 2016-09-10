@@ -1,27 +1,26 @@
 use std::net::Ipv4Addr;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use ipnetwork::Ipv4Network;
 
 use Interface;
 
 // TODO: Add metric
-struct Entry {
+#[derive(Debug)]
+struct RouteEntry {
     pub net: Ipv4Network,
     pub gw: Option<Ipv4Addr>,
     pub interface: Interface,
 }
 
 pub struct RoutingTable {
-    prefixes: Vec<u8>,
-    table: HashMap<u8, Vec<Entry>>,
+    table: BTreeMap<u8, Vec<RouteEntry>>,
 }
 
 impl RoutingTable {
     pub fn new() -> RoutingTable {
         RoutingTable {
-            prefixes: vec![],
-            table: HashMap::new(),
+            table: BTreeMap::new(),
         }
     }
 
@@ -29,25 +28,19 @@ impl RoutingTable {
     // TODO: Increment Tx version counter
     pub fn add_route(&mut self, net: Ipv4Network, gw: Option<Ipv4Addr>, interface: Interface) {
         let prefix = net.prefix();
-        let entry = Entry {
+        let entry = RouteEntry {
             net: net,
             gw: gw,
             interface: interface,
         };
-        if !self.table.contains_key(&prefix) {
-            self.prefixes.push(prefix);
-            self.prefixes.sort_by(|a, b| b.cmp(a));
-            self.table.insert(prefix, vec![entry]);
-        } else {
-            self.table.get_mut(&prefix).unwrap().push(entry);
-        }
+        self.table.entry(prefix).or_insert(vec![]).push(entry);
     }
 
     pub fn route(&self, ip: Ipv4Addr) -> Option<(Option<Ipv4Addr>, Interface)> {
-        for prefix in self.prefixes.iter() {
-            for entry in self.table.get(&prefix).unwrap() {
+        for (_prefix, entries) in self.table.iter().rev() {
+            for entry in entries {
                 if entry.net.contains(ip) {
-                    return Some((entry.gw.clone(), entry.interface.clone()));
+                    return Some((entry.gw, entry.interface.clone()));
                 }
             }
         }

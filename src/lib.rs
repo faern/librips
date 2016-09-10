@@ -272,9 +272,9 @@ impl From<TxError> for io::Error {
     fn from(e: TxError) -> Self {
         let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
         match e {
-            TxError::InvalidTx => other(format!("Outdated constructor")),
-            TxError::TooLargePayload => other(format!("Too large payload")),
-            TxError::PoisonedLock => other(format!("Poisoned lock")),
+            TxError::InvalidTx => other("Outdated constructor".to_owned()),
+            TxError::TooLargePayload => other("Too large payload".to_owned()),
+            TxError::PoisonedLock => other("Poisoned lock".to_owned()),
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => other(format!("Other: {}", msg)),
         }
@@ -286,7 +286,7 @@ pub type TxResult = Result<(), TxError>;
 
 fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
     match r {
-        None => Err(TxError::Other(format!("Insufficient buffer space"))),
+        None => Err(TxError::Other("Insufficient buffer space".to_owned())),
         Some(ior) => {
             match ior {
                 Err(e) => Err(TxError::from(e)),
@@ -435,7 +435,7 @@ pub fn default_stack() -> StackResult<NetworkStack> {
         if let Ok(rips_interface) = convert_interface(&interface) {
             let config = datalink::Config::default();
             let channel = match try!(datalink::channel(&interface, config)
-                .map_err(|e| StackError::from(e))) {
+                .map_err(StackError::from)) {
                 datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
                 _ => unreachable!(),
             };

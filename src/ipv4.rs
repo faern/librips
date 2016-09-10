@@ -17,9 +17,9 @@ use test::ethernet::EthernetTx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
-const MORE_FRAGMENTS: u8 = 0b001;
-const DONT_FRAGMENT: u8 = 0b010;
-const NO_FLAGS: u8 = 0b000;
+pub const MORE_FRAGMENTS: u8 = 0b001;
+pub const DONT_FRAGMENT: u8 = 0b010;
+pub const NO_FLAGS: u8 = 0b000;
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {

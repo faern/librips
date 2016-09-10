@@ -1,12 +1,13 @@
 use std::io;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 
 use ipnetwork::Ipv4Network;
 
 use pnet::util::MacAddr;
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::ip::IpNextHeaderProtocols;
 
 use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
 use ethernet;
@@ -43,9 +44,9 @@ impl From<StackError> for io::Error {
     fn from(e: StackError) -> io::Error {
         let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
         match e {
-            StackError::IllegalArgument => other(format!("Illegal argument")),
-            StackError::InvalidInterface => other(format!("Invalid interface")),
-            StackError::NoRouteToHost => other(format!("No route to host")),
+            StackError::IllegalArgument => other("Illegal argument".to_owned()),
+            StackError::InvalidInterface => other("Invalid interface".to_owned()),
+            StackError::NoRouteToHost => other("No route to host".to_owned()),
             StackError::IoError(io_e) => io_e,
             StackError::TxError(txe) => txe.into(),
         }
@@ -54,15 +55,19 @@ impl From<StackError> for io::Error {
 
 pub type StackResult<T> = Result<T, StackError>;
 
+struct Ipv4Data {
+    net: Ipv4Network,
+    udp_listeners: Arc<Mutex<udp::UdpListenerLookup>>,
+}
+
 /// Represents the stack on one physical interface.
 /// The larger `NetworkStack` comprises multiple of these.
 struct StackInterface {
     interface: Interface,
     tx: Arc<Mutex<VersionedTx>>,
     arp_table: arp::ArpTable,
-    ipv4s: HashMap<Ipv4Addr, Ipv4Network>,
+    ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
-    udp_listeners: HashMap<Ipv4Addr, Arc<Mutex<udp::UdpListenerLookup>>>,
 }
 
 impl StackInterface {
@@ -87,7 +92,6 @@ impl StackInterface {
             arp_table: arp_table,
             ipv4s: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
-            udp_listeners: HashMap::new(),
         }
     }
 
@@ -109,14 +113,28 @@ impl StackInterface {
 
     pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> StackResult<()> {
         let ip = ip_net.ip();
-        if !self.ipv4s.contains_key(&ip) {
-            self.ipv4s.insert(ip, ip_net);
-            let ipv4_listeners = self.create_ipv4_listeners(ip);
-            let mut iface_ipv4_listeners = self.ipv4_listeners.lock().unwrap();
-            iface_ipv4_listeners.insert(ip, ipv4_listeners);
-            Ok(())
-        } else {
-            Err(StackError::IllegalArgument)
+        match self.ipv4s.entry(ip) {
+            Entry::Occupied(_) => Err(StackError::IllegalArgument),
+            Entry::Vacant(entry) => {
+                let mut proto_listeners = HashMap::new();
+
+                let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
+                let udp_rx = udp::UdpRx::new(udp_listeners.clone());
+                let udp_ipv4_listener = Box::new(udp_rx) as Box<ipv4::Ipv4Listener>;
+                proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
+
+                // TODO: Insert Icmp listener stuff
+
+                let mut ipv4_listeners = self.ipv4_listeners.lock().unwrap();
+                ipv4_listeners.insert(ip, proto_listeners);
+                let data = Ipv4Data {
+                    net: ip_net,
+                    udp_listeners: udp_listeners,
+                };
+
+                entry.insert(data);
+                Ok(())
+            }
         }
     }
 
@@ -138,28 +156,12 @@ impl StackInterface {
     }
 
     fn closest_local_ip(&self, dst: Ipv4Addr) -> Option<Ipv4Addr> {
-        for (ip, net) in &self.ipv4s {
-            if net.contains(dst) {
+        for (ip, ip_data) in &self.ipv4s {
+            if ip_data.net.contains(dst) {
                 return Some(*ip);
             }
         }
-        self.ipv4s.keys().next().map(|ip| *ip)
-    }
-
-    fn create_ipv4_listeners(&mut self,
-                             ip: Ipv4Addr)
-                             -> HashMap<IpNextHeaderProtocol, Box<ipv4::Ipv4Listener>> {
-        let mut proto_listeners = HashMap::new();
-
-        let udp_listeners = Arc::new(Mutex::new(HashMap::new()));
-        self.udp_listeners.insert(ip, udp_listeners.clone());
-        let udp_rx = udp::UdpRx::new(udp_listeners);
-        let udp_ipv4_listener = Box::new(udp_rx) as Box<ipv4::Ipv4Listener>;
-        proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
-
-        // Insert Icmp listener stuff
-
-        proto_listeners
+        self.ipv4s.keys().next().cloned()
     }
 }
 
@@ -183,12 +185,13 @@ impl NetworkStack {
                          interface: Interface,
                          channel: EthernetChannel)
                          -> StackResult<()> {
-        if self.interfaces.contains_key(&interface) {
-            Err(StackError::InvalidInterface)
-        } else {
-            let stack_interface = StackInterface::new(interface.clone(), channel);
-            self.interfaces.insert(interface, stack_interface);
-            Ok(())
+        match self.interfaces.entry(interface) {
+            Entry::Occupied(_) => Err(StackError::InvalidInterface),
+            Entry::Vacant(entry) => {
+                let interface = entry.key().clone();
+                entry.insert(StackInterface::new(interface, channel));
+                Ok(())
+            }
         }
     }
 
@@ -268,8 +271,8 @@ impl NetworkStack {
                     panic!("Rips does not support listening to all interfaces yet");
                 } else {
                     for stack_interface in self.interfaces.values() {
-                        if let Some(udp_listeners) = stack_interface.udp_listeners.get(local_ip) {
-                            let mut udp_listeners = udp_listeners.lock().unwrap();
+                        if let Some(ip_data) = stack_interface.ipv4s.get(local_ip) {
+                            let mut udp_listeners = ip_data.udp_listeners.lock().unwrap();
                             if !udp_listeners.contains_key(&local_port) {
                                 udp_listeners.insert(local_port, Box::new(listener));
                                 return Ok(SocketAddr::V4(addr));
@@ -281,14 +284,20 @@ impl NetworkStack {
                             }
                         }
                     }
-                    let msg = format!("Bind address does not exist in stack");
+                    let msg = "Bind address does not exist in stack".to_owned();
                     Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
                 }
             }
             SocketAddr::V6(_) => {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   format!("Rips does not support IPv6 yet")))
+                                   "Rips does not support IPv6 yet".to_owned()))
             }
         }
+    }
+}
+
+impl Default for NetworkStack {
+    fn default() -> Self {
+        Self::new()
     }
 }

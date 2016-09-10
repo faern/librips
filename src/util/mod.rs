@@ -13,6 +13,6 @@ pub fn first_socket_addr<A: ToSocketAddrs>(addr: A) -> io::Result<SocketAddr> {
         Ok(addr)
     } else {
         Err(io::Error::new(io::ErrorKind::InvalidInput,
-                           format!("Given ToSocketAddrs did not yield any address")))
+                           "Given ToSocketAddrs did not yield any address".to_owned()))
     }
 }
