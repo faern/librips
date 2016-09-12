@@ -2,6 +2,11 @@ pub mod ethernet;
 
 pub mod ipv4;
 
+#[cfg(not(feature = "unit-tests"))]
+mod dummy;
+#[cfg(not(feature = "unit-tests"))]
+pub use self::dummy::*;
+
 #[cfg(all(not(feature = "unit-tests"), not(feature = "integration-tests")))]
 #[test]
 fn tests_should_be_run_with_features() {

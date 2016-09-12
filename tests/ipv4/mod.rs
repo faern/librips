@@ -13,9 +13,8 @@ use pnet::packet::{MutablePacket, Packet};
 
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::ethernet::{EthernetListener, EthernetRx};
-use rips::test::ipv4::MockIpv4Listener;
-
-use helper;
+use rips::testing::ipv4::MockIpv4Listener;
+use rips::testing;
 
 #[test]
 fn simple_send() {
@@ -23,7 +22,7 @@ fn simple_send() {
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
     let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let (mut stack, interface, _, read_handle) = helper::dummy_stack(0);
+    let (mut stack, interface, _, read_handle) = testing::dummy_stack(0);
 
     // Inject an Arp entry so Ipv4 knows where to send
     let mut arp = stack.arp_table(&interface).unwrap();
@@ -63,7 +62,7 @@ fn custom_igmp_recv() {
     let mut ipv4_listeners = HashMap::new();
     ipv4_listeners.insert(target_ip, ipv4_ip_listeners);
 
-    let (channel, interface, inject_handle, _) = helper::dummy_ethernet(0);
+    let (channel, interface, inject_handle, _) = testing::dummy_ethernet(0);
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
     let ethernet_rx = EthernetRx::new(vec![ipv4_rx]).spawn(channel.1);
 

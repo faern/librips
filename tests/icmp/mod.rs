@@ -9,11 +9,10 @@ use pnet::packet::icmp::echo_request::EchoRequestPacket;
 use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, icmp_types};
 use pnet::packet::{MutablePacket, Packet};
 
-use ipnetwork::Ipv4Network;
+// use ipnetwork::Ipv4Network;
 
 use rips::icmp::IcmpListener;
-
-use helper;
+// use rips::testing;
 
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -34,7 +33,7 @@ impl IcmpListener for MockIcmpListener {
 //     let (tx, rx) = mpsc::channel();
 //     let mock_icmp_listener = vec![Box::new(MockIcmpListener { tx: tx }) as Box<IcmpListener>];
 //
-//     let (mut stack, interface, inject_handle, _) = helper::dummy_stack(0);
+//     let (mut stack, interface, inject_handle, _) = testing::dummy_stack(0);
 //     stack.add_ipv4(&interface, Ipv4Network::from_cidr("10.0.0.2/24").unwrap()).unwrap();
 //     icmp_listeners.lock().unwrap().insert(icmp_types::DestinationUnreachable, mock_icmp_listener);
 //

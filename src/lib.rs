@@ -196,8 +196,8 @@ pub use routing::RoutingTable;
 
 mod util;
 
-#[cfg(any(test, feature = "integration-tests"))]
-pub mod test;
+#[cfg(any(test, feature = "unit-tests", feature = "integration-tests", feature = "benchmarks"))]
+pub mod testing;
 
 #[cfg(not(feature = "unit-tests"))]
 mod stack;

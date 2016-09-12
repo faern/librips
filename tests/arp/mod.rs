@@ -13,12 +13,12 @@ use rips::{Tx, VersionedTx};
 use rips::arp::{ArpTable, ArpTx};
 use rips::ethernet::{EthernetRx, EthernetTx};
 
-use helper;
+use rips::testing;
 
 #[test]
 fn arp_invalidate_on_update() {
     let arp_table = ArpTable::new();
-    let (channel, _, inject_handle, _) = helper::dummy_ethernet(7);
+    let (channel, _, inject_handle, _) = testing::dummy_ethernet(7);
 
     let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
     EthernetRx::new(vec![arp_table.arp_rx(vtx.clone())]).spawn(channel.1);
@@ -44,7 +44,7 @@ fn arp_locking() {
     let dst = Ipv4Addr::new(10, 0, 0, 1);
 
     let arp_table = ArpTable::new();
-    let (channel, _, inject_handle, read_handle) = helper::dummy_ethernet(7);
+    let (channel, _, inject_handle, read_handle) = testing::dummy_ethernet(7);
     let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
     EthernetRx::new(vec![arp_table.arp_rx(vtx.clone())]).spawn(channel.1);
 

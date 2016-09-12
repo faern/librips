@@ -2,10 +2,11 @@
 use pnet::datalink::dummy;
 
 use rips::NetworkStack;
+use rips::testing;
 
 #[test]
 fn test_networkstack_send_ethernet() {
-    let (ethernet, mac, _, _) = ::dummy_ethernet(7);
+    let (ethernet, mac, _, _) = testing::dummy_ethernet(7);
     let stack = NetworkStack::new(&[ethernet]);
 
     let ethernet = stack.get_ethernet(mac).expect("Expected Ethernet");
@@ -14,7 +15,7 @@ fn test_networkstack_send_ethernet() {
 
 #[test]
 fn test_networkstack_get_invalid_ethernet() {
-    let (ethernet, _, _, _) = ::dummy_ethernet(7);
+    let (ethernet, _, _, _) = testing::dummy_ethernet(7);
     let stack = NetworkStack::new(&[ethernet]);
 
     let ethernet = stack.get_ethernet(dummy::dummy_interface(2).mac.unwrap());

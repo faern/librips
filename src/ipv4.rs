@@ -13,7 +13,7 @@ use ethernet::EthernetListener;
 use util::Buffer;
 
 #[cfg(all(test, feature = "unit-tests"))]
-use test::ethernet::EthernetTx;
+use testing::ethernet::EthernetTx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
@@ -341,7 +341,7 @@ mod tests {
 
     use super::*;
     use {RxError, RxResult};
-    use test::{ethernet, ipv4};
+    use testing::{ethernet, ipv4};
     use ethernet::EthernetListener;
 
     #[test]

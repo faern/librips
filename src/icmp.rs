@@ -12,7 +12,7 @@ use {RxError, RxResult, TxResult};
 use ipv4::Ipv4Listener;
 
 #[cfg(all(test, feature = "unit-tests"))]
-use test::ipv4::Ipv4Tx;
+use testing::ipv4::Ipv4Tx;
 #[cfg(not(all(test, feature = "unit-tests")))]
 use ipv4::Ipv4Tx;
 
@@ -128,7 +128,7 @@ mod tests {
     use pnet::packet::Packet;
 
     use super::*;
-    use test::ipv4::Ipv4Tx;
+    use testing::ipv4::Ipv4Tx;
 
     #[test]
     fn test_ping() {
