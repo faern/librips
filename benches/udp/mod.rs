@@ -8,11 +8,9 @@ use std::thread;
 
 use ipnetwork::Ipv4Network;
 use pnet::util::MacAddr;
-use pnet::datalink;
 
+use rips::{self, testing, NetworkStack};
 use rips::udp::UdpSocket as RipsUdpSocket;
-use rips::NetworkStack;
-use rips::testing;
 
 lazy_static! {
     static ref SRC_NET: Ipv4Network = Ipv4Network::from_cidr("10.0.0.3/32").unwrap();
@@ -25,10 +23,11 @@ lazy_static! {
 }
 
 macro_rules! bench_to_send {
-    ($bencher:expr, $create_socket:expr, $buffer:expr, $dst:expr) => {{
+    ($bencher:expr, $create_socket:expr, $buffer:ident, $dst:expr) => {{
+        thread::sleep(Duration::new(0, 500_000_000));
         let mut socket = $create_socket;
         $bencher.iter(|| {
-            socket.send_to(black_box(&$buffer), $dst).unwrap()
+            socket.send_to(black_box(&$buffer), $dst).expect("Unablet to send")
         });
     }};
 }
@@ -39,7 +38,22 @@ fn dummy_lan_63k(b: &mut Bencher) {
                    rips_socket(testing::dummy_stack(0).0),
                    BUF_63K,
                    *DST);
-    sleep()
+}
+
+#[bench]
+fn datalink_lan_63k(b: &mut Bencher) {
+    bench_to_send!(b,
+                   rips_socket(rips::default_stack().expect("Unable to create default stack")),
+                   BUF_63K,
+                   *DST);
+}
+
+#[bench]
+fn std_lan_63k(b: &mut Bencher) {
+    bench_to_send!(b,
+                   StdUdpSocket::bind(*SRC).expect("Unable to bind local socket"),
+                   BUF_63K,
+                   *DST);
 }
 
 #[bench]
@@ -48,16 +62,6 @@ fn dummy_through_gw_63k(b: &mut Bencher) {
                    rips_socket(testing::dummy_stack(0).0),
                    BUF_63K,
                    *DST2);
-    sleep()
-}
-
-#[bench]
-fn std_lan_63k(b: &mut Bencher) {
-    bench_to_send!(b,
-                   StdUdpSocket::bind(*SRC).unwrap(),
-                   BUF_63K,
-                   *DST);
-    sleep()
 }
 
 #[bench]
@@ -66,7 +70,6 @@ fn dummy_lan_1byte(b: &mut Bencher) {
                    rips_socket(testing::dummy_stack(0).0),
                    BUF_1BYTE,
                    *DST);
-    sleep()
 }
 
 #[bench]
@@ -75,7 +78,6 @@ fn dummy_through_gw_1byte(b: &mut Bencher) {
                    rips_socket(testing::dummy_stack(0).0),
                    BUF_1BYTE,
                    *DST2);
-    sleep()
 }
 
 #[bench]
@@ -84,7 +86,6 @@ fn std_through_gw_1byte(b: &mut Bencher) {
                    StdUdpSocket::bind(*SRC).unwrap(),
                    BUF_1BYTE,
                    *DST2);
-    sleep()
 }
 
 fn rips_socket(mut stack: NetworkStack) -> RipsUdpSocket {
@@ -101,8 +102,4 @@ fn rips_socket(mut stack: NetworkStack) -> RipsUdpSocket {
     }
     let stack = Arc::new(Mutex::new(stack));
     RipsUdpSocket::bind(stack, *SRC).unwrap()
-}
-
-fn sleep() {
-    thread::sleep(Duration::new(0, 500_000_000));
 }

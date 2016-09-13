@@ -205,6 +205,7 @@ mod stack;
 #[cfg(not(feature = "unit-tests"))]
 pub use stack::{NetworkStack, StackError, StackResult};
 
+pub static DEFAULT_BUFFER_SIZE: usize = 1024*128;
 
 /// Representation for one network interface. More or less a subset of
 /// `pnet::util::NetworkInterface`, but with guaranteed MAC address.
@@ -432,7 +433,9 @@ pub fn default_stack() -> StackResult<NetworkStack> {
     let mut stack = NetworkStack::new();
     for interface in datalink::interfaces() {
         if let Ok(rips_interface) = convert_interface(&interface) {
-            let config = datalink::Config::default();
+            let mut config = datalink::Config::default();
+            config.write_buffer_size = DEFAULT_BUFFER_SIZE;
+            config.read_buffer_size = DEFAULT_BUFFER_SIZE;
             let channel = match try!(datalink::channel(&interface, config)
                 .map_err(StackError::from)) {
                 datalink::Channel::Ethernet(tx, rx) => EthernetChannel(tx, rx),
