@@ -24,7 +24,7 @@ lazy_static! {
 
 macro_rules! bench_to_send {
     ($bencher:expr, $create_socket:expr, $buffer:ident, $dst:expr) => {{
-        thread::sleep(Duration::new(0, 500_000_000));
+        thread::sleep(Duration::new(0, 250_000_000));
         let mut socket = $create_socket;
         $bencher.iter(|| {
             socket.send_to(black_box(&$buffer), $dst).expect("Unablet to send")
@@ -89,7 +89,7 @@ fn std_through_gw_1byte(b: &mut Bencher) {
 }
 
 fn rips_socket(mut stack: NetworkStack) -> RipsUdpSocket {
-    let interface = stack.interfaces().into_iter().next().expect("No suitable interface");
+    let interface = stack.interfaces().into_iter().filter(|i| i.name.starts_with("eth")).next().expect("No suitable interface");
     stack.add_ipv4(&interface, *SRC_NET).unwrap();
     {
         let routing_table = stack.routing_table();
