@@ -211,8 +211,8 @@ impl NetworkStack {
         }
     }
 
-    pub fn interfaces(&self) -> Vec<&Interface> {
-        self.interfaces.keys().collect()
+    pub fn interfaces(&self) -> Vec<Interface> {
+        self.interfaces.keys().map(|i| i.clone()).collect()
     }
 
     pub fn interface_from_name(&self, name: &str) -> StackResult<&Interface> {
