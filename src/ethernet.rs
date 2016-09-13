@@ -46,12 +46,6 @@ impl EthernetTx {
         }
     }
 
-    /// Returns the maximum transmission unit (MTU) of this `EthernetTx`. Is
-    /// hardcoded at the moment, but the plan is to make it configurable.
-    pub fn get_mtu(&self) -> usize {
-        1500
-    }
-
     /// Send ethernet packets to the network.
     ///
     /// For every packet, all `header_size+payload_size` bytes will be sent, no

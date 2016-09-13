@@ -195,16 +195,19 @@ pub struct Ipv4Tx {
     /// The destination IP of the packets built by this instance.
     pub dst: Ipv4Addr,
 
+    mtu: usize,
+
     ethernet: EthernetTx,
     next_identification: u16,
 }
 
 impl Ipv4Tx {
     /// Constructs a new `Ipv4Tx`.
-    pub fn new(ethernet: EthernetTx, src: Ipv4Addr, dst: Ipv4Addr) -> Ipv4Tx {
+    pub fn new(ethernet: EthernetTx, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Ipv4Tx {
         Ipv4Tx {
             src: src,
             dst: dst,
+            mtu: mtu,
             ethernet: ethernet,
             next_identification: 0,
         }
@@ -221,7 +224,7 @@ impl Ipv4Tx {
                    -> TxResult
         where T: FnMut(&mut [u8])
     {
-        let bytes_per_frame = self.ethernet.get_mtu() - Ipv4Packet::minimum_packet_size();
+        let bytes_per_frame = self.mtu - Ipv4Packet::minimum_packet_size();
         if payload_size as usize <= bytes_per_frame {
             self.send_non_fragmented(payload_size, next_level_protocol, builder)
         } else {
@@ -266,9 +269,8 @@ impl Ipv4Tx {
         where T: FnMut(&mut [u8])
     {
         let payload_size = payload_size as usize;
-        let mtu = self.ethernet.get_mtu();
         let bytes_per_frame = {
-            let a = mtu - Ipv4Packet::minimum_packet_size();
+            let a = self.mtu - Ipv4Packet::minimum_packet_size();
             a - (a % 8) // Offset must be dividable by 8
         };
 
@@ -309,7 +311,7 @@ impl Ipv4Tx {
 
             offset += current_chunk.len() as u16;
         };
-        self.ethernet.send(num_fragments, mtu, EtherTypes::Ipv4, &mut builder_wrapper)
+        self.ethernet.send(num_fragments, self.mtu, EtherTypes::Ipv4, &mut builder_wrapper)
     }
 
     fn set_ipv4_header(ip_pkg: &mut MutableIpv4Packet, next_level_protocol: IpNextHeaderProtocol) {
@@ -350,8 +352,8 @@ mod tests {
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
         let (eth_tx, rx) = ethernet::EthernetTx::new();
-        let mtu = eth_tx.get_mtu();
-        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst);
+        let mtu = 1500;
+        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, mtu);
 
         let max_payload_len = mtu - Ipv4Packet::minimum_packet_size();
         let pkg_size = max_payload_len + 5;
@@ -382,8 +384,8 @@ mod tests {
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
         let (eth_tx, rx) = ethernet::EthernetTx::new();
-        let mtu = eth_tx.get_mtu();
-        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst);
+        let mtu = 1500;
+        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, mtu);
 
         let pkg_payload_len = mtu - Ipv4Packet::minimum_packet_size();
         let pkg_size = pkg_payload_len - 5;

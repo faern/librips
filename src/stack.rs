@@ -18,12 +18,15 @@ use udp;
 
 use util;
 
+pub static DEFAULT_MTU: usize = 1500;
+
 /// Error returned upon invalid usage or state of the stack.
 #[derive(Debug)]
 pub enum StackError {
     IllegalArgument,
     NoRouteToHost,
     InvalidInterface,
+    PoisonedLock,
     TxError(TxError),
     IoError(io::Error),
 }
@@ -45,8 +48,9 @@ impl From<StackError> for io::Error {
         let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
         match e {
             StackError::IllegalArgument => other("Illegal argument".to_owned()),
-            StackError::InvalidInterface => other("Invalid interface".to_owned()),
             StackError::NoRouteToHost => other("No route to host".to_owned()),
+            StackError::InvalidInterface => other("Invalid interface".to_owned()),
+            StackError::PoisonedLock => other("Poisoned lock".to_owned()),
             StackError::IoError(io_e) => io_e,
             StackError::TxError(txe) => txe.into(),
         }
@@ -64,6 +68,7 @@ struct Ipv4Data {
 /// The larger `NetworkStack` comprises multiple of these.
 struct StackInterface {
     interface: Interface,
+    mtu: usize,
     tx: Arc<Mutex<VersionedTx>>,
     arp_table: arp::ArpTable,
     ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
@@ -88,6 +93,7 @@ impl StackInterface {
 
         StackInterface {
             interface: interface.clone(),
+            mtu: DEFAULT_MTU,
             tx: vtx,
             arp_table: arp_table,
             ipv4s: HashMap::new(),
@@ -149,10 +155,20 @@ impl StackInterface {
                 }
             };
             let ethernet_tx = self.ethernet_tx(dst_mac);
-            Ok(ipv4::Ipv4Tx::new(ethernet_tx, src, dst))
+            Ok(ipv4::Ipv4Tx::new(ethernet_tx, src, dst, self.mtu))
         } else {
             Err(StackError::IllegalArgument)
         }
+    }
+
+    pub fn get_mtu(&self) -> usize {
+        self.mtu
+    }
+
+    pub fn set_mtu(&mut self, mtu: usize) -> StackResult<()> {
+        self.mtu = mtu;
+        try!(self.tx.lock().or(Err(StackError::PoisonedLock))).inc();
+        Ok(())
     }
 
     fn closest_local_ip(&self, dst: Ipv4Addr) -> Option<Ipv4Addr> {
@@ -199,25 +215,34 @@ impl NetworkStack {
         self.interfaces.keys().collect()
     }
 
-    pub fn interface_from_name(&self, name: &str) -> Option<&Interface> {
+    pub fn interface_from_name(&self, name: &str) -> StackResult<&Interface> {
         for interface in self.interfaces.keys() {
             if interface.name == name {
-                return Some(interface);
+                return Ok(interface);
             }
         }
-        None
+        Err(StackError::InvalidInterface)
     }
 
-    pub fn ethernet_tx(&self, interface: &Interface, dst: MacAddr) -> Option<ethernet::EthernetTx> {
-        self.interfaces.get(interface).map(|si| si.ethernet_tx(dst))
+    pub fn ethernet_tx(&self, interface: &Interface, dst: MacAddr) -> StackResult<ethernet::EthernetTx> {
+        match self.interfaces.get(interface) {
+            Some(i) => Ok(i.ethernet_tx(dst)),
+            None => Err(StackError::InvalidInterface),
+        }
     }
 
-    pub fn arp_tx(&self, interface: &Interface) -> Option<arp::ArpTx> {
-        self.interfaces.get(interface).map(|si| si.arp_tx())
+    pub fn arp_tx(&self, interface: &Interface) -> StackResult<arp::ArpTx> {
+        match self.interfaces.get(interface) {
+            Some(i) => Ok(i.arp_tx()),
+            None => Err(StackError::InvalidInterface),
+        }
     }
 
-    pub fn arp_table(&self, interface: &Interface) -> Option<arp::ArpTable> {
-        self.interfaces.get(interface).map(|si| si.arp_table())
+    pub fn arp_table(&self, interface: &Interface) -> StackResult<arp::ArpTable> {
+        match self.interfaces.get(interface) {
+            Some(i) => Ok(i.arp_table()),
+            None => Err(StackError::InvalidInterface),
+        }
     }
 
     pub fn routing_table(&mut self) -> &mut RoutingTable {
@@ -292,6 +317,20 @@ impl NetworkStack {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
                                    "Rips does not support IPv6 yet".to_owned()))
             }
+        }
+    }
+
+    pub fn get_mtu(&self, interface: &Interface) -> StackResult<usize> {
+        match self.interfaces.get(interface) {
+            Some(i) => Ok(i.get_mtu()),
+            None => Err(StackError::InvalidInterface),
+        }
+    }
+
+    pub fn set_mtu(&mut self, interface: &Interface, mtu: usize) -> StackResult<()> {
+        match self.interfaces.get_mut(interface) {
+            Some(i) => i.set_mtu(mtu),
+            None => Err(StackError::InvalidInterface),
         }
     }
 }
