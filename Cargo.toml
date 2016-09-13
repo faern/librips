@@ -19,8 +19,8 @@ integration-tests = [] # Activate to build for integration testing
 benchmarks = []
 
 [dependencies.pnet]
-git = "https://github.com/faern/libpnet"
-branch = "checksum-improvement"
+git = "https://github.com/libpnet/libpnet"
+#branch = "checksum-improvement"
 #path = "../libpnet"
 
 #[dependencies.ipnetwork]
