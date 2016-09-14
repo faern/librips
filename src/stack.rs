@@ -66,7 +66,7 @@ struct Ipv4Data {
 
 /// Represents the stack on one physical interface.
 /// The larger `NetworkStack` comprises multiple of these.
-struct StackInterface {
+pub struct StackInterface {
     interface: Interface,
     mtu: usize,
     tx: Arc<Mutex<VersionedTx>>,
@@ -215,6 +215,13 @@ impl NetworkStack {
         self.interfaces.keys().map(|i| i.clone()).collect()
     }
 
+    pub fn interface(&mut self, interface: &Interface) -> StackResult<&mut StackInterface> {
+        match self.interfaces.get_mut(interface) {
+            Some(i) => Ok(i),
+            None => Err(StackError::InvalidInterface),
+        }
+    }
+
     pub fn interface_from_name(&self, name: &str) -> StackResult<&Interface> {
         for interface in self.interfaces.keys() {
             if interface.name == name {
@@ -224,42 +231,16 @@ impl NetworkStack {
         Err(StackError::InvalidInterface)
     }
 
-    pub fn ethernet_tx(&self, interface: &Interface, dst: MacAddr) -> StackResult<ethernet::EthernetTx> {
-        match self.interfaces.get(interface) {
-            Some(i) => Ok(i.ethernet_tx(dst)),
-            None => Err(StackError::InvalidInterface),
-        }
-    }
-
-    pub fn arp_tx(&self, interface: &Interface) -> StackResult<arp::ArpTx> {
-        match self.interfaces.get(interface) {
-            Some(i) => Ok(i.arp_tx()),
-            None => Err(StackError::InvalidInterface),
-        }
-    }
-
-    pub fn arp_table(&self, interface: &Interface) -> StackResult<arp::ArpTable> {
-        match self.interfaces.get(interface) {
-            Some(i) => Ok(i.arp_table()),
-            None => Err(StackError::InvalidInterface),
-        }
-    }
-
     pub fn routing_table(&mut self) -> &mut RoutingTable {
         &mut self.routing_table
     }
 
     /// Attach a IPv4 network to a an interface.
+    /// TODO: Deprecate and make the routing stuff better instead
     pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
-        if let Some(stack_interface) = self.interfaces.get_mut(interface) {
-            let result = stack_interface.add_ipv4(ip_net);
-            if result.is_ok() {
-                self.routing_table.add_route(ip_net, None, interface.clone());
-            }
-            result
-        } else {
-            Err(StackError::InvalidInterface)
-        }
+        try!(try!(self.interface(interface)).add_ipv4(ip_net));
+        self.routing_table.add_route(ip_net, None, interface.clone());
+        Ok(())
     }
 
     pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<ipv4::Ipv4Tx> {
@@ -317,20 +298,6 @@ impl NetworkStack {
                 Err(io::Error::new(io::ErrorKind::InvalidInput,
                                    "Rips does not support IPv6 yet".to_owned()))
             }
-        }
-    }
-
-    pub fn get_mtu(&self, interface: &Interface) -> StackResult<usize> {
-        match self.interfaces.get(interface) {
-            Some(i) => Ok(i.get_mtu()),
-            None => Err(StackError::InvalidInterface),
-        }
-    }
-
-    pub fn set_mtu(&mut self, interface: &Interface, mtu: usize) -> StackResult<()> {
-        match self.interfaces.get_mut(interface) {
-            Some(i) => i.set_mtu(mtu),
-            None => Err(StackError::InvalidInterface),
         }
     }
 }
