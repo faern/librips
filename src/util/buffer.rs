@@ -18,8 +18,7 @@ impl Buffer {
     /// Push new data to this `Buffer`. Returns the lowest index of missing
     /// data on success.
     /// This is equivalent to the length of the valid data at the start of the
-    /// buffer.
-    /// Will fail if the given data offset is not valid.
+    /// buffer. Will fail if the given data offset is not valid.
     // TODO: Support out of order data
     pub fn push(&mut self, offset: usize, data: &[u8]) -> Result<usize, ()> {
         if offset == self.lowest_missing {
@@ -29,6 +28,11 @@ impl Buffer {
         }
         self.data[offset..offset + data.len()].copy_from_slice(data);
         Ok(self.lowest_missing)
+    }
+
+    /// Consumes the `Buffer` and returns the data in an owned slice
+    pub fn into_boxed_slice(self) -> Box<[u8]> {
+        self.data.into_boxed_slice()
     }
 }
 

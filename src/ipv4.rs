@@ -88,7 +88,7 @@ impl Ipv4Rx {
     /// Saves a packet fragment to a buffer for reassembly. If the Ipv4Packet
     /// becomes complete with the addition of `ip_pkg` then the complete
     /// reassembled packet is returned in a Buffer.
-    fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Buffer>, RxError> {
+    fn save_fragment(&mut self, ip_pkg: Ipv4Packet) -> Result<Option<Ipv4Packet<'static>>, RxError> {
         let ident = Self::get_fragment_identification(&ip_pkg);
         if !self.buffers.contains_key(&ident) {
             try!(self.start_new_fragment(ip_pkg, ident));
@@ -115,15 +115,13 @@ impl Ipv4Rx {
                 }
             };
             if pkg_done {
-                let (mut buffer, len) = self.buffers.remove(&ident).unwrap();
-                {
-                    let mut ip_pkg = MutableIpv4Packet::new(&mut buffer).unwrap();
-                    ip_pkg.set_flags(NO_FLAGS);
-                    ip_pkg.set_total_length(len as u16);
-                    let csum = checksum(&ip_pkg.to_immutable());
-                    ip_pkg.set_checksum(csum);
-                }
-                Ok(Some(buffer))
+                let (buffer, len) = self.buffers.remove(&ident).unwrap();
+                let mut ip_pkg = MutableIpv4Packet::owned(buffer.into_boxed_slice()).unwrap();
+                ip_pkg.set_flags(NO_FLAGS);
+                ip_pkg.set_total_length(len as u16);
+                let csum = checksum(&ip_pkg.to_immutable());
+                ip_pkg.set_checksum(csum);
+                Ok(Some(ip_pkg.consume_to_immutable()))
             } else {
                 Ok(None)
             }
@@ -170,8 +168,7 @@ impl EthernetListener for Ipv4Rx {
     fn recv(&mut self, time: SystemTime, eth_pkg: &EthernetPacket) -> RxResult {
         let ip_pkg = try!(Self::get_ipv4_pkg(eth_pkg));
         if Self::is_fragment(&ip_pkg) {
-            if let Some(buffer) = try!(self.save_fragment(ip_pkg)) {
-                let reassembled_pkg = Ipv4Packet::new(&buffer).unwrap();
+            if let Some(reassembled_pkg) = try!(self.save_fragment(ip_pkg)) {
                 self.forward(time, reassembled_pkg)
             } else {
                 Ok(())
