@@ -38,7 +38,7 @@ pub struct EthernetTx {
 
 impl EthernetTx {
     /// Creates a new `EthernetTx` with the given parameters
-    pub fn new(tx: Tx, src: MacAddr, dst: MacAddr) -> EthernetTx {
+    pub fn new(tx: Tx, src: MacAddr, dst: MacAddr) -> Self {
         EthernetTx {
             src: src,
             dst: dst,
@@ -48,31 +48,53 @@ impl EthernetTx {
 
     /// Send ethernet packets to the network.
     ///
-    /// For every packet, all `header_size+payload_size` bytes will be sent, no
+    /// For every packet, all `header_size+size` bytes will be sent, no
     /// matter how small payload is provided to the `MutableEthernetPacket` in
-    /// the call to `builder`. So in total `num_packets *
-    /// (header_size+payload_size)` bytes will be sent. This is  usually not a
-    /// problem since the IP layer has the length in the header and the extra
-    /// bytes should thus not cause any trouble.
-    pub fn send<T>(&mut self,
-                   num_packets: usize,
-                   payload_size: usize,
-                   ether_type: EtherType,
-                   mut builder: T)
-                   -> TxResult
-        where T: FnMut(&mut [u8])
-    {
-        let total_packet_size = payload_size + EthernetPacket::minimum_packet_size();
-        let (src, dst) = (self.src, self.dst);
-        let mut builder_wrapper = |mut pkg: MutableEthernetPacket| {
-            // Fill in data we are responsible for
-            pkg.set_source(src);
-            pkg.set_destination(dst);
-            pkg.set_ethertype(ether_type);
-            // Let the user set fields and payload
-            builder(pkg.payload_mut());
-        };
-        self.tx.send(num_packets, total_packet_size, &mut builder_wrapper)
+    /// the call to `builder`. So in total `packets * (header_size+size)` bytes
+    /// will be sent. This is  usually not a problem since the IP layer has the
+    /// length in the header and the extra bytes should thus not cause any
+    /// trouble.
+    pub fn send<P: EthernetProtocol>(&mut self,
+                                     packets: usize,
+                                     size: usize,
+                                     payload: P)
+                                     -> TxResult {
+        let mut builder = EthernetBuilder::new(self.src, self.dst, payload);
+        let total_size = size + EthernetPacket::minimum_packet_size();
+        self.tx.send(packets, total_size, |pkg| builder.build(pkg))
+    }
+}
+
+/// Trait for anything wishing to be the payload of an Ethernet frame.
+pub trait EthernetProtocol {
+    fn ether_type(&self) -> EtherType;
+
+    fn build(&mut self, buffer: &mut [u8]);
+}
+
+/// Struct building Ethernet frames
+pub struct EthernetBuilder<P: EthernetProtocol> {
+    src: MacAddr,
+    dst: MacAddr,
+    payload: P,
+}
+
+impl<P: EthernetProtocol> EthernetBuilder<P> {
+    /// Creates a new `EthernetBuilder` with the given parameters
+    pub fn new(src: MacAddr, dst: MacAddr, payload: P) -> Self {
+        EthernetBuilder {
+            src: src,
+            dst: dst,
+            payload: payload,
+        }
+    }
+
+    /// Modifies `pkg` to have the correct header and payload
+    pub fn build(&mut self, mut pkg: MutableEthernetPacket) {
+        pkg.set_source(self.src);
+        pkg.set_destination(self.dst);
+        pkg.set_ethertype(self.payload.ether_type());
+        self.payload.build(pkg.payload_mut());
     }
 }
 
