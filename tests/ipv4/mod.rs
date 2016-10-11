@@ -13,7 +13,7 @@ use pnet::packet::{MutablePacket, Packet};
 
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::ethernet::{EthernetListener, EthernetRx};
-use rips::testing::ipv4::MockIpv4Listener;
+use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
 use rips::testing;
 
 #[test]
@@ -32,10 +32,7 @@ fn simple_send() {
     stack.add_ipv4(&interface, config);
 
     let mut ipv4_tx = stack.ipv4_tx(target_ip).unwrap();
-    ipv4_tx.send(2, IpNextHeaderProtocols::Icmp, |pkg| {
-        pkg[0] = 101;
-        pkg[1] = 204;
-    });
+    ipv4_tx.send(TestIpv4Protocol::new(2));
 
     let pkg = read_handle.recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
@@ -45,7 +42,7 @@ fn simple_send() {
     assert_eq!(ip_pkg.get_version(), 4);
     assert_eq!(ip_pkg.get_source(), source_ip);
     assert_eq!(ip_pkg.get_destination(), target_ip);
-    assert_eq!(ip_pkg.payload(), [101, 204]);
+    assert_eq!(ip_pkg.payload(), [100, 99]);
 }
 
 #[test]
