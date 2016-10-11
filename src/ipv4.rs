@@ -150,7 +150,7 @@ impl Ipv4Rx {
     fn forward(&self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
-        debug!("Ipv4 got a packet to {}!", dest_ip);
+        trace!("Ipv4 got a packet to {}!", dest_ip);
         let mut listeners = try!(self.listeners.lock().or(Err(RxError::PoisonedLock)));
         if let Some(mut listeners) = listeners.get_mut(&dest_ip) {
             if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
