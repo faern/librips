@@ -1,19 +1,19 @@
-use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs, Ipv4Addr};
 use std::io;
 use std::sync::{Arc, Mutex, mpsc};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::Packet;
+use pnet::packet::{Packet, MutablePacket};
 
 use {RxError, RxResult, TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 
-use ipv4::{Ipv4Listener, Ipv4Tx};
+use ipv4::{Ipv4Listener, Ipv4Tx, Ipv4Protocol};
 use util;
 
 pub trait UdpListener: Send {
@@ -79,27 +79,69 @@ impl UdpTx {
         }
     }
 
-    pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult
-        where T: FnMut(&mut MutableUdpPacket)
+    pub fn send(&mut self, payload: &[u8]) -> TxResult
     {
-        let total_size = UdpPacket::minimum_packet_size() as u16 + payload_size;
         let (src_port, dst_port) = (self.src, self.dst);
         let src_ip = self.ipv4.src;
         let dst_ip = self.ipv4.dst;
-        let mut builder_wrapper = |pkg: &mut [u8]| {
-            let mut udp_pkg = MutableUdpPacket::new(pkg).unwrap();
-            udp_pkg.set_source(src_port);
-            udp_pkg.set_destination(dst_port);
-            udp_pkg.set_length(total_size);
-            builder(&mut udp_pkg);
+        let builder = UdpBuilder::new(src_ip, dst_ip, src_port, dst_port, payload);
+        self.ipv4.send(builder)
+    }
+}
 
-            let checksum = ipv4_checksum(&udp_pkg.to_immutable(),
-                                         src_ip,
-                                         dst_ip,
-                                         IpNextHeaderProtocols::Udp);
-            udp_pkg.set_checksum(checksum);
+struct UdpBuilder<'a> {
+    src_ip: Ipv4Addr,
+    dst_ip: Ipv4Addr,
+    src: u16,
+    dst: u16,
+    offset: usize,
+    payload: &'a [u8],
+}
+
+impl<'a> UdpBuilder<'a> {
+    pub fn new(src_ip: Ipv4Addr, dst_ip: Ipv4Addr, src_port: u16, dst_port: u16, payload: &'a [u8]) -> UdpBuilder<'a> {
+        UdpBuilder {
+            src_ip: src_ip,
+            dst_ip: dst_ip,
+            src: src_port,
+            dst: dst_port,
+            offset: 0,
+            payload: payload,
+        }
+    }
+}
+
+impl<'a> Ipv4Protocol for UdpBuilder<'a> {
+    fn next_level_protocol(&self) -> IpNextHeaderProtocol {
+        IpNextHeaderProtocols::Udp
+    }
+
+    fn len(&self) -> u16 {
+        (UdpPacket::minimum_packet_size() + self.payload.len()) as u16
+    }
+
+    fn build(&mut self, buffer: &mut [u8]) {
+        let payload_buffer = if self.offset == 0 {
+            {
+                let mut pkg = MutableUdpPacket::new(buffer).unwrap();
+                pkg.set_source(self.src);
+                pkg.set_destination(self.dst);
+                pkg.set_length(self.len());
+                let checksum = ipv4_checksum(&pkg.to_immutable(),
+                                             self.payload,
+                                             self.src_ip,
+                                             self.dst_ip,
+                                             self.next_level_protocol());
+                pkg.set_checksum(checksum);
+            }
+            &mut buffer[UdpPacket::minimum_packet_size()..]
+        } else {
+            buffer
         };
-        self.ipv4.send(total_size, IpNextHeaderProtocols::Udp, &mut builder_wrapper)
+        let start = self.offset;
+        let end = self.offset + payload_buffer.len();
+        payload_buffer.copy_from_slice(&self.payload[start..end]);
+        self.offset = end;
     }
 }
 
@@ -230,9 +272,7 @@ impl UdpSocket {
         let len = buf.len() as u16;
 
         if let Some(udp_tx) = self.tx_cache.get_mut(&dst) {
-            udp_tx.send(len, |pkg| {
-                pkg.set_payload(buf);
-            })
+            udp_tx.send(buf)
         } else {
             // No cached UdpTx is treated as an existing but outdated one
             Err(TxError::InvalidTx)
