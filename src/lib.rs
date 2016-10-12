@@ -205,7 +205,7 @@ mod stack;
 #[cfg(not(feature = "unit-tests"))]
 pub use stack::{NetworkStack, StackError, StackResult};
 
-pub static DEFAULT_BUFFER_SIZE: usize = 1024*128;
+pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
 
 /// Representation for one network interface. More or less a subset of
 /// `pnet::util::NetworkInterface`, but with guaranteed MAC address.

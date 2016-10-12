@@ -20,9 +20,7 @@ pub struct RoutingTable {
 
 impl RoutingTable {
     pub fn new() -> RoutingTable {
-        RoutingTable {
-            table: BTreeMap::new(),
-        }
+        RoutingTable { table: BTreeMap::new() }
     }
 
     // TODO: Check for collision
