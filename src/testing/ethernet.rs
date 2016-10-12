@@ -1,8 +1,9 @@
 use std::sync::mpsc;
 
-use pnet::packet::ethernet::EtherType;
+use pnet::packet::ethernet::{EtherType, EtherTypes};
 
 use TxResult;
+use ethernet::EthernetProtocol;
 
 #[derive(Debug)]
 pub struct EthernetTx {
@@ -15,23 +16,38 @@ impl EthernetTx {
         (EthernetTx { chan: tx }, rx)
     }
 
-    pub fn get_mtu(&self) -> usize {
-        1500
-    }
-
-    pub fn send<T>(&mut self,
-                   num_packets: usize,
-                   payload_size: usize,
-                   _ether_type: EtherType,
-                   mut builder: T)
-                   -> TxResult
-        where T: FnMut(&mut [u8])
-    {
-        for _ in 0..num_packets {
-            let mut buffer = vec![0; payload_size];
-            builder(&mut buffer[..]);
+    pub fn send<P: EthernetProtocol>(&mut self,
+                                     packets: usize,
+                                     size: usize,
+                                     mut payload: P)
+                                     -> TxResult {
+        for _ in 0..packets {
+            let mut buffer = vec![0; size];
+            payload.build(&mut buffer[..]);
             self.chan.send(buffer.into_boxed_slice()).unwrap();
         }
         Ok(())
+    }
+}
+
+pub struct TestEthernetProtocol {
+    first_byte: u8,
+}
+
+impl TestEthernetProtocol {
+    pub fn new(first_byte: u8) -> Self {
+        TestEthernetProtocol {
+            first_byte: first_byte,
+        }
+    }
+}
+
+impl EthernetProtocol for TestEthernetProtocol {
+    fn ether_type(&self) -> EtherType {
+        EtherTypes::Rarp
+    }
+
+    fn build(&mut self, buffer: &mut [u8]) {
+        buffer[0] = self.first_byte;
     }
 }
