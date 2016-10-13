@@ -101,6 +101,10 @@ impl StackInterface {
         }
     }
 
+    pub fn interface(&self) -> Interface {
+        self.interface.clone()
+    }
+
     fn tx(&self) -> Tx {
         Tx::versioned(self.tx.clone())
     }
@@ -222,10 +226,10 @@ impl NetworkStack {
         }
     }
 
-    pub fn interface_from_name(&self, name: &str) -> StackResult<&Interface> {
-        for interface in self.interfaces.keys() {
+    pub fn interface_from_name(&mut self, name: &str) -> StackResult<&mut StackInterface> {
+        for (interface, stack_interface) in &mut self.interfaces {
             if interface.name == name {
-                return Ok(interface);
+                return Ok(stack_interface);
             }
         }
         Err(StackError::InvalidInterface)
