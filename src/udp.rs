@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::{Packet, MutablePacket};
+use pnet::packet::Packet;
 
 use {RxError, RxResult, TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]

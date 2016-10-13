@@ -55,11 +55,9 @@ impl EthernetTx {
     /// will be sent. This is  usually not a problem since the IP layer has the
     /// length in the header and the extra bytes should thus not cause any
     /// trouble.
-    pub fn send<P: EthernetProtocol>(&mut self,
-                                     packets: usize,
-                                     size: usize,
-                                     payload: P)
-                                     -> TxResult {
+    pub fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
+        where P: EthernetProtocol
+    {
         let mut builder = EthernetBuilder::new(self.src, self.dst, payload);
         let total_size = size + EthernetPacket::minimum_packet_size();
         self.tx.send(packets, total_size, |pkg| builder.build(pkg))

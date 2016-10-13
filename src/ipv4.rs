@@ -9,7 +9,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 
-use {RxError, RxResult, TxResult, TxError};
+use {RxError, RxResult, TxResult};
 use ethernet::{EthernetListener, EthernetProtocol};
 use util::Buffer;
 
