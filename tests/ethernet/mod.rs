@@ -5,7 +5,7 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEther
 use pnet::util::MacAddr;
 use pnet::packet::{Packet, PrimitiveValues};
 
-use rips::{Tx, RxResult};
+use rips::{RxResult, Tx};
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 
 use rips::testing;

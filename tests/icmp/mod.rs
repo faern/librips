@@ -4,7 +4,7 @@ use std::time::SystemTime;
 
 use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::ipv4::{Ipv4Packet};
+use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::icmp::echo_request::icmp_codes;
 use pnet::packet::icmp::{IcmpPacket, icmp_types};
 use pnet::packet::Packet;
@@ -12,7 +12,7 @@ use pnet::util::MacAddr;
 
 use ipnetwork::Ipv4Network;
 
-use rips::icmp::{IcmpListener, IcmpBuilder, BasicIcmpProtocol};
+use rips::icmp::{BasicIcmpProtocol, IcmpBuilder, IcmpListener};
 use rips::ipv4::Ipv4Builder;
 use rips::ethernet::EthernetBuilder;
 use rips::testing;

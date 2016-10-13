@@ -3,7 +3,7 @@ use std::time::SystemTime;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::Packet;
 
 use ipv4::{Ipv4Listener, Ipv4Protocol};
@@ -32,10 +32,7 @@ impl Ipv4Tx {
         (ipv4, rx)
     }
 
-    pub fn send<P: Ipv4Protocol>(&mut self,
-                                 mut payload: P)
-                                 -> TxResult
-    {
+    pub fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
         let mut buffer = vec![0; payload.len() as usize];
         payload.build(&mut buffer);
         self.chan.send((payload.next_level_protocol(), buffer.into_boxed_slice())).unwrap();
@@ -58,7 +55,10 @@ impl<'a> TestIpv4Protocol<'a> {
         }
     }
 
-    pub fn new_counted(size: usize, call_count: &'a AtomicUsize, call_bytes: &'a AtomicUsize) -> TestIpv4Protocol<'a> {
+    pub fn new_counted(size: usize,
+                       call_count: &'a AtomicUsize,
+                       call_bytes: &'a AtomicUsize)
+                       -> TestIpv4Protocol<'a> {
         TestIpv4Protocol {
             size: size,
             call_count: Some(call_count),

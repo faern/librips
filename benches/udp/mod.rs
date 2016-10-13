@@ -12,7 +12,7 @@ use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ipv4::MutableIpv4Packet;
 use pnet::packet::MutablePacket;
 
-use rips::{self, testing, NetworkStack};
+use rips::{self, NetworkStack, testing};
 use rips::udp::UdpSocket as RipsUdpSocket;
 
 lazy_static! {
@@ -39,10 +39,7 @@ macro_rules! bench_to_send {
 
 #[bench]
 fn dummy_lan_63k(b: &mut Bencher) {
-    bench_to_send!(b,
-                   rips_socket(testing::dummy_stack(0).0),
-                   BUF_63K,
-                   *DST);
+    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_63K, *DST);
 }
 
 #[bench]
@@ -63,34 +60,22 @@ fn std_lan_63k(b: &mut Bencher) {
 
 #[bench]
 fn dummy_through_gw_63k(b: &mut Bencher) {
-    bench_to_send!(b,
-                   rips_socket(testing::dummy_stack(0).0),
-                   BUF_63K,
-                   *DST2);
+    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_63K, *DST2);
 }
 
 #[bench]
 fn dummy_lan_1byte(b: &mut Bencher) {
-    bench_to_send!(b,
-                   rips_socket(testing::dummy_stack(0).0),
-                   BUF_1BYTE,
-                   *DST);
+    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_1BYTE, *DST);
 }
 
 #[bench]
 fn dummy_through_gw_1byte(b: &mut Bencher) {
-    bench_to_send!(b,
-                   rips_socket(testing::dummy_stack(0).0),
-                   BUF_1BYTE,
-                   *DST2);
+    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_1BYTE, *DST2);
 }
 
 #[bench]
 fn std_through_gw_1byte(b: &mut Bencher) {
-    bench_to_send!(b,
-                   StdUdpSocket::bind(*SRC).unwrap(),
-                   BUF_1BYTE,
-                   *DST2);
+    bench_to_send!(b, StdUdpSocket::bind(*SRC).unwrap(), BUF_1BYTE, *DST2);
 }
 
 #[bench]
@@ -114,16 +99,21 @@ fn dummy_recv(b: &mut Bencher) {
 }
 
 fn rips_socket(mut stack: NetworkStack) -> RipsUdpSocket {
-    let interface = stack.interfaces().into_iter().find(|i| i.name.starts_with("eth")).expect("No suitable interface");
+    let interface = stack.interfaces()
+        .into_iter()
+        .find(|i| i.name.starts_with("eth"))
+        .expect("No suitable interface");
     stack.add_ipv4(&interface, *LOCAL_NET).unwrap();
     {
         let routing_table = stack.routing_table();
-        routing_table.add_route(*DEFAULT_ROUTE, Some(Ipv4Addr::new(10, 137, 8, 1)), interface.clone());
+        routing_table.add_route(*DEFAULT_ROUTE,
+                                Some(Ipv4Addr::new(10, 137, 8, 1)),
+                                interface.clone());
     }
     {
         let mut arp = stack.interface(&interface).unwrap().arp_table();
-        arp.insert(Ipv4Addr::new(10, 137, 8, 1), MacAddr::new(0,0,0,0,0,0));
-        arp.insert(Ipv4Addr::new(10, 137, 8, 2), MacAddr::new(0,0,0,0,0,0));
+        arp.insert(Ipv4Addr::new(10, 137, 8, 1), MacAddr::new(0, 0, 0, 0, 0, 0));
+        arp.insert(Ipv4Addr::new(10, 137, 8, 2), MacAddr::new(0, 0, 0, 0, 0, 0));
     }
     let stack = Arc::new(Mutex::new(stack));
     RipsUdpSocket::bind(stack, *SRC).unwrap()

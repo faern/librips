@@ -56,7 +56,7 @@ fn arp_locking() {
         spawn(move || {
             let mac = match thread_arp_table.get(dst) {
                 Ok(mac) => mac,
-                Err(rx) => rx.recv().unwrap()
+                Err(rx) => rx.recv().unwrap(),
             };
             arp_thread_tx.send(mac).expect("Unable to send mac to channel");
         });

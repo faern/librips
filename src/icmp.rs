@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use std::cmp;
 
-use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
-use pnet::packet::icmp::{IcmpPacket, IcmpType, IcmpCode, MutableIcmpPacket, checksum, icmp_types};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, icmp_types};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::{MutablePacket, Packet};
@@ -143,9 +143,7 @@ pub struct IcmpBuilder<P: IcmpProtocol> {
 
 impl<P: IcmpProtocol> IcmpBuilder<P> {
     pub fn new(builder: P) -> IcmpBuilder<P> {
-        IcmpBuilder {
-            builder: builder,
-        }
+        IcmpBuilder { builder: builder }
     }
 }
 
@@ -176,9 +174,7 @@ struct PingBuilder<'a> {
 
 impl<'a> PingBuilder<'a> {
     pub fn new(payload: &'a [u8]) -> PingBuilder<'a> {
-        PingBuilder {
-            payload: payload,
-        }
+        PingBuilder { payload: payload }
     }
 }
 
@@ -192,7 +188,8 @@ impl<'a> IcmpProtocol for PingBuilder<'a> {
     }
 
     fn len(&self) -> usize {
-        EchoRequestPacket::minimum_packet_size() - IcmpPacket::minimum_packet_size() + self.payload.len()
+        EchoRequestPacket::minimum_packet_size() - IcmpPacket::minimum_packet_size() +
+        self.payload.len()
     }
 
     fn build(&mut self, pkg: &mut MutableIcmpPacket) {

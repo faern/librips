@@ -218,15 +218,9 @@ impl Ipv4Tx {
     /// the local network it will be sent directly to the MAC of that IP (taken
     /// from arp), otherwise it will be sent to the MAC of the configured
     /// gateway.
-    pub fn send<P: Ipv4Protocol>(&mut self,
-                                 payload: P)
-                                 -> TxResult
-    {
+    pub fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult {
         let payload_len = payload.len();
-        let builder = Ipv4Builder::new(self.src,
-                                       self.dst,
-                                       self.next_identification,
-                                       payload);
+        let builder = Ipv4Builder::new(self.src, self.dst, self.next_identification, payload);
         self.next_identification.wrapping_add(1);
 
         let max_payload_per_fragment = self.max_payload_per_fragment();
@@ -360,7 +354,7 @@ mod tests {
     use std::time::SystemTime;
     use std::collections::HashMap;
 
-    use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
+    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
     use pnet::packet::ethernet::MutableEthernetPacket;
     use pnet::packet::{MutablePacket, Packet};

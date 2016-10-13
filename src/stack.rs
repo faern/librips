@@ -270,7 +270,11 @@ impl NetworkStack {
         Ok(icmp::IcmpTx::new(ipv4_tx))
     }
 
-    pub fn icmp_listen<L>(&mut self, local_ip: Ipv4Addr, icmp_type: IcmpType, listener: L) -> io::Result<()>
+    pub fn icmp_listen<L>(&mut self,
+                          local_ip: Ipv4Addr,
+                          icmp_type: IcmpType,
+                          listener: L)
+                          -> io::Result<()>
         where L: icmp::IcmpListener + 'static
     {
         if local_ip == Ipv4Addr::new(0, 0, 0, 0) {

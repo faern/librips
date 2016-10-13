@@ -1,10 +1,10 @@
-use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs, Ipv4Addr};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::io;
 use std::sync::{Arc, Mutex, mpsc};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
@@ -13,7 +13,7 @@ use {Protocol, RxError, RxResult, TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 
-use ipv4::{Ipv4Listener, Ipv4Tx, Ipv4Protocol};
+use ipv4::{Ipv4Listener, Ipv4Protocol, Ipv4Tx};
 use util;
 
 pub trait UdpListener: Send {
@@ -77,8 +77,7 @@ impl UdpTx {
         }
     }
 
-    pub fn send(&mut self, payload: &[u8]) -> TxResult
-    {
+    pub fn send(&mut self, payload: &[u8]) -> TxResult {
         let (src_port, dst_port) = (self.src, self.dst);
         let src_ip = self.ipv4.src;
         let dst_ip = self.ipv4.dst;
@@ -97,7 +96,12 @@ struct UdpBuilder<'a> {
 }
 
 impl<'a> UdpBuilder<'a> {
-    pub fn new(src_ip: Ipv4Addr, dst_ip: Ipv4Addr, src_port: u16, dst_port: u16, payload: &'a [u8]) -> UdpBuilder<'a> {
+    pub fn new(src_ip: Ipv4Addr,
+               dst_ip: Ipv4Addr,
+               src_port: u16,
+               dst_port: u16,
+               payload: &'a [u8])
+               -> UdpBuilder<'a> {
         UdpBuilder {
             src_ip: src_ip,
             dst_ip: dst_ip,
@@ -128,10 +132,8 @@ impl<'a> Protocol for UdpBuilder<'a> {
                 pkg.set_source(self.src);
                 pkg.set_destination(self.dst);
                 pkg.set_length(self.len() as u16);
-                let checksum = ipv4_checksum(&pkg.to_immutable(),
-                                             self.payload,
-                                             self.src_ip,
-                                             self.dst_ip);
+                let checksum =
+                    ipv4_checksum(&pkg.to_immutable(), self.payload, self.src_ip, self.dst_ip);
                 pkg.set_checksum(checksum);
             }
             &mut buffer[UdpPacket::minimum_packet_size()..]
