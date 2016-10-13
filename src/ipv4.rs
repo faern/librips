@@ -223,14 +223,10 @@ impl Ipv4Tx {
                                  -> TxResult
     {
         let payload_len = payload.len();
-        let builder = Ipv4Builder {
-            src: self.src,
-            dst: self.dst,
-            offset: 0,
-            payload_size: payload_len,
-            identification: self.next_identification,
-            payload: payload,
-        };
+        let builder = Ipv4Builder::new(self.src,
+                                       self.dst,
+                                       self.next_identification,
+                                       payload);
         self.next_identification.wrapping_add(1);
 
         let max_payload_per_fragment = self.max_payload_per_fragment();
@@ -297,9 +293,20 @@ pub struct Ipv4Builder<P: Ipv4Protocol> {
     src: Ipv4Addr,
     dst: Ipv4Addr,
     offset: u16,
-    payload_size: u16,
     identification: u16,
     payload: P,
+}
+
+impl<P: Ipv4Protocol> Ipv4Builder<P> {
+    pub fn new(src: Ipv4Addr, dst: Ipv4Addr, identification: u16, payload: P) -> Self {
+        Ipv4Builder {
+            src: src,
+            dst: dst,
+            offset: 0,
+            identification: identification,
+            payload: payload,
+        }
+    }
 }
 
 impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
@@ -321,7 +328,7 @@ impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
         pkg.set_destination(self.dst);
         pkg.set_fragment_offset(self.offset / 8);
 
-        let bytes_remaining = self.payload_size - self.offset;
+        let bytes_remaining = self.payload.len() - self.offset;
         let bytes_max = pkg.payload().len() as u16;
         let payload_size = if bytes_remaining <= bytes_max {
             pkg.set_flags(NO_FLAGS);
