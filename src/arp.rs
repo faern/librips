@@ -12,7 +12,7 @@ use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::Packet;
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
-use {RxError, RxResult, TxResult, VersionedTx};
+use {Protocol, RxError, RxResult, TxResult, VersionedTx};
 use ethernet::{EthernetListener, EthernetProtocol, EthernetTx};
 
 struct TableData {
@@ -158,7 +158,9 @@ impl EthernetProtocol for ArpBuilder {
     fn ether_type(&self) -> EtherType {
         EtherTypes::Arp
     }
+}
 
+impl Protocol for ArpBuilder {
     fn len(&self) -> usize {
         ArpPacket::minimum_packet_size()
     }

@@ -7,7 +7,7 @@ use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
 use pnet::packet::Packet;
 
 use ipv4::{Ipv4Listener, Ipv4Protocol};
-use {RxResult, TxResult};
+use {Protocol, RxResult, TxResult};
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -44,13 +44,13 @@ impl Ipv4Tx {
 }
 
 pub struct TestIpv4Protocol<'a> {
-    size: u16,
+    size: usize,
     call_count: Option<&'a AtomicUsize>,
     call_bytes: Option<&'a AtomicUsize>,
 }
 
 impl<'a> TestIpv4Protocol<'a> {
-    pub fn new(size: u16) -> TestIpv4Protocol<'a> {
+    pub fn new(size: usize) -> TestIpv4Protocol<'a> {
         TestIpv4Protocol {
             size: size,
             call_count: None,
@@ -58,7 +58,7 @@ impl<'a> TestIpv4Protocol<'a> {
         }
     }
 
-    pub fn new_counted(size: u16, call_count: &'a AtomicUsize, call_bytes: &'a AtomicUsize) -> TestIpv4Protocol<'a> {
+    pub fn new_counted(size: usize, call_count: &'a AtomicUsize, call_bytes: &'a AtomicUsize) -> TestIpv4Protocol<'a> {
         TestIpv4Protocol {
             size: size,
             call_count: Some(call_count),
@@ -71,8 +71,10 @@ impl<'a> Ipv4Protocol for TestIpv4Protocol<'a> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Tcp
     }
+}
 
-    fn len(&self) -> u16 {
+impl<'a> Protocol for TestIpv4Protocol<'a> {
+    fn len(&self) -> usize {
         self.size
     }
 

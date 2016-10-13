@@ -229,6 +229,15 @@ impl Interface {
     }
 }
 
+/// Super trait to any protocol
+pub trait Protocol {
+    /// Returns how many bytes this packet will occupy
+    fn len(&self) -> usize;
+
+    /// Construct this packet into the given `buffer`
+    fn build(&mut self, buffer: &mut [u8]);
+}
+
 /// Represents the channel used for sending to and reading from one network
 /// interface.
 /// Basically a simplification of `pnet::datalink::Channel` but guaranteed to

@@ -9,7 +9,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 
-use {RxError, RxResult, TxResult};
+use {Protocol, RxError, RxResult, TxResult};
 use ethernet::{EthernetListener, EthernetProtocol};
 use util::Buffer;
 
@@ -245,14 +245,8 @@ impl Ipv4Tx {
     }
 }
 
-/// Trait for anything wishing to be the payload of an Ipv4 packet.
-pub trait Ipv4Protocol {
+pub trait Ipv4Protocol: Protocol {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol;
-
-    /// Returns the number of bytes this instance wants to put inside the packet
-    fn len(&self) -> u16;
-
-    fn build(&mut self, buffer: &mut [u8]);
 }
 
 pub struct BasicIpv4Protocol {
@@ -276,9 +270,11 @@ impl Ipv4Protocol for BasicIpv4Protocol {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         self.next_level_protocol
     }
+}
 
-    fn len(&self) -> u16 {
-        self.payload.len() as u16
+impl Protocol for BasicIpv4Protocol {
+    fn len(&self) -> usize {
+        self.payload.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -292,7 +288,7 @@ impl Ipv4Protocol for BasicIpv4Protocol {
 pub struct Ipv4Builder<P: Ipv4Protocol> {
     src: Ipv4Addr,
     dst: Ipv4Addr,
-    offset: u16,
+    offset: usize,
     identification: u16,
     payload: P,
 }
@@ -313,9 +309,11 @@ impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
     fn ether_type(&self) -> EtherType {
         EtherTypes::Ipv4
     }
+}
 
+impl<P: Ipv4Protocol> Protocol for Ipv4Builder<P> {
     fn len(&self) -> usize {
-        Ipv4Packet::minimum_packet_size() + self.payload.len() as usize
+        Ipv4Packet::minimum_packet_size() + self.payload.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -330,10 +328,10 @@ impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
         pkg.set_identification(self.identification);
         pkg.set_source(self.src);
         pkg.set_destination(self.dst);
-        pkg.set_fragment_offset(self.offset / 8);
+        pkg.set_fragment_offset((self.offset / 8) as u16);
 
         let bytes_remaining = self.payload.len() - self.offset;
-        let bytes_max = pkg.payload().len() as u16;
+        let bytes_max = pkg.payload().len();
         let payload_size = if bytes_remaining <= bytes_max {
             pkg.set_flags(NO_FLAGS);
             bytes_remaining
@@ -341,11 +339,11 @@ impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
             pkg.set_flags(MORE_FRAGMENTS);
             bytes_max & !0b111 // Round down to divisable by 8
         };
-        let total_length = payload_size + Ipv4Packet::minimum_packet_size() as u16;
-        pkg.set_total_length(total_length);
+        let total_length = payload_size + Ipv4Packet::minimum_packet_size();
+        pkg.set_total_length(total_length as u16);
 
         pkg.set_next_level_protocol(self.payload.next_level_protocol());
-        self.payload.build(&mut pkg.payload_mut()[..payload_size as usize]);
+        self.payload.build(&mut pkg.payload_mut()[..payload_size]);
 
         let checksum = checksum(&pkg.to_immutable());
         pkg.set_checksum(checksum);
@@ -386,7 +384,7 @@ mod tests {
 
         let call_count = AtomicUsize::new(0);
         let call_bytes = AtomicUsize::new(0);
-        let mut builder = TestIpv4Protocol::new_counted(pkg_size as u16, &call_count, &call_bytes);
+        let mut builder = TestIpv4Protocol::new_counted(pkg_size, &call_count, &call_bytes);
         assert!(ipv4_tx.send(builder).is_ok());
         assert_eq!(call_count.load(Ordering::SeqCst), 2);
         assert_eq!(call_bytes.load(Ordering::SeqCst), pkg_size);
@@ -412,7 +410,7 @@ mod tests {
 
         let call_count = AtomicUsize::new(0);
         let call_bytes = AtomicUsize::new(0);
-        let mut builder = TestIpv4Protocol::new_counted(pkg_size as u16, &call_count, &call_bytes);
+        let mut builder = TestIpv4Protocol::new_counted(pkg_size, &call_count, &call_bytes);
         assert!(ipv4_tx.send(builder).is_ok());
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
         assert_eq!(call_bytes.load(Ordering::SeqCst), pkg_size);

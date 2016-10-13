@@ -12,7 +12,7 @@ use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::MutablePacket;
 use pnet::util::MacAddr;
 
-use {RxResult, Tx, TxResult};
+use {Protocol, RxResult, Tx, TxResult};
 
 /// Anyone interested in receiving ethernet frames from an `EthernetRx` must
 /// implement this.
@@ -65,12 +65,8 @@ impl EthernetTx {
 }
 
 /// Trait for anything wishing to be the payload of an Ethernet frame.
-pub trait EthernetProtocol {
+pub trait EthernetProtocol: Protocol {
     fn ether_type(&self) -> EtherType;
-
-    fn len(&self) -> usize;
-
-    fn build(&mut self, buffer: &mut [u8]);
 }
 
 pub struct BasicEthernetProtocol {
@@ -93,7 +89,9 @@ impl EthernetProtocol for BasicEthernetProtocol {
     fn ether_type(&self) -> EtherType {
         self.ether_type
     }
+}
 
+impl Protocol for BasicEthernetProtocol {
     fn len(&self) -> usize {
         self.payload.len()
     }

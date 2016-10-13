@@ -9,7 +9,7 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
 
-use {RxError, RxResult, TxError, TxResult};
+use {Protocol, RxError, RxResult, TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 
@@ -113,9 +113,11 @@ impl<'a> Ipv4Protocol for UdpBuilder<'a> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Udp
     }
+}
 
-    fn len(&self) -> u16 {
-        (UdpPacket::minimum_packet_size() + self.payload.len()) as u16
+impl<'a> Protocol for UdpBuilder<'a> {
+    fn len(&self) -> usize {
+        UdpPacket::minimum_packet_size() + self.payload.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -125,7 +127,7 @@ impl<'a> Ipv4Protocol for UdpBuilder<'a> {
                 let mut pkg = MutableUdpPacket::new(header_buffer).unwrap();
                 pkg.set_source(self.src);
                 pkg.set_destination(self.dst);
-                pkg.set_length(self.len());
+                pkg.set_length(self.len() as u16);
                 let checksum = ipv4_checksum(&pkg.to_immutable(),
                                              self.payload,
                                              self.src_ip,

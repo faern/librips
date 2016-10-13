@@ -9,7 +9,7 @@ use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPack
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::{MutablePacket, Packet};
 
-use {RxError, RxResult, TxResult};
+use {Protocol, RxError, RxResult, TxResult};
 use ipv4::{Ipv4Listener, Ipv4Protocol};
 
 #[cfg(all(test, feature = "unit-tests"))]
@@ -92,7 +92,7 @@ pub trait IcmpProtocol {
 
     fn icmp_code(&self) -> IcmpCode;
 
-    fn len(&self) -> u16;
+    fn len(&self) -> usize;
 
     fn build(&mut self, pkg: &mut MutableIcmpPacket);
 }
@@ -124,8 +124,8 @@ impl IcmpProtocol for BasicIcmpProtocol {
         self.icmp_code
     }
 
-    fn len(&self) -> u16 {
-        self.payload.len() as u16
+    fn len(&self) -> usize {
+        self.payload.len()
     }
 
     fn build(&mut self, pkg: &mut MutableIcmpPacket) {
@@ -153,9 +153,11 @@ impl<P: IcmpProtocol> Ipv4Protocol for IcmpBuilder<P> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Icmp
     }
+}
 
-    fn len(&self) -> u16 {
-        IcmpPacket::minimum_packet_size() as u16 + self.builder.len()
+impl<P: IcmpProtocol> Protocol for IcmpBuilder<P> {
+    fn len(&self) -> usize {
+        IcmpPacket::minimum_packet_size() + self.builder.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -189,8 +191,8 @@ impl<'a> IcmpProtocol for PingBuilder<'a> {
         icmp_codes::NoCode
     }
 
-    fn len(&self) -> u16 {
-        (EchoRequestPacket::minimum_packet_size() - IcmpPacket::minimum_packet_size() + self.payload.len()) as u16
+    fn len(&self) -> usize {
+        EchoRequestPacket::minimum_packet_size() - IcmpPacket::minimum_packet_size() + self.payload.len()
     }
 
     fn build(&mut self, pkg: &mut MutableIcmpPacket) {
