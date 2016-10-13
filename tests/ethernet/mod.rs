@@ -9,6 +9,7 @@ use rips::{Tx, RxResult};
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 
 use rips::testing;
+use rips::ethernet::BasicEthernetProtocol;
 
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -62,16 +63,14 @@ fn test_ethernet_send() {
     let tx = Tx::direct(channel.0);
     let mut ethernet_tx = EthernetTx::new(tx, src, dst);
 
-    ethernet_tx.send(1, 1, EtherTypes::Rarp, |pkg| {
-            pkg[0] = 57;
-        })
+    ethernet_tx.send(1, 1, BasicEthernetProtocol::new(EtherTypes::Rarp, vec![57]))
         .expect("Unable to send to ethernet");
 
     let sent_buffer = read_handle.try_recv().expect("Expected a packet to have been sent");
-    assert_eq!(15, sent_buffer.len());
+    assert_eq!(sent_buffer.len(), 15);
     let sent_pkg = EthernetPacket::new(&sent_buffer[..]).expect("Expected buffer to fit a frame");
-    assert_eq!(src, sent_pkg.get_source());
-    assert_eq!(dst, sent_pkg.get_destination());
-    assert_eq!(0x8035, sent_pkg.get_ethertype().to_primitive_values().0);
-    assert_eq!(57, sent_pkg.payload()[0]);
+    assert_eq!(sent_pkg.get_source(), src);
+    assert_eq!(sent_pkg.get_destination(), dst);
+    assert_eq!(sent_pkg.get_ethertype(), EtherTypes::Rarp);
+    assert_eq!(sent_pkg.payload()[0], 57);
 }

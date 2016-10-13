@@ -1,8 +1,7 @@
 use std::sync::mpsc;
 
-use pnet::packet::ethernet::EtherType;
-
 use TxResult;
+use ethernet::EthernetProtocol;
 
 #[derive(Debug)]
 pub struct EthernetTx {
@@ -15,21 +14,12 @@ impl EthernetTx {
         (EthernetTx { chan: tx }, rx)
     }
 
-    pub fn get_mtu(&self) -> usize {
-        1500
-    }
-
-    pub fn send<T>(&mut self,
-                   num_packets: usize,
-                   payload_size: usize,
-                   _ether_type: EtherType,
-                   mut builder: T)
-                   -> TxResult
-        where T: FnMut(&mut [u8])
+    pub fn send<P>(&mut self, packets: usize, size: usize, mut payload: P) -> TxResult
+        where P: EthernetProtocol
     {
-        for _ in 0..num_packets {
-            let mut buffer = vec![0; payload_size];
-            builder(&mut buffer[..]);
+        for _ in 0..packets {
+            let mut buffer = vec![0; size];
+            payload.build(&mut buffer[..]);
             self.chan.send(buffer.into_boxed_slice()).unwrap();
         }
         Ok(())

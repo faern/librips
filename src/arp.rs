@@ -13,7 +13,7 @@ use pnet::packet::Packet;
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
 
 use {RxError, RxResult, TxResult, VersionedTx};
-use ethernet::{EthernetListener, EthernetTx};
+use ethernet::{EthernetListener, EthernetProtocol, EthernetTx};
 
 struct TableData {
     table: HashMap<Ipv4Addr, MacAddr>,
@@ -78,7 +78,7 @@ impl ArpTable {
 
 impl Default for ArpTable {
     fn default() -> Self {
-       Self::new()
+        Self::new()
     }
 }
 
@@ -124,7 +124,7 @@ pub struct ArpTx {
 }
 
 impl ArpTx {
-    /// Creates a new `ArpTx` that will transmit through `ethernet`.
+    /// Creates a new `ArpTx` that will transmit through `ethernet`
     pub fn new(ethernet: EthernetTx) -> ArpTx {
         ArpTx { ethernet: ethernet }
     }
@@ -132,22 +132,43 @@ impl ArpTx {
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
     /// request
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult {
-        let local_mac = self.ethernet.src;
-        let mut builder_wrapper = |payload: &mut [u8]| {
-            let mut arp_pkg = MutableArpPacket::new(payload).unwrap();
-            arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
-            arp_pkg.set_protocol_type(EtherTypes::Ipv4);
-            arp_pkg.set_hw_addr_len(6);
-            arp_pkg.set_proto_addr_len(4);
-            arp_pkg.set_operation(ArpOperations::Request);
-            arp_pkg.set_sender_hw_addr(local_mac);
-            arp_pkg.set_sender_proto_addr(sender_ip);
-            arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
-            arp_pkg.set_target_proto_addr(target_ip);
-        };
-        self.ethernet.send(1,
-                           ArpPacket::minimum_packet_size(),
-                           EtherTypes::Arp,
-                           &mut builder_wrapper)
+        let builder = ArpBuilder::new(self.ethernet.src, sender_ip, target_ip);
+        self.ethernet.send(1, ArpPacket::minimum_packet_size(), builder)
+    }
+}
+
+pub struct ArpBuilder {
+    sender_mac: MacAddr,
+    sender_ip: Ipv4Addr,
+    target_ip: Ipv4Addr,
+}
+
+impl ArpBuilder {
+    /// Constructs a new `ArpBuilder` able to construct Arp packets
+    pub fn new(sender_mac: MacAddr, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> Self {
+        ArpBuilder {
+            sender_mac: sender_mac,
+            sender_ip: sender_ip,
+            target_ip: target_ip,
+        }
+    }
+}
+
+impl EthernetProtocol for ArpBuilder {
+    fn ether_type(&self) -> EtherType {
+        EtherTypes::Arp
+    }
+
+    fn build(&mut self, buffer: &mut [u8]) {
+        let mut arp_pkg = MutableArpPacket::new(buffer).unwrap();
+        arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
+        arp_pkg.set_protocol_type(EtherTypes::Ipv4);
+        arp_pkg.set_hw_addr_len(6);
+        arp_pkg.set_proto_addr_len(4);
+        arp_pkg.set_operation(ArpOperations::Request);
+        arp_pkg.set_sender_hw_addr(self.sender_mac);
+        arp_pkg.set_sender_proto_addr(self.sender_ip);
+        arp_pkg.set_target_hw_addr(MacAddr::new(0, 0, 0, 0, 0, 0));
+        arp_pkg.set_target_proto_addr(self.target_ip);
     }
 }
