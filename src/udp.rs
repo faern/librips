@@ -131,8 +131,7 @@ impl<'a> Ipv4Protocol for UdpBuilder<'a> {
                 let checksum = ipv4_checksum(&pkg.to_immutable(),
                                              self.payload,
                                              self.src_ip,
-                                             self.dst_ip,
-                                             self.next_level_protocol());
+                                             self.dst_ip);
                 pkg.set_checksum(checksum);
             }
             &mut buffer[UdpPacket::minimum_packet_size()..]
@@ -270,8 +269,6 @@ impl UdpSocket {
         if buf.len() > ::std::u16::MAX as usize {
             return Err(TxError::TooLargePayload);
         }
-        let len = buf.len() as u16;
-
         if let Some(udp_tx) = self.tx_cache.get_mut(&dst) {
             udp_tx.send(buf)
         } else {
