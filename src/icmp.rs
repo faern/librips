@@ -2,14 +2,14 @@ use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::icmp::{IcmpPacket, IcmpType, MutableIcmpPacket, checksum, icmp_types};
+use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
+use pnet::packet::icmp::{IcmpPacket, IcmpType, IcmpCode, MutableIcmpPacket, checksum, icmp_types};
 use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::{MutablePacket, Packet};
 
 use {RxError, RxResult, TxResult};
-use ipv4::Ipv4Listener;
+use ipv4::{Ipv4Listener, Ipv4Protocol};
 
 #[cfg(all(test, feature = "unit-tests"))]
 use testing::ipv4::Ipv4Tx;
@@ -71,33 +71,92 @@ impl IcmpTx {
 
     /// Sends a general Icmp packet. Should not be called directly in general,
     /// instead use the specialized `send_echo` for ping packets.
-    pub fn send<T>(&mut self, payload_size: u16, mut builder: T) -> TxResult
-        where T: FnMut(&mut MutableIcmpPacket)
+    pub fn send<P>(&mut self, builder: P) -> TxResult
+        where P: IcmpProtocol
     {
-        let total_size = IcmpPacket::minimum_packet_size() as u16 + payload_size;
-        let mut builder_wrapper = |payload: &mut [u8]| {
-            let mut icmp_pkg = MutableIcmpPacket::new(payload).unwrap();
-            builder(&mut icmp_pkg);
-            let checksum = checksum(&icmp_pkg.to_immutable());
-            icmp_pkg.set_checksum(checksum);
-        };
-        self.ipv4.send(total_size,
-                       IpNextHeaderProtocols::Icmp,
-                       &mut builder_wrapper)
+        let builder = IcmpBuilder::new(builder);
+        self.ipv4.send(builder)
     }
 
     /// Sends an Echo Request packet (ping) with the given payload.
     pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {
-        let total_size = (EchoRequestPacket::minimum_packet_size() -
-                          IcmpPacket::minimum_packet_size() +
-                          payload.len()) as u16;
-        let mut builder_wrapper = |icmp_pkg: &mut MutableIcmpPacket| {
-            icmp_pkg.set_icmp_type(icmp_types::EchoRequest);
-            icmp_pkg.set_icmp_code(icmp_codes::NoCode);
-            let mut echo_pkg = MutableEchoRequestPacket::new(icmp_pkg.packet_mut()).unwrap();
-            echo_pkg.set_payload(payload);
-        };
-        self.send(total_size, &mut builder_wrapper)
+        let builder = PingBuilder::new(payload);
+        self.send(builder)
+    }
+}
+
+/// Trait for anything wishing to be the payload of an Icmp packet.
+pub trait IcmpProtocol {
+    fn icmp_type(&self) -> IcmpType;
+
+    fn icmp_code(&self) -> IcmpCode;
+
+    fn len(&self) -> u16;
+
+    fn build(&mut self, pkg: &mut MutableIcmpPacket);
+}
+
+struct IcmpBuilder<P: IcmpProtocol> {
+    builder: P,
+}
+
+impl<P: IcmpProtocol> IcmpBuilder<P> {
+    pub fn new(builder: P) -> IcmpBuilder<P> {
+        IcmpBuilder {
+            builder: builder,
+        }
+    }
+}
+
+impl<P: IcmpProtocol> Ipv4Protocol for IcmpBuilder<P> {
+    fn next_level_protocol(&self) -> IpNextHeaderProtocol {
+        IpNextHeaderProtocols::Icmp
+    }
+
+    fn len(&self) -> u16 {
+        IcmpPacket::minimum_packet_size() as u16 + self.builder.len()
+    }
+
+    fn build(&mut self, buffer: &mut [u8]) {
+        let mut pkg = MutableIcmpPacket::new(buffer).unwrap();
+        pkg.set_icmp_type(self.builder.icmp_type());
+        pkg.set_icmp_code(self.builder.icmp_code());
+        self.builder.build(&mut pkg);
+        let checksum = checksum(&pkg.to_immutable());
+        pkg.set_checksum(checksum);
+    }
+}
+
+struct PingBuilder<'a> {
+    payload: &'a [u8],
+}
+
+impl<'a> PingBuilder<'a> {
+    pub fn new(payload: &'a [u8]) -> PingBuilder<'a> {
+        PingBuilder {
+            payload: payload,
+        }
+    }
+}
+
+impl<'a> IcmpProtocol for PingBuilder<'a> {
+    fn icmp_type(&self) -> IcmpType {
+        icmp_types::EchoRequest
+    }
+
+    fn icmp_code(&self) -> IcmpCode {
+        icmp_codes::NoCode
+    }
+
+    fn len(&self) -> u16 {
+        (EchoRequestPacket::minimum_packet_size() - IcmpPacket::minimum_packet_size() + self.payload.len()) as u16
+    }
+
+    fn build(&mut self, pkg: &mut MutableIcmpPacket) {
+        let mut echo_pkg = MutableEchoRequestPacket::new(pkg.packet_mut()).unwrap();
+        echo_pkg.set_identifier(0);
+        echo_pkg.set_sequence_number(0);
+        echo_pkg.set_payload(self.payload);
     }
 }
 
