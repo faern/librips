@@ -68,6 +68,8 @@ impl EthernetTx {
 pub trait EthernetProtocol {
     fn ether_type(&self) -> EtherType;
 
+    fn len(&self) -> usize;
+
     fn build(&mut self, buffer: &mut [u8]);
 }
 
@@ -90,6 +92,10 @@ impl BasicEthernetProtocol {
 impl EthernetProtocol for BasicEthernetProtocol {
     fn ether_type(&self) -> EtherType {
         self.ether_type
+    }
+
+    fn len(&self) -> usize {
+        self.payload.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
@@ -115,6 +121,10 @@ impl<P: EthernetProtocol> EthernetBuilder<P> {
             dst: dst,
             payload: payload,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        EthernetPacket::minimum_packet_size() + self.payload.len()
     }
 
     /// Modifies `pkg` to have the correct header and payload

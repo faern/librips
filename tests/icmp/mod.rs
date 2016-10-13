@@ -43,17 +43,15 @@ fn recv_icmp() {
     stack.add_ipv4(&interface, local_net).unwrap();
     stack.icmp_listen(local_ip, icmp_types::DestinationUnreachable, listener).unwrap();
 
-    let payload = vec![6, 5];
-    let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() +
-               IcmpPacket::minimum_packet_size() + payload.len();
-    let mut buffer = vec![0; size];
+    let payload_builder = BasicIcmpProtocol::new(icmp_types::DestinationUnreachable,
+                                                 icmp_codes::NoCode,
+                                                 vec![6, 5]);
+    let icmp_builder = IcmpBuilder::new(payload_builder);
+    let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
+    let mut eth_builder = EthernetBuilder::new(remote_mac, local_mac, ipv4_builder);
+    let mut buffer = vec![0; eth_builder.len()];
     {
-        let payload_builder = BasicIcmpProtocol::new(icmp_types::DestinationUnreachable, icmp_codes::NoCode, payload);
-        let icmp_builder = IcmpBuilder::new(payload_builder);
-        let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
-        let mut eth_builder = EthernetBuilder::new(remote_mac, local_mac, ipv4_builder);
-
-        let eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
+        let eth_pkg = MutableEthernetPacket::new(&mut buffer).unwrap();
         eth_builder.build(eth_pkg);
     }
 

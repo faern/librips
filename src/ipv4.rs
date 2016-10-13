@@ -314,6 +314,10 @@ impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
         EtherTypes::Ipv4
     }
 
+    fn len(&self) -> usize {
+        Ipv4Packet::minimum_packet_size() + self.payload.len() as usize
+    }
+
     fn build(&mut self, buffer: &mut [u8]) {
         assert!(buffer.len() <= ::std::u16::MAX as usize);
         let mut pkg = MutableIpv4Packet::new(buffer).unwrap();

@@ -159,6 +159,10 @@ impl EthernetProtocol for ArpBuilder {
         EtherTypes::Arp
     }
 
+    fn len(&self) -> usize {
+        ArpPacket::minimum_packet_size()
+    }
+
     fn build(&mut self, buffer: &mut [u8]) {
         let mut arp_pkg = MutableArpPacket::new(buffer).unwrap();
         arp_pkg.set_hardware_type(ArpHardwareTypes::Ethernet);
