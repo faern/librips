@@ -1,7 +1,6 @@
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex, mpsc};
 use std::collections::HashMap;
-use std::time::SystemTime;
 
 use ipnetwork::Ipv4Network;
 
@@ -11,8 +10,8 @@ use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::{MutablePacket, Packet};
 
-use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
-use rips::ethernet::{EthernetListener, EthernetRx};
+use rips::ipv4::{Ipv4Listener, Ipv4Rx};
+use rips::ethernet::EthernetRx;
 use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
 use rips::testing;
 
@@ -29,10 +28,10 @@ fn simple_send() {
     arp.insert(target_ip, target_mac);
 
     let config = Ipv4Network::new(source_ip, 24).unwrap();
-    stack.add_ipv4(&interface, config);
+    stack.add_ipv4(&interface, config).unwrap();
 
     let mut ipv4_tx = stack.ipv4_tx(target_ip).unwrap();
-    ipv4_tx.send(TestIpv4Protocol::new(2));
+    ipv4_tx.send(TestIpv4Protocol::new(2)).unwrap();
 
     let pkg = read_handle.recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
@@ -59,9 +58,9 @@ fn custom_igmp_recv() {
     let mut ipv4_listeners = HashMap::new();
     ipv4_listeners.insert(target_ip, ipv4_ip_listeners);
 
-    let (channel, interface, inject_handle, _) = testing::dummy_ethernet(0);
+    let (channel, _interface, inject_handle, _) = testing::dummy_ethernet(0);
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
-    let ethernet_rx = EthernetRx::new(vec![ipv4_rx]).spawn(channel.1);
+    EthernetRx::new(vec![ipv4_rx]).spawn(channel.1);
 
     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() + 2;
     let mut buffer = vec![0; size];

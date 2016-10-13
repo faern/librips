@@ -216,7 +216,7 @@ impl NetworkStack {
     }
 
     pub fn interfaces(&self) -> Vec<Interface> {
-        self.interfaces.keys().map(|i| i.clone()).collect()
+        self.interfaces.keys().cloned().collect()
     }
 
     pub fn interface(&mut self, interface: &Interface) -> StackResult<&mut StackInterface> {

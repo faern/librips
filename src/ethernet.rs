@@ -145,7 +145,7 @@ impl EthernetRx {
     fn expand_listeners(listeners: Vec<Box<EthernetListener>>)
                         -> HashMap<EtherType, Vec<Box<EthernetListener>>> {
         let mut map_listeners = HashMap::new();
-        for listener in listeners.into_iter() {
+        for listener in listeners {
             let ethertype = listener.get_ethertype();
             map_listeners.entry(ethertype).or_insert(vec![]).push(listener);
         }
