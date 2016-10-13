@@ -23,9 +23,13 @@ benchmarks = []
 
 [dependencies.pnet]
 git = "https://github.com/faern/libpnet"
-branch = "self-owned-packets"
+branch = "working-stack"
 #path = "../libpnet"
 
 #[dependencies.ipnetwork]
 #git = "https://github.com/faern/ipnetwork"
 #path = "../ipnetwork"
+
+#[profile.release]
+#debug = true
+#lto = false
