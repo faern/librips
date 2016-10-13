@@ -34,8 +34,8 @@ pub struct IcmpRx {
 impl IcmpRx {
     /// Constructs a new `IcmpRx` with the given listeners.
     /// Casted before return to make it easy to add to the desired `Ipv4Rx`.
-    pub fn new(listeners: Arc<Mutex<IcmpListenerLookup>>) -> Box<Ipv4Listener> {
-        Box::new(IcmpRx { listeners: listeners }) as Box<Ipv4Listener>
+    pub fn new(listeners: Arc<Mutex<IcmpListenerLookup>>) -> IcmpRx {
+        IcmpRx { listeners: listeners }
     }
 }
 
@@ -45,7 +45,7 @@ impl Ipv4Listener for IcmpRx {
             let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
             (icmp_pkg.get_icmp_type(), icmp_pkg.get_icmp_code())
         };
-        debug!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
+        trace!("Icmp got a packet with {} bytes!", ip_pkg.payload().len());
         let mut listeners = self.listeners.lock().unwrap();
         if let Some(type_listeners) = listeners.get_mut(&icmp_type) {
             for listener in type_listeners {

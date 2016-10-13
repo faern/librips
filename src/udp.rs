@@ -30,9 +30,7 @@ impl UdpRx {
     pub fn new(listeners: Arc<Mutex<UdpListenerLookup>>) -> UdpRx {
         UdpRx { listeners: listeners }
     }
-}
 
-impl UdpRx {
     fn get_port(pkg: &Ipv4Packet) -> Result<u16, RxError> {
         let payload = pkg.payload();
         if payload.len() < UdpPacket::minimum_packet_size() {

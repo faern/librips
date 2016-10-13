@@ -8,6 +8,7 @@ use ipnetwork::Ipv4Network;
 
 use pnet::util::MacAddr;
 use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::icmp::IcmpType;
 
 use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
 use ethernet;
@@ -62,6 +63,7 @@ pub type StackResult<T> = Result<T, StackError>;
 struct Ipv4Data {
     net: Ipv4Network,
     udp_listeners: Arc<Mutex<udp::UdpListenerLookup>>,
+    icmp_listeners: Arc<Mutex<icmp::IcmpListenerLookup>>,
 }
 
 /// Represents the stack on one physical interface.
@@ -133,13 +135,17 @@ impl StackInterface {
                 let udp_ipv4_listener = Box::new(udp_rx) as Box<ipv4::Ipv4Listener>;
                 proto_listeners.insert(IpNextHeaderProtocols::Udp, udp_ipv4_listener);
 
-                // TODO: Insert Icmp listener stuff
+                let icmp_listeners = Arc::new(Mutex::new(HashMap::new()));
+                let icmp_rx = icmp::IcmpRx::new(icmp_listeners.clone());
+                let icmp_listener = Box::new(icmp_rx) as Box<ipv4::Ipv4Listener>;
+                proto_listeners.insert(IpNextHeaderProtocols::Icmp, icmp_listener);
 
                 let mut ipv4_listeners = self.ipv4_listeners.lock().unwrap();
                 ipv4_listeners.insert(ip, proto_listeners);
                 let data = Ipv4Data {
                     net: ip_net,
                     udp_listeners: udp_listeners,
+                    icmp_listeners: icmp_listeners,
                 };
 
                 entry.insert(data);
@@ -262,6 +268,24 @@ impl NetworkStack {
     pub fn icmp_tx(&mut self, dst_ip: Ipv4Addr) -> StackResult<icmp::IcmpTx> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(icmp::IcmpTx::new(ipv4_tx))
+    }
+
+    pub fn icmp_listen<L>(&mut self, local_ip: Ipv4Addr, icmp_type: IcmpType, listener: L) -> io::Result<()>
+        where L: icmp::IcmpListener + 'static
+    {
+        if local_ip == Ipv4Addr::new(0, 0, 0, 0) {
+            panic!("Rips does not support listening to all interfaces yet");
+        } else {
+            for stack_interface in self.interfaces.values() {
+                if let Some(ip_data) = stack_interface.ipv4s.get(&local_ip) {
+                    let mut icmp_listeners = ip_data.icmp_listeners.lock().unwrap();
+                    icmp_listeners.entry(icmp_type).or_insert(vec![]).push(Box::new(listener));
+                    return Ok(());
+                }
+            }
+            let msg = "Bind address does not exist in stack".to_owned();
+            Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+        }
     }
 
     pub fn udp_tx(&mut self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<udp::UdpTx> {
