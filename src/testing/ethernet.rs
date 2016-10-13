@@ -29,25 +29,3 @@ impl EthernetTx {
         Ok(())
     }
 }
-
-pub struct TestEthernetProtocol {
-    first_byte: u8,
-}
-
-impl TestEthernetProtocol {
-    pub fn new(first_byte: u8) -> Self {
-        TestEthernetProtocol {
-            first_byte: first_byte,
-        }
-    }
-}
-
-impl EthernetProtocol for TestEthernetProtocol {
-    fn ether_type(&self) -> EtherType {
-        EtherTypes::Rarp
-    }
-
-    fn build(&mut self, buffer: &mut [u8]) {
-        buffer[0] = self.first_byte;
-    }
-}

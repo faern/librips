@@ -2,6 +2,7 @@ use std::net::Ipv4Addr;
 use std::collections::HashMap;
 use std::time::SystemTime;
 use std::sync::{Arc, Mutex};
+use std::cmp;
 
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
@@ -256,6 +257,40 @@ pub trait Ipv4Protocol {
     fn len(&self) -> u16;
 
     fn build(&mut self, buffer: &mut [u8]);
+}
+
+pub struct BasicIpv4Protocol {
+    next_level_protocol: IpNextHeaderProtocol,
+    offset: usize,
+    payload: Vec<u8>,
+}
+
+impl BasicIpv4Protocol {
+    pub fn new(next_level_protocol: IpNextHeaderProtocol, payload: Vec<u8>) -> Self {
+        assert!(payload.len() <= ::std::u16::MAX as usize);
+        BasicIpv4Protocol {
+            next_level_protocol: next_level_protocol,
+            offset: 0,
+            payload: payload,
+        }
+    }
+}
+
+impl Ipv4Protocol for BasicIpv4Protocol {
+    fn next_level_protocol(&self) -> IpNextHeaderProtocol {
+        self.next_level_protocol
+    }
+
+    fn len(&self) -> u16 {
+        self.payload.len() as u16
+    }
+
+    fn build(&mut self, buffer: &mut [u8]) {
+        let start = self.offset;
+        let end = cmp::min(start + buffer.len(), self.payload.len());
+        self.offset = end;
+        buffer.copy_from_slice(&self.payload[start..end]);
+    }
 }
 
 pub struct Ipv4Builder<P: Ipv4Protocol> {

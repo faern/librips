@@ -9,7 +9,7 @@ use rips::{Tx, RxResult};
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 
 use rips::testing;
-use rips::testing::ethernet::TestEthernetProtocol;
+use rips::ethernet::BasicEthernetProtocol;
 
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -63,7 +63,7 @@ fn test_ethernet_send() {
     let tx = Tx::direct(channel.0);
     let mut ethernet_tx = EthernetTx::new(tx, src, dst);
 
-    ethernet_tx.send(1, 1, TestEthernetProtocol::new(57))
+    ethernet_tx.send(1, 1, BasicEthernetProtocol::new(EtherTypes::Rarp, vec![57]))
         .expect("Unable to send to ethernet");
 
     let sent_buffer = read_handle.try_recv().expect("Expected a packet to have been sent");

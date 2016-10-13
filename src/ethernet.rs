@@ -5,6 +5,7 @@
 use std::thread;
 use std::collections::HashMap;
 use std::time::SystemTime;
+use std::cmp;
 
 use pnet::datalink::EthernetDataLinkReceiver;
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
@@ -70,6 +71,35 @@ pub trait EthernetProtocol {
     fn ether_type(&self) -> EtherType;
 
     fn build(&mut self, buffer: &mut [u8]);
+}
+
+pub struct BasicEthernetProtocol {
+    ether_type: EtherType,
+    offset: usize,
+    payload: Vec<u8>,
+}
+
+impl BasicEthernetProtocol {
+    pub fn new(ether_type: EtherType, payload: Vec<u8>) -> Self {
+        BasicEthernetProtocol {
+            ether_type: ether_type,
+            offset: 0,
+            payload: payload,
+        }
+    }
+}
+
+impl EthernetProtocol for BasicEthernetProtocol {
+    fn ether_type(&self) -> EtherType {
+        self.ether_type
+    }
+
+    fn build(&mut self, buffer: &mut [u8]) {
+        let start = self.offset;
+        let end = cmp::min(start + buffer.len(), self.payload.len());
+        self.offset = end;
+        buffer.copy_from_slice(&self.payload[start..end]);
+    }
 }
 
 /// Struct building Ethernet frames
