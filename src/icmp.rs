@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::time::SystemTime;
+use std::cmp;
 
 use pnet::packet::ip::{IpNextHeaderProtocols, IpNextHeaderProtocol};
 use pnet::packet::icmp::{IcmpPacket, IcmpType, IcmpCode, MutableIcmpPacket, checksum, icmp_types};
@@ -96,7 +97,47 @@ pub trait IcmpProtocol {
     fn build(&mut self, pkg: &mut MutableIcmpPacket);
 }
 
-struct IcmpBuilder<P: IcmpProtocol> {
+pub struct BasicIcmpProtocol {
+    icmp_type: IcmpType,
+    icmp_code: IcmpCode,
+    offset: usize,
+    payload: Vec<u8>,
+}
+
+impl BasicIcmpProtocol {
+    pub fn new(icmp_type: IcmpType, icmp_code: IcmpCode, payload: Vec<u8>) -> Self {
+        BasicIcmpProtocol {
+            icmp_type: icmp_type,
+            icmp_code: icmp_code,
+            offset: 0,
+            payload: payload,
+        }
+    }
+}
+
+impl IcmpProtocol for BasicIcmpProtocol {
+    fn icmp_type(&self) -> IcmpType {
+        self.icmp_type
+    }
+
+    fn icmp_code(&self) -> IcmpCode {
+        self.icmp_code
+    }
+
+    fn len(&self) -> u16 {
+        self.payload.len() as u16
+    }
+
+    fn build(&mut self, pkg: &mut MutableIcmpPacket) {
+        let buffer = pkg.payload_mut();
+        let start = self.offset;
+        let end = cmp::min(start + buffer.len(), self.payload.len());
+        self.offset = end;
+        buffer.copy_from_slice(&self.payload[start..end]);
+    }
+}
+
+pub struct IcmpBuilder<P: IcmpProtocol> {
     builder: P,
 }
 
