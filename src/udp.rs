@@ -123,7 +123,8 @@ impl<'a> Ipv4Protocol for UdpBuilder<'a> {
     fn build(&mut self, buffer: &mut [u8]) {
         let payload_buffer = if self.offset == 0 {
             {
-                let mut pkg = MutableUdpPacket::new(buffer).unwrap();
+                let header_buffer = &mut buffer[..UdpPacket::minimum_packet_size()];
+                let mut pkg = MutableUdpPacket::new(header_buffer).unwrap();
                 pkg.set_source(self.src);
                 pkg.set_destination(self.dst);
                 pkg.set_length(self.len());
