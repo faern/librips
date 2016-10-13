@@ -8,13 +8,18 @@ use std::thread;
 
 use ipnetwork::Ipv4Network;
 use pnet::util::MacAddr;
+use pnet::packet::ethernet::MutableEthernetPacket;
+use pnet::packet::ipv4::MutableIpv4Packet;
+use pnet::packet::MutablePacket;
 
 use rips::{self, testing, NetworkStack};
 use rips::udp::UdpSocket as RipsUdpSocket;
 
 lazy_static! {
-    static ref SRC_NET: Ipv4Network = Ipv4Network::from_cidr("10.0.0.3/32").unwrap();
+    static ref LOCAL_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 3);
+    static ref LOCAL_NET: Ipv4Network = Ipv4Network::new(*LOCAL_IP, 32).unwrap();
     static ref SRC: SocketAddrV4 = SocketAddrV4::from_str("10.0.0.3:36959").unwrap();
+    static ref REMOTE_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 1);
     static ref DST: SocketAddrV4 = SocketAddrV4::from_str("10.0.0.1:9999").unwrap();
     static ref DST2: SocketAddrV4 = SocketAddrV4::from_str("192.168.0.1:9999").unwrap();
     static ref DEFAULT_ROUTE: Ipv4Network = Ipv4Network::from_cidr("0.0.0.0/0").unwrap();
@@ -88,15 +93,35 @@ fn std_through_gw_1byte(b: &mut Bencher) {
                    *DST2);
 }
 
+#[bench]
+fn dummy_recv(b: &mut Bencher) {
+    let (stack, _, inject_handle, _) = testing::dummy_stack(0);
+    let socket = rips_socket(stack);
+    let mut buffer = vec![0; 100];
+    {
+        let mut pkg = MutableEthernetPacket::new(&mut buffer).unwrap();
+        let mut ip_pkg = MutableIpv4Packet::new(pkg.payload_mut()).unwrap();
+        ip_pkg.set_source(*REMOTE_IP);
+        ip_pkg.set_destination(*LOCAL_IP);
+        // SET EVERYTHING ELSE
+    }
+    let buffer = buffer.into_boxed_slice();
+    let mut read_buffer = vec![0; 100];
+    b.iter(|| {
+        inject_handle.send(Ok(buffer.clone())).unwrap();
+        socket.recv_from(&mut read_buffer).unwrap();
+    });
+}
+
 fn rips_socket(mut stack: NetworkStack) -> RipsUdpSocket {
-    let interface = stack.interfaces().into_iter().filter(|i| i.name.starts_with("eth")).next().expect("No suitable interface");
-    stack.add_ipv4(&interface, *SRC_NET).unwrap();
+    let interface = stack.interfaces().into_iter().find(|i| i.name.starts_with("eth")).expect("No suitable interface");
+    stack.add_ipv4(&interface, *LOCAL_NET).unwrap();
     {
         let routing_table = stack.routing_table();
         routing_table.add_route(*DEFAULT_ROUTE, Some(Ipv4Addr::new(10, 137, 8, 1)), interface.clone());
     }
     {
-        let mut arp = stack.arp_table(&interface).unwrap();
+        let mut arp = stack.interface(&interface).unwrap().arp_table();
         arp.insert(Ipv4Addr::new(10, 137, 8, 1), MacAddr::new(0,0,0,0,0,0));
         arp.insert(Ipv4Addr::new(10, 137, 8, 2), MacAddr::new(0,0,0,0,0,0));
     }
