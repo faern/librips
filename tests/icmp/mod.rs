@@ -2,17 +2,20 @@ use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::time::SystemTime;
 
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
 use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet};
-use pnet::packet::icmp::echo_request::EchoRequestPacket;
-use pnet::packet::icmp::{IcmpPacket, MutableIcmpPacket, icmp_types};
-use pnet::packet::{MutablePacket, Packet};
+use pnet::packet::ipv4::{Ipv4Packet};
+use pnet::packet::icmp::echo_request::icmp_codes;
+use pnet::packet::icmp::{IcmpPacket, icmp_types};
+use pnet::packet::Packet;
+use pnet::util::MacAddr;
 
-// use ipnetwork::Ipv4Network;
+use ipnetwork::Ipv4Network;
 
-use rips::icmp::IcmpListener;
-// use rips::testing;
+use rips::icmp::{IcmpListener, IcmpBuilder, BasicIcmpProtocol};
+use rips::ipv4::Ipv4Builder;
+use rips::ethernet::EthernetBuilder;
+use rips::testing;
 
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -25,43 +28,43 @@ impl IcmpListener for MockIcmpListener {
     }
 }
 
-// #[test]
-// fn recv_icmp() {
-//     let source_ip = Ipv4Addr::new(10, 1, 2, 3);
-//     let target_ip = Ipv4Addr::new(10, 0, 0, 2);
-//
-//     let (tx, rx) = mpsc::channel();
-//     let mock_icmp_listener = vec![Box::new(MockIcmpListener { tx: tx }) as Box<IcmpListener>];
-//
-//     let (mut stack, interface, inject_handle, _) = testing::dummy_stack(0);
-//     stack.add_ipv4(&interface, Ipv4Network::from_cidr("10.0.0.2/24").unwrap()).unwrap();
-//     icmp_listeners.lock().unwrap().insert(icmp_types::DestinationUnreachable, mock_icmp_listener);
-//
-//     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() +
-//                IcmpPacket::minimum_packet_size();
-//     let mut buffer = vec![0; size];
-//     {
-//         let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
-//         eth_pkg.set_ethertype(EtherTypes::Ipv4);
-//         let mut ip_pkg = MutableIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
-//         ip_pkg.set_header_length(5); // 5 is for no option fields
-//         ip_pkg.set_source(source_ip);
-//         ip_pkg.set_destination(target_ip);
-//         ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Icmp);
-//         let csum = checksum(&ip_pkg.to_immutable());
-//         ip_pkg.set_checksum(csum);
-//         let mut icmp_pkg = MutableIcmpPacket::new(ip_pkg.payload_mut()).unwrap();
-//         icmp_pkg.set_icmp_type(icmp_types::DestinationUnreachable);
-//     }
-//
-//     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
-//
-//     let pkg = rx.recv().unwrap();
-//     let ip_pkg = Ipv4Packet::new(&pkg[..]).unwrap();
-//     assert_eq!(ip_pkg.get_source(), source_ip);
-//     assert_eq!(ip_pkg.get_destination(), target_ip);
-//     assert_eq!(ip_pkg.get_next_level_protocol(),
-//                IpNextHeaderProtocols::Icmp);
-//     let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
-//     assert_eq!(icmp_pkg.get_icmp_type(), icmp_types::DestinationUnreachable);
-// }
+#[test]
+fn recv_icmp() {
+    let remote_mac = MacAddr::new(0, 0, 0, 0, 0, 0);
+    let local_mac = remote_mac;
+    let remote_ip = Ipv4Addr::new(10, 1, 2, 3);
+    let local_ip = Ipv4Addr::new(10, 0, 0, 2);
+    let local_net = Ipv4Network::new(local_ip, 24).unwrap();
+
+    let (tx, rx) = mpsc::channel();
+    let listener = MockIcmpListener { tx: tx };
+
+    let (mut stack, interface, inject_handle, _) = testing::dummy_stack(0);
+    stack.add_ipv4(&interface, local_net).unwrap();
+    stack.icmp_listen(local_ip, icmp_types::DestinationUnreachable, listener).unwrap();
+
+    let payload = vec![6, 5];
+    let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() +
+               IcmpPacket::minimum_packet_size() + payload.len();
+    let mut buffer = vec![0; size];
+    {
+        let payload_builder = BasicIcmpProtocol::new(icmp_types::DestinationUnreachable, icmp_codes::NoCode, payload);
+        let icmp_builder = IcmpBuilder::new(payload_builder);
+        let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
+        let mut eth_builder = EthernetBuilder::new(remote_mac, local_mac, ipv4_builder);
+
+        let eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
+        eth_builder.build(eth_pkg);
+    }
+
+    inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
+
+    let pkg = rx.recv().unwrap();
+    let ip_pkg = Ipv4Packet::new(&pkg[..]).unwrap();
+    assert_eq!(ip_pkg.get_source(), remote_ip);
+    assert_eq!(ip_pkg.get_destination(), local_ip);
+    assert_eq!(ip_pkg.get_next_level_protocol(),
+               IpNextHeaderProtocols::Icmp);
+    let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
+    assert_eq!(icmp_pkg.get_icmp_type(), icmp_types::DestinationUnreachable);
+}

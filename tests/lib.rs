@@ -13,8 +13,8 @@ mod arp;
 #[cfg(all(test, feature = "integration-tests"))]
 mod ipv4;
 
-// #[cfg(all(test, feature = "integration-tests"))]
-// mod icmp;
+#[cfg(all(test, feature = "integration-tests"))]
+mod icmp;
 
 #[cfg(all(test, feature = "integration-tests"))]
 mod udp;
