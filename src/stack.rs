@@ -181,6 +181,8 @@ impl StackInterface {
         Ok(())
     }
 
+    /// Finds which local IP is suitable as src ip for packets sent to `dst`.
+    /// TODO: Smarter algorithm
     fn closest_local_ip(&self, dst: Ipv4Addr) -> Option<Ipv4Addr> {
         for (ip, ip_data) in &self.ipv4s {
             if ip_data.net.contains(dst) {
@@ -245,7 +247,7 @@ impl NetworkStack {
         &mut self.routing_table
     }
 
-    /// Attach a IPv4 network to a an interface.
+    /// Attach an IPv4 network to an interface.
     /// TODO: Deprecate and make the routing stuff better instead
     pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
         try!(try!(self.interface(interface)).add_ipv4(ip_net));
