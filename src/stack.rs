@@ -85,16 +85,16 @@ impl StackInterface {
         let vtx = Arc::new(Mutex::new(VersionedTx::new(sender)));
 
         let arp_table = arp::ArpTable::new();
-        let arp_ethernet_listener = arp_table.arp_rx(vtx.clone());
+        let arp_rx = arp_table.arp_rx(vtx.clone());
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
-        let ipv4_ethernet_listener = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
+        let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
 
-        let ethernet_listeners = vec![arp_ethernet_listener, ipv4_ethernet_listener];
+        let ethernet_listeners = vec![arp_rx, ipv4_rx];
         ethernet::EthernetRx::new(ethernet_listeners).spawn(receiver);
 
         StackInterface {
-            interface: interface.clone(),
+            interface: interface,
             mtu: DEFAULT_MTU,
             tx: vtx,
             arp_table: arp_table,
@@ -103,8 +103,8 @@ impl StackInterface {
         }
     }
 
-    pub fn interface(&self) -> Interface {
-        self.interface.clone()
+    pub fn interface(&self) -> &Interface {
+        &self.interface
     }
 
     fn tx(&self) -> Tx {
