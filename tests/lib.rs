@@ -1,3 +1,4 @@
+extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
 extern crate rips;

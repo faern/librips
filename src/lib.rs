@@ -160,6 +160,7 @@
 
 // #![deny(missing_docs)]
 
+extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
 

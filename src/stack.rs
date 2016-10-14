@@ -1,8 +1,11 @@
 use std::io;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use std::net::{Ipv4Addr, SocketAddr, ToSocketAddrs};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
+
+use rand;
+use rand::distributions::{IndependentSample, Range};
 
 use ipnetwork::Ipv4Network;
 
@@ -20,6 +23,8 @@ use udp;
 use util;
 
 pub static DEFAULT_MTU: usize = 1500;
+pub static LOCAL_PORT_RANGE_START: u16 = 32768;
+pub static LOCAL_PORT_RANGE_END: u16 = 61000;
 
 /// Error returned upon invalid usage or state of the stack.
 #[derive(Debug)]
@@ -306,16 +311,20 @@ impl NetworkStack {
         match try!(util::first_socket_addr(addr)) {
             SocketAddr::V4(addr) => {
                 let local_ip = addr.ip();
-                let local_port = addr.port();
+                let mut local_port = addr.port();
                 if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
-                    panic!("Rips does not support listening to all interfaces yet");
+                    let msg = format!("Rips does not support listening to all interfaces yet");
+                    return Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg));
                 } else {
                     for stack_interface in self.interfaces.values() {
                         if let Some(ip_data) = stack_interface.ipv4s.get(local_ip) {
                             let mut udp_listeners = ip_data.udp_listeners.lock().unwrap();
+                            if local_port == 0 {
+                                local_port = self.get_random_port(&*udp_listeners);
+                            }
                             if !udp_listeners.contains_key(&local_port) {
                                 udp_listeners.insert(local_port, Box::new(listener));
-                                return Ok(SocketAddr::V4(addr));
+                                return Ok(SocketAddr::V4(SocketAddrV4::new(*local_ip, local_port)));
                             } else {
                                 let msg = format!("Port {} is already occupied on {}",
                                                   local_port,
@@ -333,6 +342,20 @@ impl NetworkStack {
                                    "Rips does not support IPv6 yet".to_owned()))
             }
         }
+    }
+
+    fn get_random_port(&self, listeners: &udp::UdpListenerLookup) -> u16 {
+        let range = Range::new(LOCAL_PORT_RANGE_START, LOCAL_PORT_RANGE_END);
+        let mut rng = rand::thread_rng();
+        let mut port = 0;
+        while port == 0 {
+            let n = range.ind_sample(&mut rng);
+            if !listeners.contains_key(&n) {
+                port = n;
+                break;
+            }
+        }
+        port
     }
 }
 
