@@ -13,7 +13,7 @@ mod udp_rx;
 mod udp_tx;
 
 pub use self::udp_rx::{UdpListener, UdpListenerLookup, UdpRx};
-pub use self::udp_tx::{UdpTx, UdpBuilder};
+pub use self::udp_tx::{UdpBuilder, UdpTx};
 
 use self::udp_rx::UdpSocketReader;
 

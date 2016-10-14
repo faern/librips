@@ -5,5 +5,5 @@
 mod ethernet_rx;
 mod ethernet_tx;
 
-pub use self::ethernet_rx::{EthernetRx, EthernetListener};
-pub use self::ethernet_tx::{EthernetProtocol, BasicEthernetProtocol, EthernetTx, EthernetBuilder};
+pub use self::ethernet_rx::{EthernetListener, EthernetRx};
+pub use self::ethernet_tx::{BasicEthernetProtocol, EthernetBuilder, EthernetProtocol, EthernetTx};

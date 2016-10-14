@@ -8,7 +8,7 @@ use pnet::packet::{MutablePacket, Packet};
 
 use {Protocol, TxResult};
 use ethernet::EthernetProtocol;
-use super::{NO_FLAGS, MORE_FRAGMENTS};
+use super::{MORE_FRAGMENTS, NO_FLAGS};
 
 #[cfg(all(test, feature = "unit-tests"))]
 use testing::ethernet::EthernetTx;

@@ -15,7 +15,7 @@ mod arp_rx;
 mod arp_tx;
 
 pub use self::arp_rx::ArpRx;
-pub use self::arp_tx::{ArpTx, ArpBuilder};
+pub use self::arp_tx::{ArpBuilder, ArpTx};
 
 pub struct TableData {
     table: HashMap<Ipv4Addr, MacAddr>,

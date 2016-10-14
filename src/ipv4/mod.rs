@@ -1,8 +1,8 @@
 mod ipv4_rx;
 mod ipv4_tx;
 
-pub use self::ipv4_rx::{Ipv4Listener, IpListenerLookup, Ipv4Rx};
-pub use self::ipv4_tx::{Ipv4Protocol, BasicIpv4Protocol, Ipv4Tx, Ipv4Builder};
+pub use self::ipv4_rx::{IpListenerLookup, Ipv4Listener, Ipv4Rx};
+pub use self::ipv4_tx::{BasicIpv4Protocol, Ipv4Builder, Ipv4Protocol, Ipv4Tx};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;

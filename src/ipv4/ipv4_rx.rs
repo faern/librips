@@ -11,7 +11,7 @@ use pnet::packet::Packet;
 use {RxError, RxResult};
 use ethernet::EthernetListener;
 use util::Buffer;
-use super::{NO_FLAGS, MORE_FRAGMENTS};
+use super::{MORE_FRAGMENTS, NO_FLAGS};
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {

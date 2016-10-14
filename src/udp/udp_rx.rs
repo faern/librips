@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::collections::HashMap;
 use std::time::SystemTime;
 
-use pnet::packet::udp::{UdpPacket};
+use pnet::packet::udp::UdpPacket;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::Packet;
 
