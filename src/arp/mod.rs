@@ -132,7 +132,7 @@ impl ArpTx {
     /// Sends an Arp packet to the network. More specifically Ipv4 to Ethernet
     /// request
     pub fn send(&mut self, sender_ip: Ipv4Addr, target_ip: Ipv4Addr) -> TxResult {
-        let builder = ArpBuilder::new(self.ethernet.src, sender_ip, target_ip);
+        let builder = ArpBuilder::new(self.ethernet.src(), sender_ip, target_ip);
         self.ethernet.send(1, ArpPacket::minimum_packet_size(), builder)
     }
 }
