@@ -1,199 +1,21 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::io;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use std::time::SystemTime;
 
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
-use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::Packet;
-
-use {Protocol, RxError, RxResult, TxError, TxResult};
+use {TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 
-use ipv4::{Ipv4Listener, Ipv4Protocol, Ipv4Tx};
 use util;
 
-pub trait UdpListener: Send {
-    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool);
-}
+mod udp_rx;
+mod udp_tx;
 
-pub type UdpListenerLookup = HashMap<u16, Box<UdpListener>>;
+pub use self::udp_rx::{UdpListener, UdpListenerLookup, UdpRx};
+pub use self::udp_tx::{UdpTx, UdpBuilder};
 
-pub struct UdpRx {
-    listeners: Arc<Mutex<UdpListenerLookup>>,
-}
-
-impl UdpRx {
-    pub fn new(listeners: Arc<Mutex<UdpListenerLookup>>) -> UdpRx {
-        UdpRx { listeners: listeners }
-    }
-
-    fn get_port(pkg: &Ipv4Packet) -> Result<u16, RxError> {
-        let payload = pkg.payload();
-        if payload.len() < UdpPacket::minimum_packet_size() {
-            return Err(RxError::InvalidContent);
-        }
-        let (port, length) = {
-            let udp_pkg = UdpPacket::new(payload).unwrap();
-            (udp_pkg.get_destination(), udp_pkg.get_length() as usize)
-        };
-        if length > payload.len() || length < UdpPacket::minimum_packet_size() {
-            Err(RxError::InvalidContent)
-        } else {
-            Ok(port)
-        }
-    }
-}
-
-impl Ipv4Listener for UdpRx {
-    fn recv(&mut self, time: SystemTime, ip_pkg: Ipv4Packet) -> RxResult {
-        let port = try!(Self::get_port(&ip_pkg));
-        let mut listeners = self.listeners.lock().unwrap();
-        if let Some(listener) = listeners.get_mut(&port) {
-            let (result, _resume) = listener.recv(time, &ip_pkg);
-            result
-            // TODO: When resume turns false, remove this socket.
-        } else {
-            Err(RxError::NoListener(format!("Udp, no listener for port {:?}", port)))
-        }
-    }
-}
-
-pub struct UdpTx {
-    src: u16,
-    dst: u16,
-    ipv4: Ipv4Tx,
-}
-
-impl UdpTx {
-    pub fn new(ipv4: Ipv4Tx, src: u16, dst: u16) -> UdpTx {
-        UdpTx {
-            src: src,
-            dst: dst,
-            ipv4: ipv4,
-        }
-    }
-
-    pub fn send(&mut self, payload: &[u8]) -> TxResult {
-        let (src_port, dst_port) = (self.src, self.dst);
-        let src_ip = self.ipv4.src;
-        let dst_ip = self.ipv4.dst;
-        let builder = UdpBuilder::new(src_ip, dst_ip, src_port, dst_port, payload);
-        self.ipv4.send(builder)
-    }
-}
-
-struct UdpBuilder<'a> {
-    src_ip: Ipv4Addr,
-    dst_ip: Ipv4Addr,
-    src: u16,
-    dst: u16,
-    offset: usize,
-    payload: &'a [u8],
-}
-
-impl<'a> UdpBuilder<'a> {
-    pub fn new(src_ip: Ipv4Addr,
-               dst_ip: Ipv4Addr,
-               src_port: u16,
-               dst_port: u16,
-               payload: &'a [u8])
-               -> UdpBuilder<'a> {
-        UdpBuilder {
-            src_ip: src_ip,
-            dst_ip: dst_ip,
-            src: src_port,
-            dst: dst_port,
-            offset: 0,
-            payload: payload,
-        }
-    }
-}
-
-impl<'a> Ipv4Protocol for UdpBuilder<'a> {
-    fn next_level_protocol(&self) -> IpNextHeaderProtocol {
-        IpNextHeaderProtocols::Udp
-    }
-}
-
-impl<'a> Protocol for UdpBuilder<'a> {
-    fn len(&self) -> usize {
-        UdpPacket::minimum_packet_size() + self.payload.len()
-    }
-
-    fn build(&mut self, buffer: &mut [u8]) {
-        let payload_buffer = if self.offset == 0 {
-            {
-                let header_buffer = &mut buffer[..UdpPacket::minimum_packet_size()];
-                let mut pkg = MutableUdpPacket::new(header_buffer).unwrap();
-                pkg.set_source(self.src);
-                pkg.set_destination(self.dst);
-                pkg.set_length(self.len() as u16);
-                let checksum =
-                    ipv4_checksum(&pkg.to_immutable(), self.payload, self.src_ip, self.dst_ip);
-                pkg.set_checksum(checksum);
-            }
-            &mut buffer[UdpPacket::minimum_packet_size()..]
-        } else {
-            buffer
-        };
-        let start = self.offset;
-        let end = self.offset + payload_buffer.len();
-        payload_buffer.copy_from_slice(&self.payload[start..end]);
-        self.offset = end;
-    }
-}
-
-#[derive(Clone)]
-struct UdpSocketListener {
-    chan: mpsc::Sender<(SystemTime, Box<[u8]>)>,
-}
-
-impl UdpListener for UdpSocketListener {
-    fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool) {
-        let data = packet.packet().to_vec().into_boxed_slice();
-        let resume = self.chan.send((time, data)).is_ok();
-        (Ok(()), resume)
-    }
-}
-
-struct UdpSocketReader {
-    port: mpsc::Receiver<(SystemTime, Box<[u8]>)>,
-    chan: UdpSocketListener,
-}
-
-impl UdpSocketReader {
-    pub fn new() -> UdpSocketReader {
-        let (tx, rx) = mpsc::channel();
-        UdpSocketReader {
-            port: rx,
-            chan: UdpSocketListener { chan: tx },
-        }
-    }
-
-    pub fn recv_from(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        let (_time, data) = self.port.recv().unwrap();
-        let ipv4_pkg = Ipv4Packet::new(&data).unwrap();
-        let ip = ipv4_pkg.get_source();
-        let udp_pkg = UdpPacket::new(ipv4_pkg.payload()).unwrap();
-        let port = udp_pkg.get_source();
-        let data = udp_pkg.payload();
-        if data.len() > buf.len() {
-            Err(io::Error::new(io::ErrorKind::InvalidInput,
-                               "Data does not fit buffer".to_owned()))
-        } else {
-            buf[..data.len()].copy_from_slice(data);
-            Ok((data.len(), SocketAddr::V4(SocketAddrV4::new(ip, port))))
-        }
-    }
-
-    pub fn listener(&mut self) -> UdpSocketListener {
-        self.chan.clone()
-    }
-}
+use self::udp_rx::UdpSocketReader;
 
 #[cfg(not(feature = "unit-tests"))]
 pub struct UdpSocket {
