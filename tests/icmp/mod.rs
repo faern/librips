@@ -2,7 +2,7 @@ use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::time::SystemTime;
 
-use pnet::packet::ethernet::{EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::packet::icmp::echo_request::icmp_codes;

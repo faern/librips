@@ -119,8 +119,8 @@ impl StackInterface {
         arp::ArpTx::new(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
     }
 
-    pub fn arp_table(&self) -> arp::ArpTable {
-        self.arp_table.clone()
+    pub fn arp_table(&mut self) -> &mut arp::ArpTable {
+        &mut self.arp_table
     }
 
     pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> StackResult<()> {
