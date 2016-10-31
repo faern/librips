@@ -1,4 +1,3 @@
-
 use pnet::datalink::dummy;
 
 use rips::NetworkStack;

@@ -1,11 +1,11 @@
-use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
-use std::io;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-
-use {TxError, TxResult};
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
+use {TxError, TxResult};
+
+use std::collections::HashMap;
+use std::io;
+use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::sync::{Arc, Mutex};
 
 use util;
 
@@ -13,9 +13,8 @@ mod udp_rx;
 mod udp_tx;
 
 pub use self::udp_rx::{UdpListener, UdpListenerLookup, UdpRx};
-pub use self::udp_tx::{UdpBuilder, UdpTx};
-
 use self::udp_rx::UdpSocketReader;
+pub use self::udp_tx::{UdpBuilder, UdpTx};
 
 #[cfg(not(feature = "unit-tests"))]
 pub struct UdpSocket {

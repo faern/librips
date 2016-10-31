@@ -1,19 +1,20 @@
-use test::{Bencher, black_box};
 
-use std::sync::{Arc, Mutex};
-use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket as StdUdpSocket};
-use std::str::FromStr;
-use std::time::Duration;
-use std::thread;
 
 use ipnetwork::Ipv4Network;
-use pnet::util::MacAddr;
+use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ipv4::MutableIpv4Packet;
-use pnet::packet::MutablePacket;
+use pnet::util::MacAddr;
 
 use rips::{self, NetworkStack, testing};
 use rips::udp::UdpSocket as RipsUdpSocket;
+use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket as StdUdpSocket};
+use std::str::FromStr;
+
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+use test::{Bencher, black_box};
 
 lazy_static! {
     static ref LOCAL_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 3);

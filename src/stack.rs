@@ -1,25 +1,25 @@
-use std::io;
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
-use std::sync::{Arc, Mutex};
+use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
+use arp;
+use ethernet;
+use icmp;
+
+use ipnetwork::Ipv4Network;
+use ipv4;
+
+use pnet::packet::icmp::IcmpType;
+use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::util::MacAddr;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
 
-use ipnetwork::Ipv4Network;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
+use std::io;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::sync::{Arc, Mutex};
 
-use pnet::util::MacAddr;
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::icmp::IcmpType;
-
-use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
-use ethernet;
-use arp;
-use ipv4;
-use icmp;
 use udp;
-
 use util;
 
 pub static DEFAULT_MTU: usize = 1500;

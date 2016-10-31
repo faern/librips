@@ -1,21 +1,21 @@
+use ipnetwork::Ipv4Network;
+
+use pnet::packet::Packet;
+use pnet::packet::ethernet::MutableEthernetPacket;
+use pnet::packet::icmp::{IcmpPacket, IcmpTypes};
+use pnet::packet::icmp::echo_request::IcmpCodes;
+use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::ipv4::Ipv4Packet;
+use pnet::util::MacAddr;
+
+use rips::ethernet::EthernetBuilder;
+use rips::icmp::{BasicIcmpProtocol, IcmpBuilder, IcmpListener};
+use rips::ipv4::Ipv4Builder;
+use rips::testing;
+
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::time::SystemTime;
-
-use pnet::packet::ethernet::MutableEthernetPacket;
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::icmp::echo_request::IcmpCodes;
-use pnet::packet::icmp::{IcmpPacket, IcmpTypes};
-use pnet::packet::Packet;
-use pnet::util::MacAddr;
-
-use ipnetwork::Ipv4Network;
-
-use rips::icmp::{BasicIcmpProtocol, IcmpBuilder, IcmpListener};
-use rips::ipv4::Ipv4Builder;
-use rips::ethernet::EthernetBuilder;
-use rips::testing;
 
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,

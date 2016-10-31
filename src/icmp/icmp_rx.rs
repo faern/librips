@@ -1,13 +1,13 @@
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use std::time::SystemTime;
-
-use pnet::packet::icmp::{IcmpPacket, IcmpType};
-use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::Packet;
-
 use {RxError, RxResult};
 use ipv4::Ipv4Listener;
+
+use pnet::packet::Packet;
+use pnet::packet::icmp::{IcmpPacket, IcmpType};
+use pnet::packet::ipv4::Ipv4Packet;
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 /// Trait that must be implemented by any struct who want to receive Icmp
 /// packets.

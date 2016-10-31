@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::time::SystemTime;
-use std::thread;
+use RxResult;
 
 use pnet::datalink::EthernetDataLinkReceiver;
 use pnet::packet::ethernet::{EtherType, EthernetPacket};
 
-use RxResult;
+use std::collections::HashMap;
+use std::thread;
+use std::time::SystemTime;
 
 /// Anyone interested in receiving ethernet frames from an `EthernetRx` must
 /// implement this.

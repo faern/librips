@@ -1,19 +1,19 @@
-use std::net::Ipv4Addr;
-use std::sync::{Arc, Mutex, mpsc};
-use std::collections::HashMap;
-
 use ipnetwork::Ipv4Network;
 
-use pnet::util::MacAddr;
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::packet::{MutablePacket, Packet};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ip::IpNextHeaderProtocols;
+use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
+use pnet::util::MacAddr;
 
-use rips::ipv4::{Ipv4Listener, Ipv4Rx};
 use rips::ethernet::EthernetRx;
-use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
+use rips::ipv4::{Ipv4Listener, Ipv4Rx};
 use rips::testing;
+use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
+
+use std::collections::HashMap;
+use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex, mpsc};
 
 #[test]
 fn simple_send() {

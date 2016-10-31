@@ -1,13 +1,13 @@
+use {Protocol, RxResult, TxResult};
+use ipv4::{Ipv4Listener, Ipv4Protocol};
+
+use pnet::packet::Packet;
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+use pnet::packet::ipv4::Ipv4Packet;
+
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::SystemTime;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::Packet;
-
-use ipv4::{Ipv4Listener, Ipv4Protocol};
-use {Protocol, RxResult, TxResult};
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,

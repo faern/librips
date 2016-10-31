@@ -1,9 +1,9 @@
-use std::net::Ipv4Addr;
-use std::collections::BTreeMap;
+use Interface;
 
 use ipnetwork::Ipv4Network;
 
-use Interface;
+use std::collections::BTreeMap;
+use std::net::Ipv4Addr;
 
 // TODO: Add metric
 #[derive(Debug)]
@@ -50,12 +50,10 @@ impl RoutingTable {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
-    use pnet::util::MacAddr;
-    use ipnetwork::Ipv4Network;
-
     use Interface;
+    use ipnetwork::Ipv4Network;
+    use pnet::util::MacAddr;
+    use std::net::Ipv4Addr;
     use super::*;
 
     #[test]

@@ -1,11 +1,10 @@
-use std::net::Ipv4Addr;
+use {Protocol, TxResult};
+use ipv4::{Ipv4Protocol, Ipv4Tx};
 
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 
-use {Protocol, TxResult};
-
-use ipv4::{Ipv4Protocol, Ipv4Tx};
+use std::net::Ipv4Addr;
 
 pub struct UdpTx {
     src: u16,

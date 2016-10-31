@@ -1,10 +1,10 @@
-use std::cmp;
+use {Protocol, Tx, TxResult};
 
-use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::MutablePacket;
+use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use {Protocol, Tx, TxResult};
+use std::cmp;
 
 /// Trait for anything wishing to be the payload of an Ethernet frame.
 pub trait EthernetProtocol: Protocol {

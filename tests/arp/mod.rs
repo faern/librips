@@ -1,19 +1,18 @@
-use std::sync::{Arc, Mutex, mpsc};
-use std::thread::{sleep, spawn};
-use std::time::Duration;
-use std::net::Ipv4Addr;
-use std::io;
-
-use pnet::util::MacAddr;
-use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpPacket, MutableArpPacket};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
+use pnet::util::MacAddr;
 
 use rips::{Tx, VersionedTx};
 use rips::arp::{ArpTable, ArpTx};
 use rips::ethernet::{EthernetRx, EthernetTx};
-
 use rips::testing;
+
+use std::io;
+use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex, mpsc};
+use std::thread::{sleep, spawn};
+use std::time::Duration;
 
 #[test]
 fn arp_invalidate_on_update() {

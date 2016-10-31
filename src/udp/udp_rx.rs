@@ -1,16 +1,15 @@
-use std::net::{SocketAddr, SocketAddrV4};
-use std::io;
-use std::sync::{Arc, Mutex, mpsc};
-use std::collections::HashMap;
-use std::time::SystemTime;
-
-use pnet::packet::udp::UdpPacket;
-use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::Packet;
-
 use {RxError, RxResult};
-
 use ipv4::Ipv4Listener;
+
+use pnet::packet::Packet;
+use pnet::packet::ipv4::Ipv4Packet;
+use pnet::packet::udp::UdpPacket;
+
+use std::collections::HashMap;
+use std::io;
+use std::net::{SocketAddr, SocketAddrV4};
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::SystemTime;
 
 pub trait UdpListener: Send {
     fn recv(&mut self, time: SystemTime, packet: &Ipv4Packet) -> (RxResult, bool);

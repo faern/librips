@@ -11,22 +11,22 @@ pub const NO_FLAGS: u8 = 0b000;
 
 #[cfg(all(test, feature = "unit-tests"))]
 mod tests {
+    use {RxError, RxResult};
+    use ethernet::EthernetListener;
+    use pnet::packet::{MutablePacket, Packet};
+    use pnet::packet::ethernet::MutableEthernetPacket;
+
+    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+    use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
+    use std::collections::HashMap;
     use std::net::Ipv4Addr;
     use std::sync::{Arc, Mutex, mpsc};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::SystemTime;
-    use std::collections::HashMap;
-
-    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-    use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
-    use pnet::packet::ethernet::MutableEthernetPacket;
-    use pnet::packet::{MutablePacket, Packet};
 
     use super::*;
-    use {RxError, RxResult};
     use testing::{ethernet, ipv4};
     use testing::ipv4::TestIpv4Protocol;
-    use ethernet::EthernetListener;
 
     #[test]
     fn tx_fragmented() {

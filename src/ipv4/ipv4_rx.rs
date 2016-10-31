@@ -1,17 +1,18 @@
-use std::net::Ipv4Addr;
-use std::collections::HashMap;
-use std::time::SystemTime;
-use std::sync::{Arc, Mutex};
-
-use pnet::packet::ip::IpNextHeaderProtocol;
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
-use pnet::packet::Packet;
-
 use {RxError, RxResult};
 use ethernet::EthernetListener;
-use util::Buffer;
+
+use pnet::packet::Packet;
+use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+use pnet::packet::ip::IpNextHeaderProtocol;
+use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
+
+use std::collections::HashMap;
+use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
+
 use super::{MORE_FRAGMENTS, NO_FLAGS};
+use util::Buffer;
 
 /// Anyone interested in receiving IPv4 packets from `Ipv4` must implement this.
 pub trait Ipv4Listener: Send {

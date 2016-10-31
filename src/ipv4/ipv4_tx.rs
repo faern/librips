@@ -1,19 +1,20 @@
-use std::net::Ipv4Addr;
-use std::cmp;
-
-use pnet::packet::ip::IpNextHeaderProtocol;
-use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
-use pnet::packet::ethernet::{EtherType, EtherTypes};
-use pnet::packet::{MutablePacket, Packet};
-
 use {Protocol, TxResult};
 use ethernet::EthernetProtocol;
+#[cfg(not(all(test, feature = "unit-tests")))]
+use ethernet::EthernetTx;
+
+use pnet::packet::{MutablePacket, Packet};
+use pnet::packet::ethernet::{EtherType, EtherTypes};
+use pnet::packet::ip::IpNextHeaderProtocol;
+use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
+
+use std::cmp;
+use std::net::Ipv4Addr;
+
 use super::{MORE_FRAGMENTS, NO_FLAGS};
 
 #[cfg(all(test, feature = "unit-tests"))]
 use testing::ethernet::EthernetTx;
-#[cfg(not(all(test, feature = "unit-tests")))]
-use ethernet::EthernetTx;
 
 pub trait Ipv4Protocol: Protocol {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol;

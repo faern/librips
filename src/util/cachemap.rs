@@ -1,7 +1,7 @@
-use std::time::{Duration, Instant};
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::borrow::Borrow;
+use std::time::{Duration, Instant};
 
 pub struct CacheMap<K, V> {
     map: HashMap<K, (Instant, V)>,
@@ -55,8 +55,8 @@ impl<K, V> CacheMap<K, V>
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use std::thread::sleep;
+    use std::time::Duration;
 
     use super::*;
 

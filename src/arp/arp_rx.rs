@@ -1,12 +1,15 @@
-use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
-use pnet::packet::arp::ArpPacket;
-use pnet::packet::Packet;
 
 use {RxError, RxResult, VersionedTx};
 use ethernet::EthernetListener;
+
+use pnet::packet::Packet;
+use pnet::packet::arp::ArpPacket;
+use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
+
 use super::TableData;
 
 /// Receiver and parser of Arp packets. Shares table instance with the

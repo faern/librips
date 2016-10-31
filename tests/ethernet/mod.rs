@@ -1,15 +1,14 @@
-use std::sync::mpsc;
-use std::time::SystemTime;
-
+use pnet::packet::{Packet, PrimitiveValues};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
-use pnet::packet::{Packet, PrimitiveValues};
 
 use rips::{RxResult, Tx};
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
-
-use rips::testing;
 use rips::ethernet::BasicEthernetProtocol;
+use rips::testing;
+
+use std::sync::mpsc;
+use std::time::SystemTime;
 
 pub struct MockEthernetListener {
     pub tx: mpsc::Sender<Vec<u8>>,

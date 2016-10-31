@@ -26,10 +26,10 @@ pub use self::icmp_tx::{BasicIcmpProtocol, IcmpBuilder, IcmpProtocol, IcmpTx, Pi
 
 #[cfg(all(test, feature = "unit-tests"))]
 mod tests {
-    use pnet::packet::ip::IpNextHeaderProtocols;
+    use pnet::packet::Packet;
     use pnet::packet::icmp::IcmpTypes;
     use pnet::packet::icmp::echo_request::EchoRequestPacket;
-    use pnet::packet::Packet;
+    use pnet::packet::ip::IpNextHeaderProtocols;
 
     use super::*;
     use testing::ipv4::Ipv4Tx;

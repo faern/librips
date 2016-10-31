@@ -1,7 +1,7 @@
-use std::sync::mpsc;
-
 use TxResult;
 use ethernet::EthernetProtocol;
+
+use std::sync::mpsc;
 
 #[derive(Debug)]
 pub struct EthernetTx {

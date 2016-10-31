@@ -1,5 +1,5 @@
-use std::net::{SocketAddr, ToSocketAddrs};
 use std::io;
+use std::net::{SocketAddr, ToSocketAddrs};
 
 // mod cachemap;
 // pub use util::cachemap::CacheMap;

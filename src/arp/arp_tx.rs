@@ -1,11 +1,11 @@
-use std::net::Ipv4Addr;
-
-use pnet::packet::ethernet::{EtherType, EtherTypes};
-use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
-use pnet::util::MacAddr;
-
 use {Protocol, TxResult};
 use ethernet::{EthernetProtocol, EthernetTx};
+
+use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpPacket, MutableArpPacket};
+use pnet::packet::ethernet::{EtherType, EtherTypes};
+use pnet::util::MacAddr;
+
+use std::net::Ipv4Addr;
 
 /// Arp packet building and sending struct.
 pub struct ArpTx {

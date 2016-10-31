@@ -1,9 +1,9 @@
-use std::sync::mpsc::{Receiver, Sender};
-use std::io;
+use {EthernetChannel, Interface, NetworkStack};
 
 use pnet::datalink::{Channel, dummy};
 
-use {EthernetChannel, Interface, NetworkStack};
+use std::io;
+use std::sync::mpsc::{Receiver, Sender};
 
 pub fn dummy_ethernet
     (iface_i: u8)

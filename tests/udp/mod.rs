@@ -1,15 +1,16 @@
-use std::sync::{Arc, Mutex};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-
 use ipnetwork::Ipv4Network;
+
+use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EtherTypes, MutableEthernetPacket};
+use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::{MutableIpv4Packet, checksum};
 use pnet::packet::udp::MutableUdpPacket;
-use pnet::packet::ip::IpNextHeaderProtocols;
-use pnet::packet::MutablePacket;
 
-use rips::udp::UdpSocket;
 use rips::testing;
+use rips::udp::UdpSocket;
+
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::sync::{Arc, Mutex};
 
 #[test]
 fn socket_listen() {

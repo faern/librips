@@ -1,17 +1,17 @@
-use std::cmp;
-
-use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
-use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, IcmpCodes};
-use pnet::packet::MutablePacket;
-
 use {Protocol, TxResult};
 use ipv4::Ipv4Protocol;
+#[cfg(not(all(test, feature = "unit-tests")))]
+use ipv4::Ipv4Tx;
+
+use pnet::packet::MutablePacket;
+use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
+use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, IcmpCodes};
+use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+
+use std::cmp;
 
 #[cfg(all(test, feature = "unit-tests"))]
 use testing::ipv4::Ipv4Tx;
-#[cfg(not(all(test, feature = "unit-tests")))]
-use ipv4::Ipv4Tx;
 
 /// Trait for anything wishing to be the payload of an Icmp packet.
 pub trait IcmpProtocol: Protocol {
