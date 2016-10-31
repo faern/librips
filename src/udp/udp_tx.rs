@@ -1,7 +1,7 @@
 use std::net::Ipv4Addr;
 
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum};
+use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 
 use {Protocol, TxResult};
 
@@ -78,7 +78,7 @@ impl<'a> Protocol for UdpBuilder<'a> {
                 pkg.set_destination(self.dst);
                 pkg.set_length(self.len() as u16);
                 let checksum =
-                    ipv4_checksum(&pkg.to_immutable(), self.payload, self.src_ip, self.dst_ip);
+                    ipv4_checksum_adv(&pkg.to_immutable(), self.payload, self.src_ip, self.dst_ip);
                 pkg.set_checksum(checksum);
             }
             &mut buffer[UdpPacket::minimum_packet_size()..]

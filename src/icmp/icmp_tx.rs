@@ -1,8 +1,8 @@
 use std::cmp;
 
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, icmp_types};
-use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, icmp_codes};
+use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
+use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPacket, IcmpCodes};
 use pnet::packet::MutablePacket;
 
 use {Protocol, TxResult};
@@ -134,11 +134,11 @@ impl<'a> PingBuilder<'a> {
 
 impl<'a> IcmpProtocol for PingBuilder<'a> {
     fn icmp_type(&self) -> IcmpType {
-        icmp_types::EchoRequest
+        IcmpTypes::EchoRequest
     }
 
     fn icmp_code(&self) -> IcmpCode {
-        icmp_codes::NoCode
+        IcmpCodes::NoCode
     }
 }
 

@@ -27,7 +27,7 @@ pub use self::icmp_tx::{BasicIcmpProtocol, IcmpBuilder, IcmpProtocol, IcmpTx, Pi
 #[cfg(all(test, feature = "unit-tests"))]
 mod tests {
     use pnet::packet::ip::IpNextHeaderProtocols;
-    use pnet::packet::icmp::icmp_types;
+    use pnet::packet::icmp::IcmpTypes;
     use pnet::packet::icmp::echo_request::EchoRequestPacket;
     use pnet::packet::Packet;
 
@@ -43,7 +43,7 @@ mod tests {
         let (next_level_protocol, data) = read_handle.recv().unwrap();
         assert_eq!(next_level_protocol, IpNextHeaderProtocols::Icmp);
         let echo_pkg = EchoRequestPacket::new(&data).unwrap();
-        assert_eq!(echo_pkg.get_icmp_type(), icmp_types::EchoRequest);
+        assert_eq!(echo_pkg.get_icmp_type(), IcmpTypes::EchoRequest);
         assert_eq!(echo_pkg.get_icmp_code().0, 0);
         assert_eq!(echo_pkg.get_checksum(), 61128);
         assert_eq!(echo_pkg.payload(), [9, 55]);

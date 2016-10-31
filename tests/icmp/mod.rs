@@ -5,8 +5,8 @@ use std::time::SystemTime;
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::Ipv4Packet;
-use pnet::packet::icmp::echo_request::icmp_codes;
-use pnet::packet::icmp::{IcmpPacket, icmp_types};
+use pnet::packet::icmp::echo_request::IcmpCodes;
+use pnet::packet::icmp::{IcmpPacket, IcmpTypes};
 use pnet::packet::Packet;
 use pnet::util::MacAddr;
 
@@ -41,10 +41,10 @@ fn recv_icmp() {
 
     let (mut stack, interface, inject_handle, _) = testing::dummy_stack(0);
     stack.add_ipv4(&interface, local_net).unwrap();
-    stack.icmp_listen(local_ip, icmp_types::DestinationUnreachable, listener).unwrap();
+    stack.icmp_listen(local_ip, IcmpTypes::DestinationUnreachable, listener).unwrap();
 
-    let payload_builder = BasicIcmpProtocol::new(icmp_types::DestinationUnreachable,
-                                                 icmp_codes::NoCode,
+    let payload_builder = BasicIcmpProtocol::new(IcmpTypes::DestinationUnreachable,
+                                                 IcmpCodes::NoCode,
                                                  vec![6, 5]);
     let icmp_builder = IcmpBuilder::new(payload_builder);
     let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
@@ -64,5 +64,5 @@ fn recv_icmp() {
     assert_eq!(ip_pkg.get_next_level_protocol(),
                IpNextHeaderProtocols::Icmp);
     let icmp_pkg = IcmpPacket::new(ip_pkg.payload()).unwrap();
-    assert_eq!(icmp_pkg.get_icmp_type(), icmp_types::DestinationUnreachable);
+    assert_eq!(icmp_pkg.get_icmp_type(), IcmpTypes::DestinationUnreachable);
 }
