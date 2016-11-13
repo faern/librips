@@ -32,7 +32,6 @@ pub enum StackError {
     IllegalArgument,
     NoRouteToHost,
     InvalidInterface,
-    PoisonedLock,
     TxError(TxError),
     IoError(io::Error),
 }
@@ -56,7 +55,6 @@ impl From<StackError> for io::Error {
             StackError::IllegalArgument => other("Illegal argument".to_owned()),
             StackError::NoRouteToHost => other("No route to host".to_owned()),
             StackError::InvalidInterface => other("Invalid interface".to_owned()),
-            StackError::PoisonedLock => other("Poisoned lock".to_owned()),
             StackError::IoError(io_e) => io_e,
             StackError::TxError(txe) => txe.into(),
         }
@@ -182,7 +180,7 @@ impl StackInterface {
 
     pub fn set_mtu(&mut self, mtu: usize) -> StackResult<()> {
         self.mtu = mtu;
-        try!(self.tx.lock().or(Err(StackError::PoisonedLock))).inc();
+        self.tx.lock().unwrap().inc();
         Ok(())
     }
 
