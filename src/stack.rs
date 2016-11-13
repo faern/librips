@@ -178,10 +178,9 @@ impl StackInterface {
         self.mtu
     }
 
-    pub fn set_mtu(&mut self, mtu: usize) -> StackResult<()> {
+    pub fn set_mtu(&mut self, mtu: usize) {
         self.mtu = mtu;
         self.tx.lock().unwrap().inc();
-        Ok(())
     }
 
     /// Finds which local IP is suitable as src ip for packets sent to `dst`.
