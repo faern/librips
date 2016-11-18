@@ -344,8 +344,7 @@ impl VersionedTx {
     }
 
     /// Increments the internal counter by one. Used to invalidate all `Tx`
-    /// instances created
-    /// towards this `VersionedTx`
+    /// instances created towards this `VersionedTx`
     pub fn inc(&mut self) {
         self.current_rev = self.current_rev.wrapping_add(1);
         debug!("VersionedTx ticked to {}", self.current_rev);
