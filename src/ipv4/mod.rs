@@ -33,7 +33,7 @@ mod tests {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
-        let (eth_tx, rx) = ethernet::EthernetTx::new();
+        let (eth_tx, rx) = ethernet::MockEthernetTx::new();
         let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, 1500);
 
         let max_payload_len = ipv4_tx.max_payload_per_fragment();
@@ -59,7 +59,7 @@ mod tests {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
-        let (eth_tx, rx) = ethernet::EthernetTx::new();
+        let (eth_tx, rx) = ethernet::MockEthernetTx::new();
         let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, 1500);
 
         let max_payload_len = ipv4_tx.max_payload_per_fragment();

@@ -1,24 +1,36 @@
 use TxResult;
-use ethernet::EthernetProtocol;
+use ethernet::{EthernetProtocol, EthernetTx};
+
+use pnet::util::MacAddr;
 
 use std::sync::mpsc;
 
 #[derive(Debug)]
-pub struct EthernetTx {
+pub struct MockEthernetTx {
     chan: mpsc::Sender<Box<[u8]>>,
 }
 
-impl EthernetTx {
-    pub fn new() -> (EthernetTx, mpsc::Receiver<Box<[u8]>>) {
+impl MockEthernetTx {
+    pub fn new() -> (MockEthernetTx, mpsc::Receiver<Box<[u8]>>) {
         let (tx, rx) = mpsc::channel();
-        (EthernetTx { chan: tx }, rx)
+        (MockEthernetTx { chan: tx }, rx)
+    }
+}
+
+impl EthernetTx for MockEthernetTx {
+    fn src(&self) -> MacAddr {
+        MacAddr::new(0, 0, 0, 0, 0, 0)
     }
 
-    pub fn send<P>(&mut self, packets: usize, size: usize, mut payload: P) -> TxResult
+    fn dst(&self) -> MacAddr {
+        MacAddr::new(0, 0, 0, 0, 0, 0)
+    }
+
+    fn send<P>(&mut self, packets: usize, packet_size: usize, mut payload: P) -> TxResult
         where P: EthernetProtocol
     {
         for _ in 0..packets {
-            let mut buffer = vec![0; size];
+            let mut buffer = vec![0; packet_size];
             payload.build(&mut buffer[..]);
             self.chan.send(buffer.into_boxed_slice()).unwrap();
         }

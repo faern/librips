@@ -21,14 +21,14 @@ impl Ipv4Listener for MockIpv4Listener {
     }
 }
 
-pub struct Ipv4Tx {
+pub struct MockIpv4Tx {
     chan: mpsc::Sender<(IpNextHeaderProtocol, Box<[u8]>)>,
 }
 
-impl Ipv4Tx {
-    pub fn new() -> (Ipv4Tx, mpsc::Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
+impl MockIpv4Tx {
+    pub fn new() -> (MockIpv4Tx, mpsc::Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
         let (tx, rx) = mpsc::channel();
-        let ipv4 = Ipv4Tx { chan: tx };
+        let ipv4 = MockIpv4Tx { chan: tx };
         (ipv4, rx)
     }
 

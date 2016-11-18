@@ -1,6 +1,5 @@
 use {Protocol, TxResult};
 use ethernet::EthernetProtocol;
-#[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
 use pnet::packet::{MutablePacket, Packet};
@@ -12,9 +11,6 @@ use std::cmp;
 use std::net::Ipv4Addr;
 
 use super::{MORE_FRAGMENTS, NO_FLAGS};
-
-#[cfg(all(test, feature = "unit-tests"))]
-use testing::ethernet::EthernetTx;
 
 pub trait Ipv4Protocol: Protocol {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol;
