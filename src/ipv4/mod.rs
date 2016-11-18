@@ -2,7 +2,7 @@ mod ipv4_rx;
 mod ipv4_tx;
 
 pub use self::ipv4_rx::{IpListenerLookup, Ipv4Listener, Ipv4Rx};
-pub use self::ipv4_tx::{BasicIpv4Protocol, Ipv4Builder, Ipv4Protocol, Ipv4Tx};
+pub use self::ipv4_tx::{BasicIpv4Protocol, Ipv4Builder, Ipv4Protocol, Ipv4Tx, Ipv4TxImpl};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
@@ -34,7 +34,7 @@ mod tests {
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
         let (eth_tx, rx) = ethernet::MockEthernetTx::new();
-        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, 1500);
+        let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, src, dst, 1500);
 
         let max_payload_len = ipv4_tx.max_payload_per_fragment();
         let pkg_size = max_payload_len + 5;
@@ -60,7 +60,7 @@ mod tests {
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
         let (eth_tx, rx) = ethernet::MockEthernetTx::new();
-        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, 1500);
+        let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, src, dst, 1500);
 
         let max_payload_len = ipv4_tx.max_payload_per_fragment();
         let pkg_size = max_payload_len - 5;
