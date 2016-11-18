@@ -3,9 +3,9 @@ use pnet::packet::arp::{ArpPacket, MutableArpPacket};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use rips::{Tx, VersionedTx};
+use rips::{TxImpl, VersionedTx};
 use rips::arp::{ArpTable, ArpTx};
-use rips::ethernet::{EthernetRx, EthernetTx};
+use rips::ethernet::{EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::testing;
 use rips::rx;
 
@@ -25,8 +25,8 @@ fn arp_invalidate_on_update() {
     let ethernet_rx = EthernetRx::new(vec![arp_rx]);
     rx::spawn(channel.1, ethernet_rx);
 
-    let tx = Tx::versioned(vtx);
-    let ethernet_tx = EthernetTx::new(tx,
+    let tx = TxImpl::versioned(vtx);
+    let ethernet_tx = EthernetTxImpl::new(tx,
                                       MacAddr::new(0, 0, 0, 0, 0, 0),
                                       MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
     let mut arp = ArpTx::new(ethernet_tx);
@@ -66,8 +66,8 @@ fn arp_locking() {
         });
     }
     // Send out the request to the network
-    let tx = Tx::versioned(vtx.clone());
-    let ethernet_tx = EthernetTx::new(tx,
+    let tx = TxImpl::versioned(vtx.clone());
+    let ethernet_tx = EthernetTxImpl::new(tx,
                                       MacAddr::new(1, 2, 3, 4, 5, 7),
                                       MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
     let mut arp_tx = ArpTx::new(ethernet_tx);

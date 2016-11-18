@@ -8,13 +8,13 @@ use pnet::util::MacAddr;
 use std::net::Ipv4Addr;
 
 /// Arp packet building and sending struct.
-pub struct ArpTx {
-    ethernet: EthernetTx,
+pub struct ArpTx<T: EthernetTx> {
+    ethernet: T,
 }
 
-impl ArpTx {
+impl<T: EthernetTx> ArpTx<T> {
     /// Creates a new `ArpTx` that will transmit through `ethernet`
-    pub fn new(ethernet: EthernetTx) -> ArpTx {
+    pub fn new(ethernet: T) -> Self {
         ArpTx { ethernet: ethernet }
     }
 

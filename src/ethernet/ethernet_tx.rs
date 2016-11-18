@@ -50,28 +50,35 @@ impl Protocol for BasicEthernetProtocol {
     }
 }
 
-
-/// Transmit struct for the ethernet layer
-pub struct EthernetTx {
-    src: MacAddr,
-    dst: MacAddr,
-    tx: Tx,
+pub trait EthernetTx {
+    fn src(&self) -> MacAddr;
+    fn dst(&self) -> MacAddr;
+    fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
+        where P: EthernetProtocol;
 }
 
-impl EthernetTx {
-    pub fn new(tx: Tx, src: MacAddr, dst: MacAddr) -> Self {
-        EthernetTx {
+pub struct EthernetTxImpl<T: Tx> {
+    src: MacAddr,
+    dst: MacAddr,
+    tx: T,
+}
+
+impl<T: Tx> EthernetTxImpl<T> {
+    pub fn new(tx: T, src: MacAddr, dst: MacAddr) -> Self {
+        EthernetTxImpl {
             src: src,
             dst: dst,
             tx: tx,
         }
     }
+}
 
-    pub fn src(&self) -> MacAddr {
+impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
+    fn src(&self) -> MacAddr {
         self.src
     }
 
-    pub fn dst(&self) -> MacAddr {
+    fn dst(&self) -> MacAddr {
         self.dst
     }
 
@@ -83,7 +90,7 @@ impl EthernetTx {
     /// will be sent. This is  usually not a problem since the IP layer has the
     /// length in the header and the extra bytes should thus not cause any
     /// trouble.
-    pub fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
+    fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
         where P: EthernetProtocol
     {
         let mut builder = EthernetBuilder::new(self.src, self.dst, payload);

@@ -367,22 +367,26 @@ enum TxSender {
     Direct(Box<EthernetDataLinkSender>),
 }
 
+pub trait Tx {
+    fn send<T>(&mut self, num_packets: usize, packet_size: usize, builder: T) -> TxResult
+        where T: FnMut(MutableEthernetPacket);
+}
+
 /// Base representation of a the sending part of an interface. This is what an
-/// `EthernetTx` send
-/// to.
-pub struct Tx {
+/// `EthernetTx` send to.
+pub struct TxImpl {
     sender: TxSender,
     rev: u64,
 }
 
-impl Tx {
+impl TxImpl {
     /// Creates a new `Tx` based on the given `VersionedTx`. Will lock `vtx`
     /// and copy the current
     /// revision from it. This `Tx` will work for as long as the revision in
     /// `vtx` does not change.
-    pub fn versioned(vtx: Arc<Mutex<VersionedTx>>) -> Tx {
+    pub fn versioned(vtx: Arc<Mutex<VersionedTx>>) -> Self {
         let rev = vtx.lock().expect("Unable to lock vtx").current_rev;
-        Tx {
+        TxImpl {
             sender: TxSender::Versioned(vtx),
             rev: rev,
         }
@@ -391,20 +395,33 @@ impl Tx {
     /// Creates a new `Tx` based directly on the given
     /// `EthernetDataLinkSender`. Does not do
     /// versioning and should only be used for tests and other special cases.
-    pub fn direct(sender: Box<EthernetDataLinkSender>) -> Tx {
-        Tx {
+    pub fn direct(sender: Box<EthernetDataLinkSender>) -> Self {
+        TxImpl {
             sender: TxSender::Direct(sender),
             rev: 0,
         }
     }
 
+    fn internal_send<T>(sender: &mut Box<EthernetDataLinkSender>,
+                        num_packets: usize,
+                        packet_size: usize,
+                        mut builder: T)
+                        -> TxResult
+        where T: FnMut(MutableEthernetPacket)
+    {
+        let result = sender.build_and_send(num_packets, packet_size, &mut builder);
+        io_result_to_tx_result(result)
+    }
+}
+
+impl Tx for TxImpl {
     /// Sends packets to the backing `EthernetDataLinkSender`. If this `Tx` is
     /// versioned the
     /// `VersionedTx` will first be locked and the revision compared. If the
     /// revision changed
     /// this method will return `TxError::InvalidTx` instead of sending
     /// anything.
-    pub fn send<T>(&mut self, num_packets: usize, size: usize, builder: T) -> TxResult
+    fn send<T>(&mut self, num_packets: usize, packet_size: usize, builder: T) -> TxResult
         where T: FnMut(MutableEthernetPacket)
     {
         match self.sender {
@@ -413,22 +430,11 @@ impl Tx {
                 if self.rev != sender.current_rev {
                     Err(TxError::InvalidTx)
                 } else {
-                    Self::internal_send(&mut sender.sender, num_packets, size, builder)
+                    Self::internal_send(&mut sender.sender, num_packets, packet_size, builder)
                 }
             }
-            TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),
+            TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, packet_size, builder),
         }
-    }
-
-    fn internal_send<T>(sender: &mut Box<EthernetDataLinkSender>,
-                        num_packets: usize,
-                        size: usize,
-                        mut builder: T)
-                        -> TxResult
-        where T: FnMut(MutableEthernetPacket)
-    {
-        let result = sender.build_and_send(num_packets, size, &mut builder);
-        io_result_to_tx_result(result)
     }
 }
 

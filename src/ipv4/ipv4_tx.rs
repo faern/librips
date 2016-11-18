@@ -59,7 +59,7 @@ impl Protocol for BasicIpv4Protocol {
 
 /// IPv4 packet builder and sender. Will fragment packets larger than the
 /// MTU reported by the underlying `EthernetTx` given to the constructor.
-pub struct Ipv4Tx {
+pub struct Ipv4Tx<T: EthernetTx> {
     /// The source IP of packets built by this instance.
     pub src: Ipv4Addr,
 
@@ -68,13 +68,13 @@ pub struct Ipv4Tx {
 
     mtu: usize,
 
-    ethernet: EthernetTx,
+    ethernet: T,
     next_identification: u16,
 }
 
-impl Ipv4Tx {
+impl<T: EthernetTx> Ipv4Tx<T> {
     /// Constructs a new `Ipv4Tx`.
-    pub fn new(ethernet: EthernetTx, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Ipv4Tx {
+    pub fn new(ethernet: T, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Self {
         assert!(mtu >= Ipv4Packet::minimum_packet_size());
         Ipv4Tx {
             src: src,
