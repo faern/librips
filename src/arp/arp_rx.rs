@@ -37,11 +37,11 @@ impl EthernetListener for ArpRx {
         let mac = arp_pkg.get_sender_hw_addr();
         debug!("Arp MAC: {} -> IPv4: {}", mac, ip);
 
-        let mut data = try!(self.data.lock().or(Err(RxError::PoisonedLock)));
+        let mut data = self.data.lock().unwrap();
         let old_mac = data.table.insert(ip, mac);
         if old_mac.is_none() || old_mac != Some(mac) {
             // The new MAC is different from the old one, bump tx VersionedTx
-            try!(self.vtx.lock().or(Err(RxError::PoisonedLock))).inc();
+            self.vtx.lock().unwrap().inc();
         }
         if let Some(listeners) = data.listeners.remove(&ip) {
             for listener in listeners {

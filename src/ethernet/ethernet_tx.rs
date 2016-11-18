@@ -59,7 +59,6 @@ pub struct EthernetTx {
 }
 
 impl EthernetTx {
-    /// Creates a new `EthernetTx` with the given parameters
     pub fn new(tx: Tx, src: MacAddr, dst: MacAddr) -> Self {
         EthernetTx {
             src: src,

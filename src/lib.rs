@@ -260,11 +260,6 @@ pub enum TxError {
     /// field
     TooLargePayload,
 
-    /// Returned when the stack was not able to lock an internal lock. Should
-    /// not happen,
-    /// indicates an internal error or an invalid usage of this library.
-    PoisonedLock,
-
     /// Returned when there was an `IoError` during transmission
     IoError(io::Error),
 
@@ -284,7 +279,6 @@ impl From<TxError> for io::Error {
         match e {
             TxError::InvalidTx => other("Outdated constructor".to_owned()),
             TxError::TooLargePayload => other("Too large payload".to_owned()),
-            TxError::PoisonedLock => other("Poisoned lock".to_owned()),
             TxError::IoError(e2) => e2,
             TxError::Other(msg) => other(format!("Other: {}", msg)),
         }
@@ -325,10 +319,6 @@ pub enum RxError {
     /// When other packet content is invalid.
     InvalidContent,
 
-    /// When a lock inside the stack is poisoned so locking can't be performed.
-    /// Should not happen.
-    PoisonedLock,
-
     /// Some error that was not covered by the more specific errors in this
     /// enum.
     Other(String),
@@ -354,8 +344,7 @@ impl VersionedTx {
     }
 
     /// Increments the internal counter by one. Used to invalidate all `Tx`
-    /// instances created
-    /// towards this `VersionedTx`
+    /// instances created towards this `VersionedTx`
     pub fn inc(&mut self) {
         self.current_rev = self.current_rev.wrapping_add(1);
         debug!("VersionedTx ticked to {}", self.current_rev);
@@ -409,15 +398,11 @@ impl Tx {
     {
         match self.sender {
             TxSender::Versioned(ref vtx) => {
-                match vtx.lock() {
-                    Ok(mut sender) => {
-                        if self.rev != sender.current_rev {
-                            Err(TxError::InvalidTx)
-                        } else {
-                            Self::internal_send(&mut sender.sender, num_packets, size, builder)
-                        }
-                    }
-                    Err(_) => Err(TxError::PoisonedLock),
+                let mut sender = vtx.lock().unwrap();
+                if self.rev != sender.current_rev {
+                    Err(TxError::InvalidTx)
+                } else {
+                    Self::internal_send(&mut sender.sender, num_packets, size, builder)
                 }
             }
             TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),

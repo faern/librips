@@ -144,7 +144,7 @@ impl Ipv4Rx {
         let dest_ip = ip_pkg.get_destination();
         let next_level_protocol = ip_pkg.get_next_level_protocol();
         trace!("Ipv4 got a packet to {}!", dest_ip);
-        let mut listeners = try!(self.listeners.lock().or(Err(RxError::PoisonedLock)));
+        let mut listeners = self.listeners.lock().unwrap();
         if let Some(mut listeners) = listeners.get_mut(&dest_ip) {
             if let Some(mut listener) = listeners.get_mut(&next_level_protocol) {
                 listener.recv(time, ip_pkg)
