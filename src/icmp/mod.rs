@@ -32,11 +32,11 @@ mod tests {
     use pnet::packet::ip::IpNextHeaderProtocols;
 
     use super::*;
-    use testing::ipv4::Ipv4Tx;
+    use testing::ipv4::MockIpv4Tx;
 
     #[test]
     fn test_ping() {
-        let (ipv4, read_handle) = Ipv4Tx::new();
+        let (ipv4, read_handle) = MockIpv4Tx::new();
         let mut icmp = IcmpTx::new(ipv4);
         icmp.send_echo(&[9, 55]).unwrap();
 

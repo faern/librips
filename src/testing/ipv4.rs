@@ -1,5 +1,5 @@
 use {Protocol, RxResult, TxResult};
-use ipv4::{Ipv4Listener, Ipv4Protocol};
+use ipv4::{Ipv4Listener, Ipv4Protocol, Ipv4Tx};
 
 use pnet::packet::Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
@@ -31,8 +31,10 @@ impl MockIpv4Tx {
         let ipv4 = MockIpv4Tx { chan: tx };
         (ipv4, rx)
     }
+}
 
-    pub fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
+impl Ipv4Tx for MockIpv4Tx {
+    fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
         let mut buffer = vec![0; payload.len() as usize];
         payload.build(&mut buffer);
         self.chan.send((payload.next_level_protocol(), buffer.into_boxed_slice())).unwrap();
