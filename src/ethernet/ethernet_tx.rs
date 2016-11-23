@@ -94,8 +94,12 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
         where P: EthernetProtocol
     {
         let mut builder = EthernetBuilder::new(self.src, self.dst, payload);
+        let builder_callback = |buffer: &mut [u8]| {
+            let packet = MutableEthernetPacket::new(buffer).unwrap();
+            builder.build(packet);
+        };
         let total_size = size + EthernetPacket::minimum_packet_size();
-        self.tx.send(packets, total_size, |pkg| builder.build(pkg))
+        self.tx.send(packets, total_size, builder_callback)
     }
 }
 

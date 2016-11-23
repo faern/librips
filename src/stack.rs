@@ -1,11 +1,14 @@
-use {EthernetChannel, Interface, RoutingTable, Tx, TxError, VersionedTx};
-use arp;
-use ethernet;
-use icmp;
+use {EthernetChannel, Interface, RoutingTable, Tx, TxError};
+use arp::{self, ArpTx};
+use ethernet::{self, EthernetTxImpl};
+use icmp::{self, IcmpTx};
+use ipv4::{self, Ipv4TxImpl};
+use rx;
+use tx::{TxBarrier, TxImpl};
+use udp::{self, UdpTx};
+use util;
 
 use ipnetwork::Ipv4Network;
-use ipv4;
-use rx;
 
 use pnet::packet::icmp::IcmpType;
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -20,8 +23,6 @@ use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 
-use udp;
-use util;
 
 pub static DEFAULT_MTU: usize = 1500;
 pub static LOCAL_PORT_RANGE_START: u16 = 32768;
@@ -75,7 +76,7 @@ struct Ipv4Data {
 pub struct StackInterface {
     interface: Interface,
     mtu: usize,
-    tx: Arc<Mutex<VersionedTx>>,
+    tx: Arc<Mutex<TxBarrier>>,
     arp_table: arp::ArpTable,
     ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
@@ -86,7 +87,7 @@ impl StackInterface {
         let sender = channel.0;
         let receiver = channel.1;
 
-        let vtx = Arc::new(Mutex::new(VersionedTx::new(sender)));
+        let vtx = Arc::new(Mutex::new(TxBarrier::new(sender)));
 
         let arp_table = arp::ArpTable::new();
         let arp_rx = arp_table.arp_rx(vtx.clone());
@@ -112,15 +113,16 @@ impl StackInterface {
         &self.interface
     }
 
-    fn tx(&self) -> Tx {
-        Tx::versioned(self.tx.clone())
+    fn tx(&self) -> TxImpl {
+        let version = self.tx.lock().version;
+        TxImpl::new(self.tx.clone(), version)
     }
 
     pub fn ethernet_tx(&self, dst: MacAddr) -> ethernet::EthernetTx {
         ethernet::EthernetTx::new(self.tx(), self.interface.mac, dst)
     }
 
-    pub fn arp_tx(&self) -> arp::ArpTx {
+    pub fn arp_tx(&self) -> ArpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
         arp::ArpTx::new(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
     }
 
@@ -271,7 +273,7 @@ impl NetworkStack {
         }
     }
 
-    pub fn icmp_tx(&mut self, dst_ip: Ipv4Addr) -> StackResult<icmp::IcmpTx> {
+    pub fn icmp_tx(&mut self, dst_ip: Ipv4Addr) -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(icmp::IcmpTx::new(ipv4_tx))
     }
@@ -298,7 +300,7 @@ impl NetworkStack {
         }
     }
 
-    pub fn udp_tx(&mut self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<udp::UdpTx> {
+    pub fn udp_tx(&mut self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(udp::UdpTx::new(ipv4_tx, src, dst_port))
     }

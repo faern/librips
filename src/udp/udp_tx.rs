@@ -6,14 +6,14 @@ use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
 
 use std::net::Ipv4Addr;
 
-pub struct UdpTx {
+pub struct UdpTx<T: Ipv4Tx> {
     src: u16,
     dst: u16,
-    ipv4: Ipv4Tx,
+    ipv4: T,
 }
 
-impl UdpTx {
-    pub fn new(ipv4: Ipv4Tx, src: u16, dst: u16) -> UdpTx {
+impl<T: Ipv4Tx> UdpTx<T> {
+    pub fn new(ipv4: T, src: u16, dst: u16) -> Self {
         UdpTx {
             src: src,
             dst: dst,
@@ -23,8 +23,8 @@ impl UdpTx {
 
     pub fn send(&mut self, payload: &[u8]) -> TxResult {
         let (src_port, dst_port) = (self.src, self.dst);
-        let src_ip = self.ipv4.src;
-        let dst_ip = self.ipv4.dst;
+        let src_ip = self.ipv4.src();
+        let dst_ip = self.ipv4.dst();
         let builder = UdpBuilder::new(src_ip, dst_ip, src_port, dst_port, payload);
         self.ipv4.send(builder)
     }

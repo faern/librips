@@ -1,7 +1,8 @@
 
 
-use {RxError, RxResult, VersionedTx};
+use {RxError, RxResult};
 use ethernet::EthernetListener;
+use tx::TxBarrier;
 
 use pnet::packet::Packet;
 use pnet::packet::arp::ArpPacket;
@@ -18,11 +19,11 @@ use super::TableData;
 /// revision bumped.
 pub struct ArpRx {
     data: Arc<Mutex<TableData>>,
-    vtx: Arc<Mutex<VersionedTx>>,
+    vtx: Arc<Mutex<TxBarrier>>,
 }
 
 impl ArpRx {
-    pub fn new(data: Arc<Mutex<TableData>>, vtx: Arc<Mutex<VersionedTx>>) -> Self {
+    pub fn new(data: Arc<Mutex<TableData>>, vtx: Arc<Mutex<TxBarrier>>) -> Self {
         ArpRx {
             data: data,
             vtx: vtx,

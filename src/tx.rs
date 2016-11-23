@@ -2,6 +2,7 @@ use ::{TxResult, TxError, Tx};
 
 use pnet::datalink::EthernetDataLinkSender;
 use pnet::packet::ethernet::MutableEthernetPacket;
+use pnet::packet::MutablePacket;
 
 use std::sync::{Arc, Mutex};
 use std::io;
@@ -46,7 +47,9 @@ impl Tx for TxBarrier {
     fn send<T>(&mut self, num_packets: usize, packet_size: usize, mut builder: T) -> TxResult
         where T: FnMut(&mut [u8])
     {
-        let eth_builder = |data| {MutableEthernetPacket::new(data).unwrap()};
+        let mut eth_builder = |mut packet: MutableEthernetPacket| {
+            builder(packet.packet_mut());
+        };
         let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_builder);
         self.io_result_to_tx_result(result)
     }
@@ -62,7 +65,7 @@ pub struct TxImpl {
 impl TxImpl {
     pub fn new(tx: Arc<Mutex<TxBarrier>>, version: u64) -> Self {
         TxImpl {
-            sender: vtx,
+            tx: tx,
             version: version,
         }
     }
@@ -79,7 +82,7 @@ impl Tx for TxImpl {
         where T: FnMut(&mut [u8])
     {
         let mut tx = self.tx.lock().unwrap();
-        if self.version != sender.version {
+        if self.version != tx.version {
             Err(TxError::InvalidTx)
         } else {
             tx.send(num_packets, packet_size, builder)

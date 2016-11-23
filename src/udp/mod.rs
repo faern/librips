@@ -1,6 +1,9 @@
 #[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 use {TxError, TxResult};
+use ipv4::Ipv4TxImpl;
+use ethernet::EthernetTxImpl;
+use tx::TxImpl;
 
 use std::collections::HashMap;
 use std::io;
@@ -20,7 +23,7 @@ pub use self::udp_tx::{UdpBuilder, UdpTx};
 pub struct UdpSocket {
     socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
-    tx_cache: HashMap<SocketAddrV4, UdpTx>,
+    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>>,
     rx: Option<UdpSocketReader>,
 }
 

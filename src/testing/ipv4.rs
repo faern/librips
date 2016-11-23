@@ -8,6 +8,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::SystemTime;
+use std::net::Ipv4Addr;
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,
@@ -34,6 +35,14 @@ impl MockIpv4Tx {
 }
 
 impl Ipv4Tx for MockIpv4Tx {
+    fn src(&self) -> Ipv4Addr {
+        Ipv4Addr::new(0, 0, 0, 0)
+    }
+
+    fn dst(&self) -> Ipv4Addr {
+        Ipv4Addr::new(0, 0, 0, 0)
+    }
+
     fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
         let mut buffer = vec![0; payload.len() as usize];
         payload.build(&mut buffer);

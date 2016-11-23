@@ -9,7 +9,7 @@ use std::net::Ipv4Addr;
 use pnet::util::MacAddr;
 
 use ethernet::EthernetListener;
-use VersionedTx;
+use tx::TxBarrier;
 
 mod arp_rx;
 mod arp_tx;
@@ -58,7 +58,7 @@ impl ArpTable {
     /// The `ArpRx` created here will share the table with this `ArpTable`.
     /// The given `VersionedTx` will have its revision bumped upon incoming Arp
     /// packet.
-    pub fn arp_rx(&self, vtx: Arc<Mutex<VersionedTx>>) -> Box<EthernetListener> {
+    pub fn arp_rx(&self, vtx: Arc<Mutex<TxBarrier>>) -> Box<EthernetListener> {
         Box::new(ArpRx::new(self.data.clone(), vtx)) as Box<EthernetListener>
     }
 

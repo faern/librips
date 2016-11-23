@@ -54,6 +54,8 @@ impl Protocol for BasicIpv4Protocol {
 
 
 pub trait Ipv4Tx {
+    fn src(&self) -> Ipv4Addr;
+    fn dst(&self) -> Ipv4Addr;
     fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult;
 }
 
@@ -86,10 +88,14 @@ impl<T: EthernetTx> Ipv4TxImpl<T> {
 }
 
 impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
-    /// Sends an IPv4 packet to the network. If the given `dst_ip` is within
-    /// the local network it will be sent directly to the MAC of that IP (taken
-    /// from arp), otherwise it will be sent to the MAC of the configured
-    /// gateway.
+    fn src(&self) -> Ipv4Addr {
+        self.src
+    }
+
+    fn dst(&self) -> Ipv4Addr {
+        self.dst
+    }
+
     fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult {
         let payload_len = payload.len();
         let builder = Ipv4Builder::new(self.src, self.dst, self.next_identification, payload);
