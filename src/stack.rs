@@ -1,6 +1,6 @@
 use {EthernetChannel, Interface, RoutingTable, Tx, TxError};
 use arp::{self, ArpTx};
-use ethernet::{self, EthernetTxImpl};
+use ethernet::{self, EthernetTx, EthernetTxImpl};
 use icmp::{self, IcmpTx};
 use ipv4::{self, Ipv4TxImpl};
 use rx;
@@ -114,15 +114,15 @@ impl StackInterface {
     }
 
     fn tx(&self) -> TxImpl {
-        let version = self.tx.lock().version;
+        let version = self.tx.lock().unwrap().version();
         TxImpl::new(self.tx.clone(), version)
     }
 
-    pub fn ethernet_tx(&self, dst: MacAddr) -> ethernet::EthernetTx {
-        ethernet::EthernetTx::new(self.tx(), self.interface.mac, dst)
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<TxImpl> {
+        EthernetTxImpl::new(self.tx(), self.interface.mac, dst)
     }
 
-    pub fn arp_tx(&self) -> ArpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
+    pub fn arp_tx(&self) -> ArpTx<EthernetTxImpl<TxImpl>> {
         arp::ArpTx::new(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
     }
 
@@ -161,7 +161,7 @@ impl StackInterface {
         }
     }
 
-    pub fn ipv4_tx(&mut self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> StackResult<ipv4::Ipv4Tx> {
+    pub fn ipv4_tx(&mut self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> StackResult<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
         let local_dst = gw.unwrap_or(dst);
         if let Some(src) = self.closest_local_ip(local_dst) {
             let dst_mac = match self.arp_table.get(local_dst) {
@@ -172,7 +172,7 @@ impl StackInterface {
                 }
             };
             let ethernet_tx = self.ethernet_tx(dst_mac);
-            Ok(ipv4::Ipv4Tx::new(ethernet_tx, src, dst, self.mtu))
+            Ok(Ipv4TxImpl::new(ethernet_tx, src, dst, self.mtu))
         } else {
             Err(StackError::IllegalArgument)
         }
@@ -261,7 +261,7 @@ impl NetworkStack {
         Ok(())
     }
 
-    pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<ipv4::Ipv4Tx> {
+    pub fn ipv4_tx(&mut self, dst: Ipv4Addr) -> StackResult<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
         if let Some((gw, interface)) = self.routing_table.route(dst) {
             if let Some(stack_interface) = self.interfaces.get_mut(&interface) {
                 stack_interface.ipv4_tx(dst, gw)

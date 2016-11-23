@@ -30,6 +30,10 @@ impl TxBarrier {
         trace!("TxBarrier ticked to {}", self.version);
     }
 
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
     fn io_result_to_tx_result(&self, r: Option<io::Result<()>>) -> TxResult {
         match r {
             None => Err(TxError::Other("Insufficient buffer space".to_owned())),
