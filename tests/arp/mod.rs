@@ -7,6 +7,7 @@ use rips::{Tx, VersionedTx};
 use rips::arp::{ArpTable, ArpTx};
 use rips::ethernet::{EthernetRx, EthernetTx};
 use rips::testing;
+use rips::rx;
 
 use std::io;
 use std::net::Ipv4Addr;
@@ -20,7 +21,9 @@ fn arp_invalidate_on_update() {
     let (channel, _, inject_handle, _) = testing::dummy_ethernet(7);
 
     let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
-    EthernetRx::new(vec![arp_table.arp_rx(vtx.clone())]).spawn(channel.1);
+    let arp_rx = arp_table.arp_rx(vtx.clone());
+    let ethernet_rx = EthernetRx::new(vec![arp_rx]);
+    rx::spawn(channel.1, ethernet_rx);
 
     let tx = Tx::versioned(vtx);
     let ethernet_tx = EthernetTx::new(tx,
@@ -45,7 +48,9 @@ fn arp_locking() {
     let arp_table = ArpTable::new();
     let (channel, _, inject_handle, read_handle) = testing::dummy_ethernet(7);
     let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
-    EthernetRx::new(vec![arp_table.arp_rx(vtx.clone())]).spawn(channel.1);
+    let arp_rx = arp_table.arp_rx(vtx.clone());
+    let ethernet_rx = EthernetRx::new(vec![arp_rx]);
+    rx::spawn(channel.1, ethernet_rx);
 
     let (arp_thread_tx, arp_thread_rx) = mpsc::channel();
     // Spawn `thread_count` threads that all try to request the same ip

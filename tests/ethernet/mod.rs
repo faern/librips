@@ -6,6 +6,7 @@ use rips::{RxResult, Tx};
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx};
 use rips::ethernet::BasicEthernetProtocol;
 use rips::testing;
+use rips::rx;
 
 use std::sync::mpsc;
 use std::time::SystemTime;
@@ -32,7 +33,8 @@ fn test_ethernet_recv() {
     let listeners = vec![Box::new(mock_listener) as Box<EthernetListener>];
 
     let (channel, _, inject_handle, _) = testing::dummy_ethernet(0);
-    EthernetRx::new(listeners).spawn(channel.1);
+    let ethernet_rx = EthernetRx::new(listeners);
+    rx::spawn(channel.1, ethernet_rx);
 
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() + 3];
     {
