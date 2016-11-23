@@ -7,7 +7,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::util::MacAddr;
 
 use rips::ethernet::EthernetRx;
-use rips::ipv4::{Ipv4Listener, Ipv4Rx};
+use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::testing;
 use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
 use rips::rx;

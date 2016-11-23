@@ -3,11 +3,11 @@ use pnet::packet::arp::{ArpPacket, MutableArpPacket};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use rips::{TxImpl, VersionedTx};
 use rips::arp::{ArpTable, ArpTx};
 use rips::ethernet::{EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::testing;
 use rips::rx;
+use rips::tx::{TxImpl, TxBarrier};
 
 use std::io;
 use std::net::Ipv4Addr;
@@ -20,12 +20,12 @@ fn arp_invalidate_on_update() {
     let arp_table = ArpTable::new();
     let (channel, _, inject_handle, _) = testing::dummy_ethernet(7);
 
-    let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
+    let vtx = Arc::new(Mutex::new(TxBarrier::new(channel.0)));
     let arp_rx = arp_table.arp_rx(vtx.clone());
     let ethernet_rx = EthernetRx::new(vec![arp_rx]);
     rx::spawn(channel.1, ethernet_rx);
 
-    let tx = TxImpl::versioned(vtx);
+    let tx = TxImpl::new(vtx, 0);
     let ethernet_tx = EthernetTxImpl::new(tx,
                                       MacAddr::new(0, 0, 0, 0, 0, 0),
                                       MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
@@ -47,7 +47,7 @@ fn arp_locking() {
 
     let arp_table = ArpTable::new();
     let (channel, _, inject_handle, read_handle) = testing::dummy_ethernet(7);
-    let vtx = Arc::new(Mutex::new(VersionedTx::new(channel.0)));
+    let vtx = Arc::new(Mutex::new(TxBarrier::new(channel.0)));
     let arp_rx = arp_table.arp_rx(vtx.clone());
     let ethernet_rx = EthernetRx::new(vec![arp_rx]);
     rx::spawn(channel.1, ethernet_rx);
@@ -66,7 +66,7 @@ fn arp_locking() {
         });
     }
     // Send out the request to the network
-    let tx = TxImpl::versioned(vtx.clone());
+    let tx = TxImpl::new(vtx.clone(), 0);
     let ethernet_tx = EthernetTxImpl::new(tx,
                                       MacAddr::new(1, 2, 3, 4, 5, 7),
                                       MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
