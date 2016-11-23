@@ -94,7 +94,8 @@ impl StackInterface {
         let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
 
         let ethernet_listeners = vec![arp_rx, ipv4_rx];
-        ethernet::EthernetRx::new(ethernet_listeners).spawn(receiver);
+        let ethernet_rx = ethernet::EthernetRx::new(ethernet_listeners);
+        rx::spawn(receiver, ethernet_rx);
 
         StackInterface {
             interface: interface,
