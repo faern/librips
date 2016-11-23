@@ -46,7 +46,7 @@ impl Tx for TxBarrier {
     fn send<T>(&mut self, num_packets: usize, packet_size: usize, mut builder: T) -> TxResult
         where T: FnMut(&mut [u8])
     {
-        let eth_builder = |data| {MutableEthernetPacket::new(data).unwrap()}
+        let eth_builder = |data| {MutableEthernetPacket::new(data).unwrap()};
         let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_builder);
         self.io_result_to_tx_result(result)
     }
