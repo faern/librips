@@ -186,6 +186,8 @@ use pnet::packet::ethernet::MutableEthernetPacket;
 #[macro_use]
 mod macros;
 
+pub mod rx;
+
 pub mod ethernet;
 
 /// Module containing everything related to the address resolution protocol

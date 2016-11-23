@@ -5,6 +5,7 @@ use icmp;
 
 use ipnetwork::Ipv4Network;
 use ipv4;
+use rx;
 
 use pnet::packet::icmp::IcmpType;
 use pnet::packet::ip::IpNextHeaderProtocols;

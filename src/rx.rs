@@ -1,5 +1,8 @@
 use RxResult;
 
+use pnet::packet::ethernet::EthernetPacket;
+use pnet::datalink::EthernetDataLinkReceiver;
+
 use std::thread;
 use std::time::SystemTime;
 
@@ -7,8 +10,8 @@ pub trait RxListener: Send {
     fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult;
 }
 
-pub fn spawn<L>(self, receiver: Box<EthernetDataLinkReceiver>, listener: L)
-    where L: RxListener
+pub fn spawn<L>(receiver: Box<EthernetDataLinkReceiver>, listener: L)
+    where L: RxListener + 'static
 {
     let rx_thread = RxThread::new(receiver, listener);
     thread::spawn(move || {
@@ -22,8 +25,8 @@ struct RxThread<L: RxListener> {
 }
 
 impl<L: RxListener> RxThread<L> {
-    pub fn new(receiver: Box<EthernetDataLinkReceiver>, listener: L) -> RxThread {
-        EthernetRx {
+    pub fn new(receiver: Box<EthernetDataLinkReceiver>, listener: L) -> Self {
+        RxThread {
             receiver: receiver,
             listener: listener,
         }
