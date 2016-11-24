@@ -328,11 +328,6 @@ pub trait Tx {
         where T: FnMut(&mut [u8]);
 }
 
-pub enum StackInterfaceMsg {
-    UpdateArpTable(Ipv4Addr, MacAddr),
-    ArpRequest(Ipv4Addr, MacAddr, Ipv4Addr),
-}
-
 /// Create a default stack managing all interfaces given by
 /// `pnet::datalink::interfaces()`.
 pub fn default_stack() -> StackResult<NetworkStack> {

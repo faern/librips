@@ -1,4 +1,4 @@
-use ::{EthernetChannel, Interface, RoutingTable, TxError, StackInterfaceMsg};
+use ::{EthernetChannel, Interface, RoutingTable, TxError};
 use ::arp::{self, ArpTx, TableData};
 use ::ethernet::{EthernetRx, EthernetTxImpl};
 use ::tx::{TxBarrier, TxImpl};
@@ -67,6 +67,11 @@ impl From<StackError> for io::Error {
 
 pub type StackResult<T> = Result<T, StackError>;
 
+pub enum StackInterfaceMsg {
+    UpdateArpTable(Ipv4Addr, MacAddr),
+    ArpRequest(Ipv4Addr, MacAddr, Ipv4Addr),
+}
+
 struct StackInterfaceThread {
     queue: Receiver<StackInterfaceMsg>,
     arp_table: Arc<Mutex<TableData>>,
@@ -97,7 +102,7 @@ impl StackInterfaceThread {
     }
 
     fn process_msg(&mut self, msg: StackInterfaceMsg) {
-        use StackInterfaceMsg::*;
+        use self::StackInterfaceMsg::*;
         match msg {
             UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
             ArpRequest(sender_ip, sender_mac, target_ip) => {

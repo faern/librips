@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 
-use StackInterfaceMsg;
+use stack::StackInterfaceMsg;
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::collections::HashMap;
