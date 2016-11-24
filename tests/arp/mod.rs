@@ -1,5 +1,5 @@
 use pnet::packet::{MutablePacket, Packet};
-use pnet::packet::arp::{ArpPacket, MutableArpPacket};
+use pnet::packet::arp::{ArpPacket, MutableArpPacket, ArpOperations};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
@@ -21,7 +21,7 @@ fn arp_invalidate_on_update() {
     // Send should work before table is updated
     assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_ok());
     // Inject Arp packet and wait for processing
-    send_arp(inject_handle);
+    send_arp_reply(inject_handle);
     thread::sleep(Duration::new(1, 0));
     // Send should not work after incoming packet bumped VersionedTx revision
     assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_err());
@@ -69,7 +69,7 @@ fn arp_locking() {
                arp_request.get_target_proto_addr());
 
     // Inject Arp packet and wait for processing
-    send_arp(inject_handle);
+    send_arp_reply(inject_handle);
     thread::sleep(Duration::new(1, 0));
 
     // Make sure all threads returned already, otherwise too slow
@@ -80,7 +80,7 @@ fn arp_locking() {
     assert!(arp_thread_rx.try_recv().is_err());
 }
 
-fn send_arp(inject_handle: mpsc::Sender<io::Result<Box<[u8]>>>) {
+fn send_arp_reply(inject_handle: mpsc::Sender<io::Result<Box<[u8]>>>) {
     // Send the response back to librips
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() +
                              ArpPacket::minimum_packet_size()];
@@ -88,6 +88,7 @@ fn send_arp(inject_handle: mpsc::Sender<io::Result<Box<[u8]>>>) {
         let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
         eth_pkg.set_ethertype(EtherTypes::Arp);
         let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
+        arp_pkg.set_operation(ArpOperations::Reply);
         arp_pkg.set_sender_hw_addr(MacAddr::new(9, 8, 7, 6, 5, 4));
         arp_pkg.set_sender_proto_addr(Ipv4Addr::new(10, 0, 0, 1));
     }

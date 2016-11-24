@@ -330,7 +330,7 @@ pub trait Tx {
 
 pub enum StackInterfaceMsg {
     UpdateArpTable(Ipv4Addr, MacAddr),
-    //ArpRequest(Ipv4Addr, MacAddr),
+    ArpRequest(Ipv4Addr, MacAddr, Ipv4Addr),
 }
 
 /// Create a default stack managing all interfaces given by

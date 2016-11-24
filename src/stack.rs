@@ -95,8 +95,10 @@ impl StackInterfaceThread {
     }
 
     fn process_msg(&mut self, msg: StackInterfaceMsg) {
+        use StackInterfaceMsg::*;
         match msg {
-            StackInterfaceMsg::UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
+            UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
+            ArpRequest(sender_ip, sender_mac, target_ip) => self.arp_request(sender_ip, sender_mac, target_ip)
         }
     }
 
@@ -113,6 +115,10 @@ impl StackInterfaceThread {
             }
         }
     }
+
+    fn arp_request(&mut self, sender_ip: Ipv4Addr, sender_mac: MacAddr, target_ip: Ipv4Addr) {
+
+    }
 }
 
 struct Ipv4Data {
@@ -126,7 +132,7 @@ struct Ipv4Data {
 pub struct StackInterface {
     interface: Interface,
     mtu: usize,
-    thread_handle: Sender<StackInterfaceMsg>,
+    _thread_handle: Sender<StackInterfaceMsg>,
     tx: Arc<Mutex<TxBarrier>>,
     arp_table: arp::ArpTable,
     ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
@@ -155,7 +161,7 @@ impl StackInterface {
         StackInterface {
             interface: interface,
             mtu: DEFAULT_MTU,
-            thread_handle: thread_handle,
+            _thread_handle: thread_handle,
             tx: tx,
             arp_table: arp_table,
             ipv4s: HashMap::new(),
