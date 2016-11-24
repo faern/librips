@@ -70,19 +70,21 @@ pub type StackResult<T> = Result<T, StackError>;
 struct StackInterfaceThread {
     queue: Receiver<StackInterfaceMsg>,
     arp_table: Arc<Mutex<TableData>>,
+    tx: Arc<Mutex<TxBarrier>>,
 }
 
 impl StackInterfaceThread {
-    pub fn spawn(arp_table: Arc<Mutex<TableData>>) -> Sender<StackInterfaceMsg> {
-        let (tx, rx) = mpsc::channel();
+    pub fn spawn(arp_table: Arc<Mutex<TableData>>, tx: Arc<Mutex<TxBarrier>>) -> Sender<StackInterfaceMsg> {
+        let (thread_handle, rx) = mpsc::channel();
         let stack_interface_thread = StackInterfaceThread {
             queue: rx,
             arp_table: arp_table,
+            tx: tx,
         };
         thread::spawn(move || {
             stack_interface_thread.run();
         });
-        tx
+        thread_handle
     }
 
     pub fn run(mut self) {
@@ -103,7 +105,7 @@ impl StackInterfaceThread {
         let old_mac = data.table.insert(ip, mac);
         if old_mac.is_none() || old_mac != Some(mac) {
             // The new MAC is different from the old one, bump tx VersionedTx
-            // self.vtx.lock().unwrap().inc();
+            self.tx.lock().unwrap().inc();
         }
         if let Some(listeners) = data.listeners.remove(&ip) {
             for listener in listeners {
@@ -138,8 +140,8 @@ impl StackInterface {
 
         let arp_table = arp::ArpTable::new();
 
-        let thread_handle = StackInterfaceThread::spawn(arp_table.data());
-        let vtx = Arc::new(Mutex::new(TxBarrier::new(sender)));
+        let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
+        let thread_handle = StackInterfaceThread::spawn(arp_table.data(), tx.clone());
 
         let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
@@ -154,7 +156,7 @@ impl StackInterface {
             interface: interface,
             mtu: DEFAULT_MTU,
             thread_handle: thread_handle,
-            tx: vtx,
+            tx: tx,
             arp_table: arp_table,
             ipv4s: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
