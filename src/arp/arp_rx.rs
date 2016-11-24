@@ -1,6 +1,6 @@
 
 
-use {RxError, RxResult};
+use {RxError, RxResult, StackInterfaceMsg};
 use ethernet::EthernetListener;
 use tx::TxBarrier;
 
@@ -9,6 +9,7 @@ use pnet::packet::arp::ArpPacket;
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Sender;
 use std::time::SystemTime;
 
 use super::TableData;
@@ -18,15 +19,13 @@ use super::TableData;
 /// be updated and the `VersionedTx` referenced in the struct will have its
 /// revision bumped.
 pub struct ArpRx {
-    data: Arc<Mutex<TableData>>,
-    vtx: Arc<Mutex<TxBarrier>>,
+    listener: Sender<StackInterfaceMsg>,
 }
 
 impl ArpRx {
-    pub fn new(data: Arc<Mutex<TableData>>, vtx: Arc<Mutex<TxBarrier>>) -> Self {
+    pub fn new(listener: Sender<StackInterfaceMsg>) -> Self {
         ArpRx {
-            data: data,
-            vtx: vtx,
+            listener: listener,
         }
     }
 }
@@ -38,17 +37,7 @@ impl EthernetListener for ArpRx {
         let mac = arp_pkg.get_sender_hw_addr();
         debug!("Arp MAC: {} -> IPv4: {}", mac, ip);
 
-        let mut data = self.data.lock().unwrap();
-        let old_mac = data.table.insert(ip, mac);
-        if old_mac.is_none() || old_mac != Some(mac) {
-            // The new MAC is different from the old one, bump tx VersionedTx
-            self.vtx.lock().unwrap().inc();
-        }
-        if let Some(listeners) = data.listeners.remove(&ip) {
-            for listener in listeners {
-                listener.send(mac).unwrap_or(());
-            }
-        }
+        self.listener.send(StackInterfaceMsg::UpdateArpTable(ip, mac)).unwrap();
         Ok(())
     }
 

@@ -175,6 +175,7 @@ extern crate ipnetwork;
 
 use std::io;
 use std::sync::{Arc, Mutex};
+use std::net::Ipv4Addr;
 
 #[macro_use]
 extern crate log;
@@ -343,6 +344,11 @@ pub type RxResult = Result<(), RxError>;
 pub trait Tx {
     fn send<T>(&mut self, num_packets: usize, packet_size: usize, builder: T) -> TxResult
         where T: FnMut(&mut [u8]);
+}
+
+pub enum StackInterfaceMsg {
+    UpdateArpTable(Ipv4Addr, MacAddr),
+    //ArpRequest(Ipv4Addr, MacAddr),
 }
 
 /// Create a default stack managing all interfaces given by

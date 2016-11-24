@@ -1,7 +1,9 @@
 #[allow(unused_imports)]
 
+use StackInterfaceMsg;
+
 use std::io;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::net::Ipv4Addr;
@@ -17,9 +19,10 @@ mod arp_tx;
 pub use self::arp_rx::ArpRx;
 pub use self::arp_tx::{ArpBuilder, ArpTx};
 
+#[derive(Default)]
 pub struct TableData {
-    table: HashMap<Ipv4Addr, MacAddr>,
-    listeners: HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>,
+    pub table: HashMap<Ipv4Addr, MacAddr>,
+    pub listeners: HashMap<Ipv4Addr, Vec<Sender<MacAddr>>>,
 }
 
 impl TableData {
@@ -28,12 +31,6 @@ impl TableData {
             table: HashMap::new(),
             listeners: HashMap::new(),
         }
-    }
-}
-
-impl Default for TableData {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -52,14 +49,18 @@ impl ArpTable {
         ArpTable { data: data }
     }
 
+    pub fn data(&self) -> Arc<Mutex<TableData>> {
+        self.data.clone()
+    }
+
     /// Creates a new `ArpRx` cast to a `Box<EthernetListener>` so that it can
     /// easily be added
     /// to a `Vec` and passed to `EthernetRx` as a listener.
     /// The `ArpRx` created here will share the table with this `ArpTable`.
     /// The given `VersionedTx` will have its revision bumped upon incoming Arp
     /// packet.
-    pub fn arp_rx(&self, vtx: Arc<Mutex<TxBarrier>>) -> Box<EthernetListener> {
-        Box::new(ArpRx::new(self.data.clone(), vtx)) as Box<EthernetListener>
+    pub fn arp_rx(&self, listener: Sender<StackInterfaceMsg>) -> Box<EthernetListener> {
+        Box::new(ArpRx::new(listener)) as Box<EthernetListener>
     }
 
     /// Queries the table for a MAC. If it does not exist a request is sent and
@@ -81,7 +82,7 @@ impl ArpTable {
     }
 
     fn add_listener(data: &mut TableData, ip: Ipv4Addr) -> Receiver<MacAddr> {
-        let (tx, rx) = channel();
+        let (tx, rx) = mpsc::channel();
         data.listeners.entry(ip).or_insert(vec![]).push(tx);
         rx
     }

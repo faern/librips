@@ -1,5 +1,5 @@
-use {EthernetChannel, Interface, RoutingTable, Tx, TxError};
-use arp::{self, ArpTx};
+use {EthernetChannel, Interface, RoutingTable, Tx, TxError, StackInterfaceMsg};
+use arp::{self, ArpTx, TableData};
 use ethernet::{self, EthernetTx, EthernetTxImpl};
 use icmp::{self, IcmpTx};
 use ipv4::{self, Ipv4TxImpl};
@@ -22,6 +22,8 @@ use std::collections::hash_map::Entry;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
 
 
 pub static DEFAULT_MTU: usize = 1500;
@@ -65,6 +67,52 @@ impl From<StackError> for io::Error {
 
 pub type StackResult<T> = Result<T, StackError>;
 
+struct StackInterfaceThread {
+    queue: Receiver<StackInterfaceMsg>,
+    arp_table: Arc<Mutex<TableData>>,
+}
+
+impl StackInterfaceThread {
+    pub fn spawn(arp_table: Arc<Mutex<TableData>>) -> Sender<StackInterfaceMsg> {
+        let (tx, rx) = mpsc::channel();
+        let stack_interface_thread = StackInterfaceThread {
+            queue: rx,
+            arp_table: arp_table,
+        };
+        thread::spawn(move || {
+            stack_interface_thread.run();
+        });
+        tx
+    }
+
+    pub fn run(mut self) {
+        while let Ok(msg) = self.queue.recv() {
+            self.process_msg(msg);
+        }
+        debug!("StackInterfaceThread is quitting");
+    }
+
+    fn process_msg(&mut self, msg: StackInterfaceMsg) {
+        match msg {
+            StackInterfaceMsg::UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
+        }
+    }
+
+    fn update_arp(&mut self, ip: Ipv4Addr, mac: MacAddr) {
+        let mut data = self.arp_table.lock().unwrap();
+        let old_mac = data.table.insert(ip, mac);
+        if old_mac.is_none() || old_mac != Some(mac) {
+            // The new MAC is different from the old one, bump tx VersionedTx
+            // self.vtx.lock().unwrap().inc();
+        }
+        if let Some(listeners) = data.listeners.remove(&ip) {
+            for listener in listeners {
+                listener.send(mac).unwrap_or(());
+            }
+        }
+    }
+}
+
 struct Ipv4Data {
     net: Ipv4Network,
     udp_listeners: Arc<Mutex<udp::UdpListenerLookup>>,
@@ -76,6 +124,7 @@ struct Ipv4Data {
 pub struct StackInterface {
     interface: Interface,
     mtu: usize,
+    thread_handle: Sender<StackInterfaceMsg>,
     tx: Arc<Mutex<TxBarrier>>,
     arp_table: arp::ArpTable,
     ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
@@ -87,10 +136,12 @@ impl StackInterface {
         let sender = channel.0;
         let receiver = channel.1;
 
+        let arp_table = arp::ArpTable::new();
+
+        let thread_handle = StackInterfaceThread::spawn(arp_table.data());
         let vtx = Arc::new(Mutex::new(TxBarrier::new(sender)));
 
-        let arp_table = arp::ArpTable::new();
-        let arp_rx = arp_table.arp_rx(vtx.clone());
+        let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
         let ipv4_listeners = Arc::new(Mutex::new(HashMap::new()));
         let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
@@ -102,6 +153,7 @@ impl StackInterface {
         StackInterface {
             interface: interface,
             mtu: DEFAULT_MTU,
+            thread_handle: thread_handle,
             tx: vtx,
             arp_table: arp_table,
             ipv4s: HashMap::new(),
@@ -202,6 +254,7 @@ impl StackInterface {
 /// The main struct of this library, managing an entire TCP/IP stack. Takes
 /// care of ARP, routing tables, threads, TCP resends/fragmentation etc. Most
 /// of this is still unimplemented.
+#[derive(Default)]
 pub struct NetworkStack {
     interfaces: HashMap<Interface, StackInterface>,
     routing_table: RoutingTable,
@@ -357,11 +410,5 @@ impl NetworkStack {
             }
         }
         port
-    }
-}
-
-impl Default for NetworkStack {
-    fn default() -> Self {
-        Self::new()
     }
 }

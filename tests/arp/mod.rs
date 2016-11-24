@@ -17,27 +17,18 @@ use std::time::Duration;
 
 #[test]
 fn arp_invalidate_on_update() {
-    let arp_table = ArpTable::new();
-    let (channel, _, inject_handle, _) = testing::dummy_ethernet(7);
+    let (mut stack, interface, inject_handle, _) = testing::dummy_stack(7);
+    let stack_interface = stack.interface(&interface).unwrap();
 
-    let vtx = Arc::new(Mutex::new(TxBarrier::new(channel.0)));
-    let arp_rx = arp_table.arp_rx(vtx.clone());
-    let ethernet_rx = EthernetRx::new(vec![arp_rx]);
-    rx::spawn(channel.1, ethernet_rx);
-
-    let tx = TxImpl::new(vtx, 0);
-    let ethernet_tx = EthernetTxImpl::new(tx,
-                                      MacAddr::new(0, 0, 0, 0, 0, 0),
-                                      MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
-    let mut arp = ArpTx::new(ethernet_tx);
+    let mut arp_tx = stack_interface.arp_tx();
 
     // Send should work before table is updated
-    assert!(arp.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_ok());
+    assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_ok());
     // Inject Arp packet and wait for processing
     send_arp(inject_handle);
     sleep(Duration::new(1, 0));
     // Send should not work after incoming packet bumped VersionedTx revision
-    assert!(arp.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_err());
+    assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_err());
 }
 
 #[test]
@@ -45,12 +36,11 @@ fn arp_locking() {
     let thread_count = 100;
     let dst = Ipv4Addr::new(10, 0, 0, 1);
 
-    let arp_table = ArpTable::new();
-    let (channel, _, inject_handle, read_handle) = testing::dummy_ethernet(7);
-    let vtx = Arc::new(Mutex::new(TxBarrier::new(channel.0)));
-    let arp_rx = arp_table.arp_rx(vtx.clone());
-    let ethernet_rx = EthernetRx::new(vec![arp_rx]);
-    rx::spawn(channel.1, ethernet_rx);
+    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack(7);
+    let stack_interface = stack.interface(&interface).unwrap();
+
+    let arp_table = stack_interface.arp_table().clone();
+    let mut arp_tx = stack_interface.arp_tx();
 
     let (arp_thread_tx, arp_thread_rx) = mpsc::channel();
     // Spawn `thread_count` threads that all try to request the same ip
@@ -66,11 +56,6 @@ fn arp_locking() {
         });
     }
     // Send out the request to the network
-    let tx = TxImpl::new(vtx.clone(), 0);
-    let ethernet_tx = EthernetTxImpl::new(tx,
-                                      MacAddr::new(1, 2, 3, 4, 5, 7),
-                                      MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
-    let mut arp_tx = ArpTx::new(ethernet_tx);
     arp_tx.send(Ipv4Addr::new(10, 0, 0, 34), dst).unwrap();
 
     sleep(Duration::new(1, 0));
