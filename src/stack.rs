@@ -183,7 +183,8 @@ impl StackInterface {
     }
 
     pub fn arp_tx(&self) -> ArpTx<EthernetTxImpl<TxImpl>> {
-        arp::ArpTx::new(self.ethernet_tx(MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff)))
+        let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+        arp::ArpTx::new(self.ethernet_tx(dst_mac))
     }
 
     pub fn arp_table(&mut self) -> &mut arp::ArpTable {
