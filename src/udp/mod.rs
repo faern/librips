@@ -1,4 +1,3 @@
-#[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 use {TxError, TxResult};
 use ipv4::Ipv4TxImpl;
@@ -19,7 +18,6 @@ pub use self::udp_rx::{UdpListener, UdpListenerLookup, UdpRx};
 use self::udp_rx::UdpSocketReader;
 pub use self::udp_tx::{UdpBuilder, UdpTx};
 
-#[cfg(not(feature = "unit-tests"))]
 pub struct UdpSocket {
     socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
@@ -27,7 +25,6 @@ pub struct UdpSocket {
     rx: Option<UdpSocketReader>,
 }
 
-#[cfg(not(feature = "unit-tests"))]
 impl UdpSocket {
     pub fn bind<A: ToSocketAddrs>(stack: Arc<Mutex<NetworkStack>>,
                                   addr: A)

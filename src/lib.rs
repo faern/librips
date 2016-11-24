@@ -211,13 +211,9 @@ pub use routing::RoutingTable;
 
 mod util;
 
-#[cfg(any(test, feature = "unit-tests", feature = "integration-tests", feature = "benchmarks"))]
 pub mod testing;
 
-#[cfg(not(feature = "unit-tests"))]
 mod stack;
-
-#[cfg(not(feature = "unit-tests"))]
 pub use stack::{NetworkStack, StackError, StackResult};
 
 pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
@@ -353,7 +349,6 @@ pub enum StackInterfaceMsg {
 
 /// Create a default stack managing all interfaces given by
 /// `pnet::datalink::interfaces()`.
-#[cfg(not(feature = "unit-tests"))]
 pub fn default_stack() -> StackResult<NetworkStack> {
     let mut stack = NetworkStack::new();
     for interface in datalink::interfaces() {
@@ -372,7 +367,6 @@ pub fn default_stack() -> StackResult<NetworkStack> {
     Ok(stack)
 }
 
-// #[cfg(not(feature = "unit-tests"))]
 // pub fn stack<Datalink>(_datalink_provider: Datalink) ->
 // StackResult<NetworkStack>
 //     where Datalink: datalink::Datalink
@@ -393,7 +387,6 @@ pub fn default_stack() -> StackResult<NetworkStack> {
 //     Ok(stack)
 // }
 //
-// #[cfg(not(feature = "unit-tests"))]
 // pub fn default_stack() -> StackResult<NetworkStack> {
 //     stack(datalink::DefaultDatalink)
 // }

@@ -24,7 +24,6 @@ pub use self::icmp_tx::{BasicIcmpProtocol, IcmpBuilder, IcmpProtocol, IcmpTx, Pi
 //     pub fn take_recv() -> Result<Receiver<Box<[u8]>>, ()>;
 // }
 
-#[cfg(all(test, feature = "unit-tests"))]
 mod tests {
     use pnet::packet::Packet;
     use pnet::packet::icmp::IcmpTypes;

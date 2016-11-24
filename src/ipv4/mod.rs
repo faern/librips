@@ -8,8 +8,6 @@ pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
 pub const NO_FLAGS: u8 = 0b000;
 
-
-#[cfg(all(test, feature = "unit-tests"))]
 mod tests {
     use {RxError, RxResult};
     use ethernet::EthernetListener;
