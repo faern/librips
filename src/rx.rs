@@ -1,7 +1,7 @@
 use RxResult;
 
-use pnet::packet::ethernet::EthernetPacket;
 use pnet::datalink::EthernetDataLinkReceiver;
+use pnet::packet::ethernet::EthernetPacket;
 
 use std::thread;
 use std::time::SystemTime;

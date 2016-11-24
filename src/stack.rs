@@ -1,12 +1,12 @@
-use {EthernetChannel, Interface, RoutingTable, TxError, StackInterfaceMsg};
-use arp::{self, ArpTx, TableData};
-use ethernet::{EthernetRx, EthernetTxImpl};
-use icmp::{self, IcmpTx};
-use ipv4::{self, Ipv4TxImpl};
-use rx;
-use tx::{TxBarrier, TxImpl};
-use udp::{self, UdpTx};
-use util;
+use ::{EthernetChannel, Interface, RoutingTable, TxError, StackInterfaceMsg};
+use ::arp::{self, ArpTx, TableData};
+use ::ethernet::{EthernetRx, EthernetTxImpl};
+use ::tx::{TxBarrier, TxImpl};
+use ::ipv4::{self, Ipv4TxImpl};
+use ::icmp::{self, IcmpTx};
+use ::udp::{self, UdpTx};
+use ::util;
+use ::rx;
 
 use ipnetwork::Ipv4Network;
 
@@ -74,7 +74,9 @@ struct StackInterfaceThread {
 }
 
 impl StackInterfaceThread {
-    pub fn spawn(arp_table: Arc<Mutex<TableData>>, tx: Arc<Mutex<TxBarrier>>) -> Sender<StackInterfaceMsg> {
+    pub fn spawn(arp_table: Arc<Mutex<TableData>>,
+                 tx: Arc<Mutex<TxBarrier>>)
+                 -> Sender<StackInterfaceMsg> {
         let (thread_handle, rx) = mpsc::channel();
         let stack_interface_thread = StackInterfaceThread {
             queue: rx,
@@ -98,7 +100,9 @@ impl StackInterfaceThread {
         use StackInterfaceMsg::*;
         match msg {
             UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
-            ArpRequest(sender_ip, sender_mac, target_ip) => self.arp_request(sender_ip, sender_mac, target_ip)
+            ArpRequest(sender_ip, sender_mac, target_ip) => {
+                self.arp_request(sender_ip, sender_mac, target_ip)
+            }
         }
     }
 
@@ -116,9 +120,7 @@ impl StackInterfaceThread {
         }
     }
 
-    fn arp_request(&mut self, sender_ip: Ipv4Addr, sender_mac: MacAddr, target_ip: Ipv4Addr) {
-
-    }
+    fn arp_request(&mut self, sender_ip: Ipv4Addr, sender_mac: MacAddr, target_ip: Ipv4Addr) {}
 }
 
 struct Ipv4Data {
@@ -222,7 +224,10 @@ impl StackInterface {
         }
     }
 
-    pub fn ipv4_tx(&mut self, dst: Ipv4Addr, gw: Option<Ipv4Addr>) -> StackResult<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
+    pub fn ipv4_tx(&mut self,
+                   dst: Ipv4Addr,
+                   gw: Option<Ipv4Addr>)
+                   -> StackResult<Ipv4TxImpl<EthernetTxImpl<TxImpl>>> {
         let local_dst = gw.unwrap_or(dst);
         if let Some(src) = self.closest_local_ip(local_dst) {
             let dst_mac = match self.arp_table.get(local_dst) {
@@ -335,7 +340,9 @@ impl NetworkStack {
         }
     }
 
-    pub fn icmp_tx(&mut self, dst_ip: Ipv4Addr) -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
+    pub fn icmp_tx(&mut self,
+                   dst_ip: Ipv4Addr)
+                   -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(icmp::IcmpTx::new(ipv4_tx))
     }
@@ -362,7 +369,11 @@ impl NetworkStack {
         }
     }
 
-    pub fn udp_tx(&mut self, dst_ip: Ipv4Addr, src: u16, dst_port: u16) -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
+    pub fn udp_tx(&mut self,
+                  dst_ip: Ipv4Addr,
+                  src: u16,
+                  dst_port: u16)
+                  -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
         let ipv4_tx = try!(self.ipv4_tx(dst_ip));
         Ok(udp::UdpTx::new(ipv4_tx, src, dst_port))
     }

@@ -1,5 +1,5 @@
-use {RxResult, RxError};
-use rx::RxListener;
+use ::{RxResult, RxError};
+use ::rx::RxListener;
 
 use pnet::packet::ethernet::{EtherType, EthernetPacket};
 

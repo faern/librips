@@ -5,10 +5,10 @@ use pnet::packet::Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ipv4::Ipv4Packet;
 
+use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::SystemTime;
-use std::net::Ipv4Addr;
 
 pub struct MockIpv4Listener {
     pub tx: mpsc::Sender<Vec<u8>>,

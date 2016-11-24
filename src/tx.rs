@@ -1,11 +1,11 @@
 use ::{TxResult, TxError, Tx};
 
 use pnet::datalink::EthernetDataLinkSender;
-use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::MutablePacket;
+use pnet::packet::ethernet::MutableEthernetPacket;
 
-use std::sync::{Arc, Mutex};
 use std::io;
+use std::sync::{Arc, Mutex};
 
 /// Internal representation of of a sending channel used for synchronization.
 /// Public only because it's part of the interface of other public structs.
