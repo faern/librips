@@ -174,15 +174,13 @@ extern crate pnet;
 extern crate ipnetwork;
 
 use std::io;
-use std::sync::{Arc, Mutex};
 use std::net::Ipv4Addr;
 
 #[macro_use]
 extern crate log;
 
-use pnet::datalink::{self, EthernetDataLinkSender, NetworkInterface};
+use pnet::datalink::{self, NetworkInterface};
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::MutableEthernetPacket;
 
 #[macro_use]
 mod macros;
@@ -297,18 +295,6 @@ impl From<TxError> for io::Error {
 
 /// Type binding for the type of `Result` that a send method returns.
 pub type TxResult = Result<(), TxError>;
-
-fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
-    match r {
-        None => Err(TxError::Other("Insufficient buffer space".to_owned())),
-        Some(ior) => {
-            match ior {
-                Err(e) => Err(TxError::from(e)),
-                Ok(()) => Ok(()),
-            }
-        }
-    }
-}
 
 /// Error returned by the `recv` method of `*Rx` objects when there is
 /// something wrong with the

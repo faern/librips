@@ -1,7 +1,6 @@
 use {RxResult, RxError};
 use rx::RxListener;
 
-use pnet::datalink::EthernetDataLinkReceiver;
 use pnet::packet::ethernet::{EtherType, EthernetPacket};
 
 use std::collections::HashMap;

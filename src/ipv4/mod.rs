@@ -8,13 +8,14 @@ pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
 pub const NO_FLAGS: u8 = 0b000;
 
+#[cfg(test)]
 mod tests {
-    use {RxError, RxResult};
+    use RxError;
     use ethernet::EthernetListener;
     use pnet::packet::{MutablePacket, Packet};
     use pnet::packet::ethernet::MutableEthernetPacket;
 
-    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+    use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
     use std::collections::HashMap;
     use std::net::Ipv4Addr;

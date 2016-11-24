@@ -1,6 +1,6 @@
-use {EthernetChannel, Interface, RoutingTable, Tx, TxError, StackInterfaceMsg};
+use {EthernetChannel, Interface, RoutingTable, TxError, StackInterfaceMsg};
 use arp::{self, ArpTx, TableData};
-use ethernet::{self, EthernetTx, EthernetTxImpl};
+use ethernet::{EthernetRx, EthernetTxImpl};
 use icmp::{self, IcmpTx};
 use ipv4::{self, Ipv4TxImpl};
 use rx;
@@ -149,7 +149,7 @@ impl StackInterface {
         let ipv4_rx = ipv4::Ipv4Rx::new(ipv4_listeners.clone());
 
         let ethernet_listeners = vec![arp_rx, ipv4_rx];
-        let ethernet_rx = ethernet::EthernetRx::new(ethernet_listeners);
+        let ethernet_rx = EthernetRx::new(ethernet_listeners);
         rx::spawn(receiver, ethernet_rx);
 
         StackInterface {

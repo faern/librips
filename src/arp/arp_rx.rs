@@ -1,23 +1,15 @@
 
 
-use {RxError, RxResult, StackInterfaceMsg};
+use {RxResult, StackInterfaceMsg};
 use ethernet::EthernetListener;
-use tx::TxBarrier;
 
 use pnet::packet::Packet;
 use pnet::packet::arp::ArpPacket;
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::time::SystemTime;
 
-use super::TableData;
-
-/// Receiver and parser of Arp packets. Shares table instance with the
-/// `ArpTable` that created it. Upon valid incoming Arp packet the table will
-/// be updated and the `VersionedTx` referenced in the struct will have its
-/// revision bumped.
 pub struct ArpRx {
     listener: Sender<StackInterfaceMsg>,
 }

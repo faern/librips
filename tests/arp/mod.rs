@@ -3,16 +3,12 @@ use pnet::packet::arp::{ArpPacket, MutableArpPacket};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use rips::arp::{ArpTable, ArpTx};
-use rips::ethernet::{EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::testing;
-use rips::rx;
-use rips::tx::{TxImpl, TxBarrier};
 
 use std::io;
 use std::net::Ipv4Addr;
-use std::sync::{Arc, Mutex, mpsc};
-use std::thread::{sleep, spawn};
+use std::sync::mpsc;
+use std::thread;
 use std::time::Duration;
 
 #[test]
@@ -26,7 +22,7 @@ fn arp_invalidate_on_update() {
     assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_ok());
     // Inject Arp packet and wait for processing
     send_arp(inject_handle);
-    sleep(Duration::new(1, 0));
+    thread::sleep(Duration::new(1, 0));
     // Send should not work after incoming packet bumped VersionedTx revision
     assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_err());
 }
@@ -47,7 +43,7 @@ fn arp_locking() {
     for _ in 0..thread_count {
         let mut thread_arp_table = arp_table.clone();
         let arp_thread_tx = arp_thread_tx.clone();
-        spawn(move || {
+        thread::spawn(move || {
             let mac = match thread_arp_table.get(dst) {
                 Ok(mac) => mac,
                 Err(rx) => rx.recv().unwrap(),
@@ -58,7 +54,7 @@ fn arp_locking() {
     // Send out the request to the network
     arp_tx.send(Ipv4Addr::new(10, 0, 0, 34), dst).unwrap();
 
-    sleep(Duration::new(1, 0));
+    thread::sleep(Duration::new(1, 0));
 
     // Make sure no one returned yet since no response has been sent
     assert!(arp_thread_rx.try_recv().is_err());
@@ -74,7 +70,7 @@ fn arp_locking() {
 
     // Inject Arp packet and wait for processing
     send_arp(inject_handle);
-    sleep(Duration::new(1, 0));
+    thread::sleep(Duration::new(1, 0));
 
     // Make sure all threads returned already, otherwise too slow
     for _ in 0..thread_count {

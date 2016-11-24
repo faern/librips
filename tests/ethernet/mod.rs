@@ -7,7 +7,7 @@ use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::ethernet::BasicEthernetProtocol;
 use rips::testing;
 use rips::rx;
-use rips::tx::{TxImpl, TxBarrier};
+use rips::tx::TxBarrier;
 
 use std::sync::mpsc;
 use std::time::SystemTime;

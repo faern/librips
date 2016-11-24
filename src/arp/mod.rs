@@ -2,7 +2,6 @@
 
 use StackInterfaceMsg;
 
-use std::io;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -11,7 +10,6 @@ use std::net::Ipv4Addr;
 use pnet::util::MacAddr;
 
 use ethernet::EthernetListener;
-use tx::TxBarrier;
 
 mod arp_rx;
 mod arp_tx;
