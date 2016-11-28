@@ -406,13 +406,12 @@ impl NetworkStack {
             let msg = "Rips does not support listening to all interfaces yet".to_owned();
             Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
         } else {
-            let mut found = Err(());
+            let mut added_to_interface = false;
             for stack_interface in self.interfaces.values_mut() {
-                if let Ok(..) = stack_interface.icmp_listen(local_ip, icmp_type, listener.clone()) {
-                    found = Ok(())
-                }
+                let result = stack_interface.icmp_listen(local_ip, icmp_type, listener.clone());
+                added_to_interface |= result.is_ok();
             }
-            if found.is_ok() {
+            if added_to_interface {
                 Ok(())
             } else {
                 let msg = "Bind address does not exist in stack".to_owned();
