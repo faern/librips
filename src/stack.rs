@@ -70,6 +70,7 @@ pub type StackResult<T> = Result<T, StackError>;
 pub enum StackInterfaceMsg {
     UpdateArpTable(Ipv4Addr, MacAddr),
     ArpRequest(Ipv4Addr, MacAddr, Ipv4Addr),
+    Shutdown,
 }
 
 struct StackInterfaceThread {
@@ -96,19 +97,23 @@ impl StackInterfaceThread {
 
     pub fn run(mut self) {
         while let Ok(msg) = self.queue.recv() {
-            self.process_msg(msg);
+            if !self.process_msg(msg) {
+                break;
+            }
         }
         debug!("StackInterfaceThread is quitting");
     }
 
-    fn process_msg(&mut self, msg: StackInterfaceMsg) {
+    fn process_msg(&mut self, msg: StackInterfaceMsg) -> bool {
         use self::StackInterfaceMsg::*;
         match msg {
             UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
             ArpRequest(sender_ip, sender_mac, target_ip) => {
                 self.arp_request(sender_ip, sender_mac, target_ip)
-            }
+            },
+            Shutdown => return false,
         }
+        true
     }
 
     fn update_arp(&mut self, ip: Ipv4Addr, mac: MacAddr) {
@@ -139,7 +144,7 @@ struct Ipv4Data {
 pub struct StackInterface {
     interface: Interface,
     mtu: usize,
-    _thread_handle: Sender<StackInterfaceMsg>,
+    thread_handle: Sender<StackInterfaceMsg>,
     tx: Arc<Mutex<TxBarrier>>,
     arp_table: arp::ArpTable,
     ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
@@ -154,7 +159,7 @@ impl StackInterface {
         let arp_table = arp::ArpTable::new();
 
         let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
-        let thread_handle = StackInterfaceThread::spawn(arp_table.data(), tx.clone());
+        let thread_handle = StackInterfaceThread::spawn(arp_table.data(), ipv4s.clone(), tx.clone());
 
         let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
@@ -168,7 +173,7 @@ impl StackInterface {
         StackInterface {
             interface: interface,
             mtu: DEFAULT_MTU,
-            _thread_handle: thread_handle,
+            thread_handle: thread_handle,
             tx: tx,
             arp_table: arp_table,
             ipv4s: HashMap::new(),
@@ -267,6 +272,12 @@ impl StackInterface {
             }
         }
         self.ipv4s.keys().next().cloned()
+
+impl Drop for StackInterface {
+    fn drop(&mut self) {
+        if let Err(..) = self.thread_handle.send(StackInterfaceMsg::Shutdown) {
+            error!("Unable to send shutdown command to interface thread");
+        }
     }
 }
 
