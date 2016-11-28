@@ -1,10 +1,10 @@
 use {RxResult, RxError};
 use ethernet::EthernetListener;
-use stack::StackInterfaceMsg;
 
 use pnet::packet::Packet;
 use pnet::packet::arp::{ArpPacket, ArpOperations};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+use stack::StackInterfaceMsg;
 
 use std::sync::mpsc::Sender;
 use std::time::SystemTime;

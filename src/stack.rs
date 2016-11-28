@@ -1,14 +1,10 @@
 use ::{EthernetChannel, Interface, RoutingTable, TxError};
 use ::arp::{self, ArpTx, TableData};
 use ::ethernet::{EthernetRx, EthernetTxImpl};
-use ::tx::{TxBarrier, TxImpl};
-use ::ipv4::{self, Ipv4TxImpl};
 use ::icmp::{self, IcmpTx};
-use ::udp::{self, UdpTx};
-use ::util;
-use ::rx;
 
 use ipnetwork::Ipv4Network;
+use ::ipv4::{self, Ipv4TxImpl};
 
 use pnet::packet::icmp::IcmpType;
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -16,6 +12,7 @@ use pnet::util::MacAddr;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
+use ::rx;
 
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
@@ -24,6 +21,9 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
+use ::tx::{TxBarrier, TxImpl};
+use ::udp::{self, UdpTx};
+use ::util;
 
 
 pub static DEFAULT_MTU: usize = 1500;
@@ -113,7 +113,7 @@ impl StackInterfaceThread {
             UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
             ArpRequest(sender_ip, sender_mac, target_ip) => {
                 self.arp_request(sender_ip, sender_mac, target_ip)
-            },
+            }
             Shutdown => return false,
         }
         true
@@ -169,7 +169,8 @@ impl StackInterface {
         let ipv4_addresses = Arc::new(Mutex::new(HashSet::new()));
 
         let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
-        let thread_handle = StackInterfaceThread::spawn(arp_table.data(), ipv4_addresses.clone(), tx.clone());
+        let thread_handle =
+            StackInterfaceThread::spawn(arp_table.data(), ipv4_addresses.clone(), tx.clone());
 
         let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
@@ -442,7 +443,7 @@ impl NetworkStack {
         }
     }
 
-    fn  udp_listen_ipv4<L>(&mut self, addr: SocketAddrV4, listener: L) -> io::Result<SocketAddr>
+    fn udp_listen_ipv4<L>(&mut self, addr: SocketAddrV4, listener: L) -> io::Result<SocketAddr>
         where L: udp::UdpListener + 'static + Clone
     {
         let local_ip = addr.ip();
@@ -461,9 +462,8 @@ impl NetworkStack {
                         udp_listeners.insert(local_port, Box::new(listener));
                         return Ok(SocketAddr::V4(SocketAddrV4::new(*local_ip, local_port)));
                     } else {
-                        let msg = format!("Port {} is already occupied on {}",
-                                          local_port,
-                                          local_ip);
+                        let msg =
+                            format!("Port {} is already occupied on {}", local_port, local_ip);
                         return Err(io::Error::new(io::ErrorKind::AddrInUse, msg));
                     }
                 }

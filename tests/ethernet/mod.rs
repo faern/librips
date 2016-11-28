@@ -2,11 +2,11 @@ use pnet::packet::{Packet, PrimitiveValues};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use rips::{RxResult};
+use rips::RxResult;
 use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::ethernet::BasicEthernetProtocol;
-use rips::testing;
 use rips::rx;
+use rips::testing;
 use rips::tx::TxBarrier;
 
 use std::sync::mpsc;

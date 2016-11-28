@@ -8,9 +8,9 @@ use pnet::util::MacAddr;
 
 use rips::ethernet::EthernetRx;
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
+use rips::rx;
 use rips::testing;
 use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
-use rips::rx;
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;

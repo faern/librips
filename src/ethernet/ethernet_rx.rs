@@ -1,7 +1,7 @@
 use ::{RxResult, RxError};
-use ::rx::RxListener;
 
 use pnet::packet::ethernet::{EtherType, EthernetPacket};
+use ::rx::RxListener;
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;

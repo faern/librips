@@ -1,15 +1,12 @@
-#[allow(unused_imports)]
-
-use stack::StackInterfaceMsg;
-
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::net::Ipv4Addr;
+use ethernet::EthernetListener;
 
 use pnet::util::MacAddr;
+use stack::StackInterfaceMsg;
+use std::collections::HashMap;
+use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex};
 
-use ethernet::EthernetListener;
+use std::sync::mpsc::{self, Receiver, Sender};
 
 mod arp_rx;
 mod arp_tx;
