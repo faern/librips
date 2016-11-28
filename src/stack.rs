@@ -276,7 +276,7 @@ impl StackInterface {
     {
         if let Some(ip_data) = self.ipv4_datas.get(&local_ip) {
             let mut icmp_listeners = ip_data.icmp_listeners.lock().unwrap();
-            icmp_listeners.entry(icmp_type).or_insert(vec![]).push(Box::new(listener));
+            icmp_listeners.entry(icmp_type).or_insert_with(Vec::new).push(Box::new(listener));
             Ok(())
         } else {
             let msg = "Bind address does not exist on interface".to_owned();
@@ -448,8 +448,8 @@ impl NetworkStack {
         let local_ip = addr.ip();
         let mut local_port = addr.port();
         if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
-            let msg = format!("Rips does not support listening to all interfaces yet");
-            return Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg));
+            let msg = "Rips does not support listening to all interfaces yet".to_owned();
+            Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg))
         } else {
             for stack_interface in self.interfaces.values() {
                 if let Some(ip_data) = stack_interface.ipv4_datas.get(local_ip) {

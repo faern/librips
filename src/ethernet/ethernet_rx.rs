@@ -53,7 +53,7 @@ impl RxListener for EthernetRx {
     fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult {
         let ethertype = packet.get_ethertype();
         match self.listeners.get_mut(&ethertype) {
-            Some(listener) => listener.recv(time, &packet),
+            Some(listener) => listener.recv(time, packet),
             None => Err(RxError::NoListener(format!("Ethernet: No listener for {}", ethertype))),
         }
     }

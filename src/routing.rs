@@ -32,7 +32,7 @@ impl RoutingTable {
             gw: gw,
             interface: interface,
         };
-        self.table.entry(prefix).or_insert(vec![]).push(entry);
+        self.table.entry(prefix).or_insert_with(Vec::new).push(entry);
     }
 
     pub fn route(&self, ip: Ipv4Addr) -> Option<(Option<Ipv4Addr>, Interface)> {

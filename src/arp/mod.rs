@@ -81,7 +81,7 @@ impl ArpTable {
 
     fn add_listener(data: &mut TableData, ip: Ipv4Addr) -> Receiver<MacAddr> {
         let (tx, rx) = mpsc::channel();
-        data.listeners.entry(ip).or_insert(vec![]).push(tx);
+        data.listeners.entry(ip).or_insert_with(Vec::new).push(tx);
         rx
     }
 }
