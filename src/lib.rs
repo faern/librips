@@ -174,7 +174,6 @@ extern crate pnet;
 extern crate ipnetwork;
 
 use std::io;
-use std::net::Ipv4Addr;
 
 #[macro_use]
 extern crate log;

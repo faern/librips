@@ -17,7 +17,7 @@ use pnet::util::MacAddr;
 use rand;
 use rand::distributions::{IndependentSample, Range};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
@@ -76,17 +76,20 @@ pub enum StackInterfaceMsg {
 struct StackInterfaceThread {
     queue: Receiver<StackInterfaceMsg>,
     arp_table: Arc<Mutex<TableData>>,
+    ipv4_addresses: Arc<Mutex<HashSet<Ipv4Addr>>>,
     tx: Arc<Mutex<TxBarrier>>,
 }
 
 impl StackInterfaceThread {
     pub fn spawn(arp_table: Arc<Mutex<TableData>>,
+                 ipv4_addresses: Arc<Mutex<HashSet<Ipv4Addr>>>,
                  tx: Arc<Mutex<TxBarrier>>)
                  -> Sender<StackInterfaceMsg> {
         let (thread_handle, rx) = mpsc::channel();
         let stack_interface_thread = StackInterfaceThread {
             queue: rx,
             arp_table: arp_table,
+            ipv4_addresses: ipv4_addresses,
             tx: tx,
         };
         thread::spawn(move || {
@@ -130,7 +133,12 @@ impl StackInterfaceThread {
         }
     }
 
-    fn arp_request(&mut self, sender_ip: Ipv4Addr, sender_mac: MacAddr, target_ip: Ipv4Addr) {}
+    fn arp_request(&mut self, _sender_ip: Ipv4Addr, _sender_mac: MacAddr, target_ip: Ipv4Addr) {
+        let ipv4_addresses = self.ipv4_addresses.lock().unwrap();
+        if ipv4_addresses.contains(&target_ip) {
+            debug!("Incoming Arp request for me!! {}", target_ip);
+        }
+    }
 }
 
 struct Ipv4Data {
@@ -147,7 +155,8 @@ pub struct StackInterface {
     thread_handle: Sender<StackInterfaceMsg>,
     tx: Arc<Mutex<TxBarrier>>,
     arp_table: arp::ArpTable,
-    ipv4s: HashMap<Ipv4Addr, Ipv4Data>,
+    ipv4_addresses: Arc<Mutex<HashSet<Ipv4Addr>>>,
+    ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
 }
 
@@ -157,9 +166,10 @@ impl StackInterface {
         let receiver = channel.1;
 
         let arp_table = arp::ArpTable::new();
+        let ipv4_addresses = Arc::new(Mutex::new(HashSet::new()));
 
         let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
-        let thread_handle = StackInterfaceThread::spawn(arp_table.data(), ipv4s.clone(), tx.clone());
+        let thread_handle = StackInterfaceThread::spawn(arp_table.data(), ipv4_addresses.clone(), tx.clone());
 
         let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
@@ -176,7 +186,8 @@ impl StackInterface {
             thread_handle: thread_handle,
             tx: tx,
             arp_table: arp_table,
-            ipv4s: HashMap::new(),
+            ipv4_addresses: ipv4_addresses,
+            ipv4_datas: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
         }
     }
@@ -205,7 +216,7 @@ impl StackInterface {
 
     pub fn add_ipv4(&mut self, ip_net: Ipv4Network) -> StackResult<()> {
         let ip = ip_net.ip();
-        match self.ipv4s.entry(ip) {
+        match self.ipv4_datas.entry(ip) {
             Entry::Occupied(_) => Err(StackError::IllegalArgument),
             Entry::Vacant(entry) => {
                 let mut proto_listeners = HashMap::new();
@@ -229,6 +240,7 @@ impl StackInterface {
                 };
 
                 entry.insert(data);
+                self.ipv4_addresses.lock().unwrap().insert(ip);
                 Ok(())
             }
         }
@@ -266,12 +278,14 @@ impl StackInterface {
     /// Finds which local IP is suitable as src ip for packets sent to `dst`.
     /// TODO: Smarter algorithm
     fn closest_local_ip(&self, dst: Ipv4Addr) -> Option<Ipv4Addr> {
-        for (ip, ip_data) in &self.ipv4s {
+        for (ip, ip_data) in &self.ipv4_datas {
             if ip_data.net.contains(dst) {
                 return Some(*ip);
             }
         }
-        self.ipv4s.keys().next().cloned()
+        None
+    }
+}
 
 impl Drop for StackInterface {
     fn drop(&mut self) {
@@ -374,7 +388,7 @@ impl NetworkStack {
             panic!("Rips does not support listening to all interfaces yet");
         } else {
             for stack_interface in self.interfaces.values() {
-                if let Some(ip_data) = stack_interface.ipv4s.get(&local_ip) {
+                if let Some(ip_data) = stack_interface.ipv4_datas.get(&local_ip) {
                     let mut icmp_listeners = ip_data.icmp_listeners.lock().unwrap();
                     icmp_listeners.entry(icmp_type).or_insert(vec![]).push(Box::new(listener));
                     return Ok(());
@@ -407,7 +421,7 @@ impl NetworkStack {
                     return Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg));
                 } else {
                     for stack_interface in self.interfaces.values() {
-                        if let Some(ip_data) = stack_interface.ipv4s.get(local_ip) {
+                        if let Some(ip_data) = stack_interface.ipv4_datas.get(local_ip) {
                             let mut udp_listeners = ip_data.udp_listeners.lock().unwrap();
                             if local_port == 0 {
                                 local_port = self.get_random_port(&*udp_listeners);
