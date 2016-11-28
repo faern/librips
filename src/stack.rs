@@ -431,41 +431,45 @@ impl NetworkStack {
 
     pub fn udp_listen<A, L>(&mut self, addr: A, listener: L) -> io::Result<SocketAddr>
         where A: ToSocketAddrs,
-              L: udp::UdpListener + 'static
+              L: udp::UdpListener + 'static + Clone
     {
         match util::first_socket_addr(addr)? {
-            SocketAddr::V4(addr) => {
-                let local_ip = addr.ip();
-                let mut local_port = addr.port();
-                if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
-                    let msg = format!("Rips does not support listening to all interfaces yet");
-                    return Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg));
-                } else {
-                    for stack_interface in self.interfaces.values() {
-                        if let Some(ip_data) = stack_interface.ipv4_datas.get(local_ip) {
-                            let mut udp_listeners = ip_data.udp_listeners.lock().unwrap();
-                            if local_port == 0 {
-                                local_port = self.get_random_port(&*udp_listeners);
-                            }
-                            if !udp_listeners.contains_key(&local_port) {
-                                udp_listeners.insert(local_port, Box::new(listener));
-                                return Ok(SocketAddr::V4(SocketAddrV4::new(*local_ip, local_port)));
-                            } else {
-                                let msg = format!("Port {} is already occupied on {}",
-                                                  local_port,
-                                                  local_ip);
-                                return Err(io::Error::new(io::ErrorKind::AddrInUse, msg));
-                            }
-                        }
+            SocketAddr::V4(addr) => self.udp_listen_ipv4(addr, listener),
+            SocketAddr::V6(_) => {
+                let msg = "Rips does not support IPv6 yet".to_owned();
+                Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+            }
+        }
+    }
+
+    fn  udp_listen_ipv4<L>(&mut self, addr: SocketAddrV4, listener: L) -> io::Result<SocketAddr>
+        where L: udp::UdpListener + 'static + Clone
+    {
+        let local_ip = addr.ip();
+        let mut local_port = addr.port();
+        if local_ip == &Ipv4Addr::new(0, 0, 0, 0) {
+            let msg = format!("Rips does not support listening to all interfaces yet");
+            return Err(io::Error::new(io::ErrorKind::AddrNotAvailable, msg));
+        } else {
+            for stack_interface in self.interfaces.values() {
+                if let Some(ip_data) = stack_interface.ipv4_datas.get(local_ip) {
+                    let mut udp_listeners = ip_data.udp_listeners.lock().unwrap();
+                    if local_port == 0 {
+                        local_port = self.get_random_port(&*udp_listeners);
                     }
-                    let msg = "Bind address does not exist in stack".to_owned();
-                    Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
+                    if !udp_listeners.contains_key(&local_port) {
+                        udp_listeners.insert(local_port, Box::new(listener));
+                        return Ok(SocketAddr::V4(SocketAddrV4::new(*local_ip, local_port)));
+                    } else {
+                        let msg = format!("Port {} is already occupied on {}",
+                                          local_port,
+                                          local_ip);
+                        return Err(io::Error::new(io::ErrorKind::AddrInUse, msg));
+                    }
                 }
             }
-            SocketAddr::V6(_) => {
-                Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                   "Rips does not support IPv6 yet".to_owned()))
-            }
+            let msg = "Bind address does not exist in stack".to_owned();
+            Err(io::Error::new(io::ErrorKind::InvalidInput, msg))
         }
     }
 
