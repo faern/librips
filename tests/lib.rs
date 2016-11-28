@@ -5,7 +5,7 @@ extern crate rips;
 
 mod ethernet;
 
-// mod stack;
+mod stack;
 
 mod arp;
 
