@@ -256,7 +256,7 @@ impl StackInterface {
             let dst_mac = match self.arp_table.get(local_dst) {
                 Ok(mac) => mac,
                 Err(rx) => {
-                    try!(tx_send!(|| self.arp_tx(); src, local_dst));
+                    tx_send!(|| self.arp_tx(); src, local_dst)?;
                     rx.recv().unwrap()
                 }
             };
@@ -371,7 +371,7 @@ impl NetworkStack {
     /// Attach an IPv4 network to an interface.
     /// TODO: Deprecate and make the routing stuff better instead
     pub fn add_ipv4(&mut self, interface: &Interface, ip_net: Ipv4Network) -> StackResult<()> {
-        try!(try!(self.interface(interface)).add_ipv4(ip_net));
+        self.interface(interface)?.add_ipv4(ip_net)?;
         self.routing_table.add_route(ip_net, None, interface.clone());
         Ok(())
     }
@@ -391,7 +391,7 @@ impl NetworkStack {
     pub fn icmp_tx(&mut self,
                    dst_ip: Ipv4Addr)
                    -> StackResult<IcmpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
-        let ipv4_tx = try!(self.ipv4_tx(dst_ip));
+        let ipv4_tx = self.ipv4_tx(dst_ip)?;
         Ok(icmp::IcmpTx::new(ipv4_tx))
     }
 
@@ -426,7 +426,7 @@ impl NetworkStack {
                   src: u16,
                   dst_port: u16)
                   -> StackResult<UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>> {
-        let ipv4_tx = try!(self.ipv4_tx(dst_ip));
+        let ipv4_tx = self.ipv4_tx(dst_ip)?;
         Ok(udp::UdpTx::new(ipv4_tx, src, dst_port))
     }
 
@@ -434,7 +434,7 @@ impl NetworkStack {
         where A: ToSocketAddrs,
               L: udp::UdpListener + 'static
     {
-        match try!(util::first_socket_addr(addr)) {
+        match util::first_socket_addr(addr)? {
             SocketAddr::V4(addr) => {
                 let local_ip = addr.ip();
                 let mut local_port = addr.port();
