@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use ::tx::{TxBarrier, TxImpl};
@@ -76,13 +76,13 @@ pub enum StackInterfaceMsg {
 struct StackInterfaceThread {
     queue: Receiver<StackInterfaceMsg>,
     arp_table: Arc<Mutex<TableData>>,
-    ipv4_addresses: Arc<Mutex<HashSet<Ipv4Addr>>>,
+    ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
     tx: Arc<Mutex<TxBarrier>>,
 }
 
 impl StackInterfaceThread {
     pub fn spawn(arp_table: Arc<Mutex<TableData>>,
-                 ipv4_addresses: Arc<Mutex<HashSet<Ipv4Addr>>>,
+                 ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
                  tx: Arc<Mutex<TxBarrier>>)
                  -> Sender<StackInterfaceMsg> {
         let (thread_handle, rx) = mpsc::channel();
@@ -134,7 +134,7 @@ impl StackInterfaceThread {
     }
 
     fn arp_request(&mut self, _sender_ip: Ipv4Addr, _sender_mac: MacAddr, target_ip: Ipv4Addr) {
-        let ipv4_addresses = self.ipv4_addresses.lock().unwrap();
+        let ipv4_addresses = self.ipv4_addresses.read().unwrap();
         if ipv4_addresses.contains(&target_ip) {
             debug!("Incoming Arp request for me!! {}", target_ip);
         }
@@ -155,7 +155,7 @@ pub struct StackInterface {
     thread_handle: Sender<StackInterfaceMsg>,
     tx: Arc<Mutex<TxBarrier>>,
     arp_table: arp::ArpTable,
-    ipv4_addresses: Arc<Mutex<HashSet<Ipv4Addr>>>,
+    ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
     ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
 }
@@ -166,7 +166,7 @@ impl StackInterface {
         let receiver = channel.1;
 
         let arp_table = arp::ArpTable::new();
-        let ipv4_addresses = Arc::new(Mutex::new(HashSet::new()));
+        let ipv4_addresses = Arc::new(RwLock::new(HashSet::new()));
 
         let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
         let thread_handle =
@@ -242,7 +242,7 @@ impl StackInterface {
                     icmp_listeners: icmp_listeners,
                 };
                 entry.insert(data);
-                self.ipv4_addresses.lock().unwrap().insert(ip);
+                self.ipv4_addresses.write().unwrap().insert(ip);
                 Ok(())
             }
         }
