@@ -8,15 +8,24 @@
 
 //! # Rips - Rust IP Stack
 //!
+//! **This repository is in a messy state. I kind of had UDP working, but then
+//! I realized the design was flawed. So now everything is torn apart and I'm
+//! slowly putting it back together again. Don't expect beautiful code, nor
+//! great functionality, before the 0.1.0 release.**
+//!
+//! **I will be at 33C3 if you are interested in this project and want to know
+//! more!**
+//!
 //! [`rips`](https://github.com/faern/librips) is a TCP/IP stack implemented in
 //! Rust and backed by [`libpnet`](https://github.com/libpnet/libpnet) for its
 //! raw ethernet access.
 //!
 //! **WARNING**: This is not a *complete* TCP/IP stack at the moment.
-//! It's a work in progress. Continue to read to see what works at the moment.
-//! Feedback and ideas on the implementation and this documentation is very
-//! welcome. This is my first TCP/IP stack implementation so help will probably
-//! be needed in order to make this library complete and correct.
+//! **It's a work in progress**. Continue to read to see what works at the
+//! moment (But the docs might be outdated as well). Feedback and ideas on the
+//! implementation and this documentation is very welcome. This is my first
+//! TCP/IP stack implementation so help will probably be needed in order to
+//! make this library complete and correct.
 //! Most of this is implemented from observations of how other stacks seem to
 //! work, I have not studied any other implementations in detail.
 //!
