@@ -1,5 +1,5 @@
 use ::{EthernetChannel, Interface, RoutingTable, TxError};
-use ::arp::{self, ArpTx, TableData};
+use ::arp::{self, ArpTx, ArpTable};
 use ::ethernet::{EthernetRx, EthernetTxImpl};
 use ::icmp::{self, IcmpTx};
 
@@ -73,24 +73,45 @@ pub enum StackInterfaceMsg {
     Shutdown,
 }
 
-struct StackInterfaceThread {
-    queue: Receiver<StackInterfaceMsg>,
-    arp_table: Arc<Mutex<TableData>>,
-    ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
+struct StackInterfaceData {
+    interface: Interface,
     tx: Arc<Mutex<TxBarrier>>,
 }
 
+impl StackInterfaceData {
+    fn tx(&self) -> TxImpl {
+        let version = self.tx.lock().unwrap().version();
+        TxImpl::new(self.tx.clone(), version)
+    }
+
+    pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<TxImpl> {
+        EthernetTxImpl::new(self.tx(), self.interface.mac, dst)
+    }
+
+    pub fn arp_tx(&self) -> ArpTx<EthernetTxImpl<TxImpl>> {
+        let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+        arp::ArpTx::new(self.ethernet_tx(dst_mac))
+    }
+}
+
+struct StackInterfaceThread {
+    queue: Receiver<StackInterfaceMsg>,
+    data: Arc<StackInterfaceData>,
+    arp_table: ArpTable,
+    ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
+}
+
 impl StackInterfaceThread {
-    pub fn spawn(arp_table: Arc<Mutex<TableData>>,
-                 ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
-                 tx: Arc<Mutex<TxBarrier>>)
+    pub fn spawn(data: Arc<StackInterfaceData>,
+                 arp_table: ArpTable,
+                 ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>)
                  -> Sender<StackInterfaceMsg> {
         let (thread_handle, rx) = mpsc::channel();
         let stack_interface_thread = StackInterfaceThread {
             queue: rx,
+            data: data,
             arp_table: arp_table,
             ipv4_addresses: ipv4_addresses,
-            tx: tx,
         };
         thread::spawn(move || {
             stack_interface_thread.run();
@@ -98,7 +119,7 @@ impl StackInterfaceThread {
         thread_handle
     }
 
-    pub fn run(mut self) {
+    fn run(mut self) {
         while let Ok(msg) = self.queue.recv() {
             if !self.process_msg(msg) {
                 break;
@@ -120,23 +141,16 @@ impl StackInterfaceThread {
     }
 
     fn update_arp(&mut self, ip: Ipv4Addr, mac: MacAddr) {
-        let mut data = self.arp_table.lock().unwrap();
-        let old_mac = data.table.insert(ip, mac);
-        if old_mac.is_none() || old_mac != Some(mac) {
-            // The new MAC is different from the old one, bump tx VersionedTx
-            self.tx.lock().unwrap().inc();
-        }
-        if let Some(listeners) = data.listeners.remove(&ip) {
-            for listener in listeners {
-                listener.send(mac).unwrap_or(());
-            }
+        if self.arp_table.insert(ip, mac) {
+            self.data.tx.lock().unwrap().inc();
         }
     }
 
-    fn arp_request(&mut self, _sender_ip: Ipv4Addr, _sender_mac: MacAddr, target_ip: Ipv4Addr) {
+    fn arp_request(&mut self, sender_ip: Ipv4Addr, _sender_mac: MacAddr, target_ip: Ipv4Addr) {
         let ipv4_addresses = self.ipv4_addresses.read().unwrap();
         if ipv4_addresses.contains(&target_ip) {
             debug!("Incoming Arp request for me!! {}", target_ip);
+            tx_send!(|| self.data.arp_tx(); target_ip, sender_ip).unwrap_or(());
         }
     }
 }
@@ -150,11 +164,10 @@ struct Ipv4Data {
 /// Represents the stack on one physical interface.
 /// The larger `NetworkStack` comprises multiple of these.
 pub struct StackInterface {
-    interface: Interface,
+    data: Arc<StackInterfaceData>,
     mtu: usize,
     thread_handle: Sender<StackInterfaceMsg>,
-    tx: Arc<Mutex<TxBarrier>>,
-    arp_table: arp::ArpTable,
+    arp_table: ArpTable,
     ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
     ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
@@ -165,12 +178,19 @@ impl StackInterface {
         let sender = channel.0;
         let receiver = channel.1;
 
+        let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
+
+        let stack_interface_data = Arc::new(StackInterfaceData {
+            interface: interface,
+            tx: tx,
+        });
+
         let arp_table = arp::ArpTable::new();
         let ipv4_addresses = Arc::new(RwLock::new(HashSet::new()));
 
-        let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
-        let thread_handle =
-            StackInterfaceThread::spawn(arp_table.data(), ipv4_addresses.clone(), tx.clone());
+        let thread_handle = StackInterfaceThread::spawn(stack_interface_data.clone(),
+                                                        arp_table.clone(),
+                                                        ipv4_addresses.clone());
 
         let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
@@ -182,10 +202,9 @@ impl StackInterface {
         rx::spawn(receiver, ethernet_rx);
 
         StackInterface {
-            interface: interface,
+            data: stack_interface_data,
             mtu: DEFAULT_MTU,
             thread_handle: thread_handle,
-            tx: tx,
             arp_table: arp_table,
             ipv4_addresses: ipv4_addresses,
             ipv4_datas: HashMap::new(),
@@ -194,21 +213,15 @@ impl StackInterface {
     }
 
     pub fn interface(&self) -> &Interface {
-        &self.interface
-    }
-
-    fn tx(&self) -> TxImpl {
-        let version = self.tx.lock().unwrap().version();
-        TxImpl::new(self.tx.clone(), version)
+        &self.data.interface
     }
 
     pub fn ethernet_tx(&self, dst: MacAddr) -> EthernetTxImpl<TxImpl> {
-        EthernetTxImpl::new(self.tx(), self.interface.mac, dst)
+        self.data.ethernet_tx(dst)
     }
 
     pub fn arp_tx(&self) -> ArpTx<EthernetTxImpl<TxImpl>> {
-        let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
-        arp::ArpTx::new(self.ethernet_tx(dst_mac))
+        self.data.arp_tx()
     }
 
     pub fn arp_table(&mut self) -> &mut arp::ArpTable {
@@ -291,7 +304,7 @@ impl StackInterface {
 
     pub fn set_mtu(&mut self, mtu: usize) {
         self.mtu = mtu;
-        self.tx.lock().unwrap().inc();
+        self.data.tx.lock().unwrap().inc();
     }
 
     /// Finds which local IP is suitable as src ip for packets sent to `dst`.
