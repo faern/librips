@@ -1,3 +1,5 @@
+use ipnetwork::Ipv4Network;
+
 use pnet::packet::{MutablePacket, Packet};
 use pnet::packet::arp::{ArpPacket, MutableArpPacket, ArpOperations};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
@@ -16,15 +18,31 @@ fn arp_invalidate_on_update() {
     let (mut stack, interface, inject_handle, _) = testing::dummy_stack(7);
     let stack_interface = stack.interface(&interface).unwrap();
 
-    let mut arp_tx = stack_interface.arp_tx();
+    let mut arp_request_tx = stack_interface.arp_request_tx();
 
     // Send should work before table is updated
-    assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_ok());
+    assert!(arp_request_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_ok());
     // Inject Arp packet and wait for processing
     send_arp_reply(inject_handle);
     thread::sleep(Duration::new(1, 0));
     // Send should not work after incoming packet bumped VersionedTx revision
-    assert!(arp_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_err());
+    assert!(arp_request_tx.send(Ipv4Addr::new(0, 0, 0, 0), Ipv4Addr::new(0, 0, 0, 0)).is_err());
+}
+
+#[test]
+fn arp_reply_to_request() {
+    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack(7);
+
+    let config = Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 1), 24).unwrap();
+    stack.add_ipv4(&interface, config).unwrap();
+
+    send_arp_request(inject_handle);
+    thread::sleep(Duration::new(1, 0));
+
+    let arp_request_u8 = read_handle.try_recv().unwrap();
+    let arp_request_eth = EthernetPacket::new(&arp_request_u8[..]).unwrap();
+    let arp_request = ArpPacket::new(arp_request_eth.payload()).unwrap();
+    assert_eq!(ArpOperations::Reply, arp_request.get_operation());
 }
 
 #[test]
@@ -36,7 +54,7 @@ fn arp_locking() {
     let stack_interface = stack.interface(&interface).unwrap();
 
     let arp_table = stack_interface.arp_table().clone();
-    let mut arp_tx = stack_interface.arp_tx();
+    let mut arp_request_tx = stack_interface.arp_request_tx();
 
     let (arp_thread_tx, arp_thread_rx) = mpsc::channel();
     // Spawn `thread_count` threads that all try to request the same ip
@@ -52,7 +70,7 @@ fn arp_locking() {
         });
     }
     // Send out the request to the network
-    arp_tx.send(Ipv4Addr::new(10, 0, 0, 34), dst).unwrap();
+    arp_request_tx.send(Ipv4Addr::new(10, 0, 0, 34), dst).unwrap();
 
     thread::sleep(Duration::new(1, 0));
 
@@ -91,6 +109,21 @@ fn send_arp_reply(inject_handle: mpsc::Sender<io::Result<Box<[u8]>>>) {
         arp_pkg.set_operation(ArpOperations::Reply);
         arp_pkg.set_sender_hw_addr(MacAddr::new(9, 8, 7, 6, 5, 4));
         arp_pkg.set_sender_proto_addr(Ipv4Addr::new(10, 0, 0, 1));
+    }
+    inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
+}
+
+fn send_arp_request(inject_handle: mpsc::Sender<io::Result<Box<[u8]>>>) {
+    let mut buffer = vec![0; EthernetPacket::minimum_packet_size() +
+                             ArpPacket::minimum_packet_size()];
+    {
+        let mut eth_pkg = MutableEthernetPacket::new(&mut buffer[..]).unwrap();
+        eth_pkg.set_ethertype(EtherTypes::Arp);
+        let mut arp_pkg = MutableArpPacket::new(eth_pkg.payload_mut()).unwrap();
+        arp_pkg.set_operation(ArpOperations::Request);
+        arp_pkg.set_sender_hw_addr(MacAddr::new(9, 8, 7, 6, 5, 4));
+        arp_pkg.set_sender_proto_addr(Ipv4Addr::new(10, 0, 0, 2));
+        arp_pkg.set_target_proto_addr(Ipv4Addr::new(10, 0, 0, 1));
     }
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
 }

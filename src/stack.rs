@@ -1,5 +1,5 @@
 use ::{EthernetChannel, Interface, RoutingTable, TxError};
-use ::arp::{self, ArpTx, ArpTable};
+use ::arp::{self, ArpRequestTx, ArpReplyTx, ArpTable};
 use ::ethernet::{EthernetRx, EthernetTxImpl};
 use ::icmp::{self, IcmpTx};
 
@@ -21,6 +21,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
+
 use ::tx::{TxBarrier, TxImpl};
 use ::udp::{self, UdpTx};
 use ::util;
@@ -88,9 +89,14 @@ impl StackInterfaceData {
         EthernetTxImpl::new(self.tx(), self.interface.mac, dst)
     }
 
-    pub fn arp_tx(&self) -> ArpTx<EthernetTxImpl<TxImpl>> {
+    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<TxImpl>> {
         let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
-        arp::ArpTx::new(self.ethernet_tx(dst_mac))
+        ArpRequestTx::new(self.ethernet_tx(dst_mac))
+    }
+
+    pub fn arp_reply_tx(&self) -> ArpReplyTx<EthernetTxImpl<TxImpl>> {
+        let dst_mac = MacAddr::new(0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
+        ArpReplyTx::new(self.ethernet_tx(dst_mac))
     }
 }
 
@@ -133,7 +139,7 @@ impl StackInterfaceThread {
         match msg {
             UpdateArpTable(ip, mac) => self.update_arp(ip, mac),
             ArpRequest(sender_ip, sender_mac, target_ip) => {
-                self.arp_request(sender_ip, sender_mac, target_ip)
+                self.handle_arp_request(sender_ip, sender_mac, target_ip)
             }
             Shutdown => return false,
         }
@@ -146,11 +152,14 @@ impl StackInterfaceThread {
         }
     }
 
-    fn arp_request(&mut self, sender_ip: Ipv4Addr, _sender_mac: MacAddr, target_ip: Ipv4Addr) {
+    fn handle_arp_request(&mut self,
+                          sender_ip: Ipv4Addr,
+                          sender_mac: MacAddr,
+                          target_ip: Ipv4Addr) {
         let ipv4_addresses = self.ipv4_addresses.read().unwrap();
         if ipv4_addresses.contains(&target_ip) {
             debug!("Incoming Arp request for me!! {}", target_ip);
-            tx_send!(|| self.data.arp_tx(); target_ip, sender_ip).unwrap_or(());
+            tx_send!(|| self.data.arp_reply_tx(); target_ip, sender_mac, sender_ip).unwrap_or(());
         }
     }
 }
@@ -220,8 +229,8 @@ impl StackInterface {
         self.data.ethernet_tx(dst)
     }
 
-    pub fn arp_tx(&self) -> ArpTx<EthernetTxImpl<TxImpl>> {
-        self.data.arp_tx()
+    pub fn arp_request_tx(&self) -> ArpRequestTx<EthernetTxImpl<TxImpl>> {
+        self.data.arp_request_tx()
     }
 
     pub fn arp_table(&mut self) -> &mut arp::ArpTable {
@@ -270,7 +279,7 @@ impl StackInterface {
             let dst_mac = match self.arp_table.get(local_dst) {
                 Ok(mac) => mac,
                 Err(rx) => {
-                    tx_send!(|| self.arp_tx(); src, local_dst)?;
+                    tx_send!(|| self.arp_request_tx(); src, local_dst)?;
                     rx.recv().unwrap()
                 }
             };
