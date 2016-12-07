@@ -69,8 +69,9 @@ impl ArpTable {
         Err(Self::add_listener(&mut data, target_ip))
     }
 
-    /// Manually insert an IP -> MAC mapping into this Arp table
-    // TODO: This should also invalidate the Tx
+    /// Manually insert an IP -> MAC mapping into this Arp table and notify all
+    /// listeners for that IP. Will return `true` if this insertion changed the
+    /// table.
     pub fn insert(&mut self, ip: Ipv4Addr, mac: MacAddr) -> bool {
         let mut data = self.data.lock().expect("Unable to lock Arp::table for writing");
         let old_mac = data.table.insert(ip, mac);
