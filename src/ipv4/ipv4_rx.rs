@@ -109,7 +109,7 @@ impl Ipv4Rx {
             };
             if pkg_done {
                 let (buffer, len) = self.buffers.remove(&ident).unwrap();
-                let mut ip_pkg = MutableIpv4Packet::owned(buffer.into_boxed_slice()).unwrap();
+                let mut ip_pkg = MutableIpv4Packet::owned(buffer.into_vec()).unwrap();
                 ip_pkg.set_flags(NO_FLAGS);
                 ip_pkg.set_total_length(len as u16);
                 let csum = checksum(&ip_pkg.to_immutable());

@@ -1,7 +1,5 @@
 use {Protocol, TxResult};
-use ipv4::Ipv4Protocol;
-#[cfg(not(all(test, feature = "unit-tests")))]
-use ipv4::Ipv4Tx;
+use ipv4::{Ipv4Protocol, Ipv4Tx};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
@@ -9,9 +7,6 @@ use pnet::packet::icmp::echo_request::{EchoRequestPacket, MutableEchoRequestPack
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 
 use std::cmp;
-
-#[cfg(all(test, feature = "unit-tests"))]
-use testing::ipv4::Ipv4Tx;
 
 /// Trait for anything wishing to be the payload of an Icmp packet.
 pub trait IcmpProtocol: Protocol {
@@ -64,13 +59,13 @@ impl Protocol for BasicIcmpProtocol {
 }
 
 /// Icmp packet builder and sender struct.
-pub struct IcmpTx {
-    ipv4: Ipv4Tx,
+pub struct IcmpTx<T: Ipv4Tx> {
+    ipv4: T,
 }
 
-impl IcmpTx {
+impl<T: Ipv4Tx> IcmpTx<T> {
     /// Creates a new `IcmpTx` based on `ipv4`
-    pub fn new(ipv4: Ipv4Tx) -> IcmpTx {
+    pub fn new(ipv4: T) -> Self {
         IcmpTx { ipv4: ipv4 }
     }
 

@@ -1,11 +1,13 @@
-#[cfg(not(feature = "unit-tests"))]
 use {NetworkStack, StackError, StackResult};
 use {TxError, TxResult};
+use ethernet::EthernetTxImpl;
+use ipv4::Ipv4TxImpl;
 
 use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
+use tx::TxImpl;
 
 use util;
 
@@ -16,15 +18,13 @@ pub use self::udp_rx::{UdpListener, UdpListenerLookup, UdpRx};
 use self::udp_rx::UdpSocketReader;
 pub use self::udp_tx::{UdpBuilder, UdpTx};
 
-#[cfg(not(feature = "unit-tests"))]
 pub struct UdpSocket {
     socket_addr: SocketAddr,
     stack: Arc<Mutex<NetworkStack>>,
-    tx_cache: HashMap<SocketAddrV4, UdpTx>,
+    tx_cache: HashMap<SocketAddrV4, UdpTx<Ipv4TxImpl<EthernetTxImpl<TxImpl>>>>,
     rx: Option<UdpSocketReader>,
 }
 
-#[cfg(not(feature = "unit-tests"))]
 impl UdpSocket {
     pub fn bind<A: ToSocketAddrs>(stack: Arc<Mutex<NetworkStack>>,
                                   addr: A)

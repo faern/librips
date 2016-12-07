@@ -1,54 +1,51 @@
-
-
-use {RxError, RxResult, VersionedTx};
+use {RxResult, RxError};
 use ethernet::EthernetListener;
 
 use pnet::packet::Packet;
-use pnet::packet::arp::ArpPacket;
+use pnet::packet::arp::{ArpPacket, ArpOperations};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
+use stack::StackInterfaceMsg;
 
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Sender;
 use std::time::SystemTime;
 
-use super::TableData;
-
-/// Receiver and parser of Arp packets. Shares table instance with the
-/// `ArpTable` that created it. Upon valid incoming Arp packet the table will
-/// be updated and the `VersionedTx` referenced in the struct will have its
-/// revision bumped.
 pub struct ArpRx {
-    data: Arc<Mutex<TableData>>,
-    vtx: Arc<Mutex<VersionedTx>>,
+    listener: Sender<StackInterfaceMsg>,
 }
 
 impl ArpRx {
-    pub fn new(data: Arc<Mutex<TableData>>, vtx: Arc<Mutex<VersionedTx>>) -> Self {
-        ArpRx {
-            data: data,
-            vtx: vtx,
-        }
+    pub fn new(listener: Sender<StackInterfaceMsg>) -> Self {
+        ArpRx { listener: listener }
+    }
+
+    fn handle_request(&mut self, arp_pkg: &ArpPacket) -> RxResult {
+        let sender_mac = arp_pkg.get_sender_hw_addr();
+        let sender_ip = arp_pkg.get_sender_proto_addr();
+        let target_ip = arp_pkg.get_target_proto_addr();
+        self.listener
+            .send(StackInterfaceMsg::ArpRequest(sender_ip, sender_mac, target_ip))
+            .unwrap();
+        Ok(())
+    }
+
+    fn handle_reply(&mut self, arp_pkg: &ArpPacket) -> RxResult {
+        let sender_mac = arp_pkg.get_sender_hw_addr();
+        let sender_ip = arp_pkg.get_sender_proto_addr();
+        debug!("Arp reply. MAC: {} -> IPv4: {}", sender_mac, sender_ip);
+        self.listener.send(StackInterfaceMsg::UpdateArpTable(sender_ip, sender_mac)).unwrap();
+        Ok(())
     }
 }
 
 impl EthernetListener for ArpRx {
     fn recv(&mut self, _time: SystemTime, pkg: &EthernetPacket) -> RxResult {
         let arp_pkg = ArpPacket::new(pkg.payload()).unwrap();
-        let ip = arp_pkg.get_sender_proto_addr();
-        let mac = arp_pkg.get_sender_hw_addr();
-        debug!("Arp MAC: {} -> IPv4: {}", mac, ip);
-
-        let mut data = self.data.lock().unwrap();
-        let old_mac = data.table.insert(ip, mac);
-        if old_mac.is_none() || old_mac != Some(mac) {
-            // The new MAC is different from the old one, bump tx VersionedTx
-            self.vtx.lock().unwrap().inc();
+        // TODO: Check all other fields so they are correct.
+        match arp_pkg.get_operation() {
+            ArpOperations::Request => self.handle_request(&arp_pkg),
+            ArpOperations::Reply => self.handle_reply(&arp_pkg),
+            _ => Err(RxError::InvalidContent),
         }
-        if let Some(listeners) = data.listeners.remove(&ip) {
-            for listener in listeners {
-                listener.send(mac).unwrap_or(());
-            }
-        }
-        Ok(())
     }
 
     fn get_ethertype(&self) -> EtherType {

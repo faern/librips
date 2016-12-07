@@ -1,10 +1,11 @@
 use {Protocol, RxResult, TxResult};
-use ipv4::{Ipv4Listener, Ipv4Protocol};
+use ipv4::{Ipv4Listener, Ipv4Protocol, Ipv4Tx};
 
 use pnet::packet::Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::ipv4::Ipv4Packet;
 
+use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::time::SystemTime;
@@ -21,18 +22,28 @@ impl Ipv4Listener for MockIpv4Listener {
     }
 }
 
-pub struct Ipv4Tx {
+pub struct MockIpv4Tx {
     chan: mpsc::Sender<(IpNextHeaderProtocol, Box<[u8]>)>,
 }
 
-impl Ipv4Tx {
-    pub fn new() -> (Ipv4Tx, mpsc::Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
+impl MockIpv4Tx {
+    pub fn new() -> (MockIpv4Tx, mpsc::Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
         let (tx, rx) = mpsc::channel();
-        let ipv4 = Ipv4Tx { chan: tx };
+        let ipv4 = MockIpv4Tx { chan: tx };
         (ipv4, rx)
     }
+}
 
-    pub fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
+impl Ipv4Tx for MockIpv4Tx {
+    fn src(&self) -> Ipv4Addr {
+        Ipv4Addr::new(0, 0, 0, 0)
+    }
+
+    fn dst(&self) -> Ipv4Addr {
+        Ipv4Addr::new(0, 0, 0, 0)
+    }
+
+    fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
         let mut buffer = vec![0; payload.len() as usize];
         payload.build(&mut buffer);
         self.chan.send((payload.next_level_protocol(), buffer.into_boxed_slice())).unwrap();

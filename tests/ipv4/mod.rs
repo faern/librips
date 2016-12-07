@@ -7,7 +7,8 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::util::MacAddr;
 
 use rips::ethernet::EthernetRx;
-use rips::ipv4::{Ipv4Listener, Ipv4Rx};
+use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
+use rips::rx;
 use rips::testing;
 use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
 
@@ -59,7 +60,8 @@ fn custom_igmp_recv() {
 
     let (channel, _interface, inject_handle, _) = testing::dummy_ethernet(0);
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
-    EthernetRx::new(vec![ipv4_rx]).spawn(channel.1);
+    let ethernet_rx = EthernetRx::new(vec![ipv4_rx]);
+    rx::spawn(channel.1, ethernet_rx);
 
     let size = EthernetPacket::minimum_packet_size() + Ipv4Packet::minimum_packet_size() + 2;
     let mut buffer = vec![0; size];

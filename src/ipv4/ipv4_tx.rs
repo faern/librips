@@ -1,6 +1,5 @@
 use {Protocol, TxResult};
 use ethernet::EthernetProtocol;
-#[cfg(not(all(test, feature = "unit-tests")))]
 use ethernet::EthernetTx;
 
 use pnet::packet::{MutablePacket, Packet};
@@ -12,9 +11,6 @@ use std::cmp;
 use std::net::Ipv4Addr;
 
 use super::{MORE_FRAGMENTS, NO_FLAGS};
-
-#[cfg(all(test, feature = "unit-tests"))]
-use testing::ethernet::EthernetTx;
 
 pub trait Ipv4Protocol: Protocol {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol;
@@ -57,26 +53,27 @@ impl Protocol for BasicIpv4Protocol {
 }
 
 
+pub trait Ipv4Tx {
+    fn src(&self) -> Ipv4Addr;
+    fn dst(&self) -> Ipv4Addr;
+    fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult;
+}
+
 /// IPv4 packet builder and sender. Will fragment packets larger than the
 /// MTU reported by the underlying `EthernetTx` given to the constructor.
-pub struct Ipv4Tx {
-    /// The source IP of packets built by this instance.
-    pub src: Ipv4Addr,
-
-    /// The destination IP of the packets built by this instance.
-    pub dst: Ipv4Addr,
-
+pub struct Ipv4TxImpl<T: EthernetTx> {
+    src: Ipv4Addr,
+    dst: Ipv4Addr,
     mtu: usize,
-
-    ethernet: EthernetTx,
+    ethernet: T,
     next_identification: u16,
 }
 
-impl Ipv4Tx {
+impl<T: EthernetTx> Ipv4TxImpl<T> {
     /// Constructs a new `Ipv4Tx`.
-    pub fn new(ethernet: EthernetTx, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Ipv4Tx {
+    pub fn new(ethernet: T, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Self {
         assert!(mtu >= Ipv4Packet::minimum_packet_size());
-        Ipv4Tx {
+        Ipv4TxImpl {
             src: src,
             dst: dst,
             mtu: mtu,
@@ -85,11 +82,21 @@ impl Ipv4Tx {
         }
     }
 
-    /// Sends an IPv4 packet to the network. If the given `dst_ip` is within
-    /// the local network it will be sent directly to the MAC of that IP (taken
-    /// from arp), otherwise it will be sent to the MAC of the configured
-    /// gateway.
-    pub fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult {
+    pub fn max_payload_per_fragment(&self) -> usize {
+        (self.mtu - Ipv4Packet::minimum_packet_size()) & !0b111
+    }
+}
+
+impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
+    fn src(&self) -> Ipv4Addr {
+        self.src
+    }
+
+    fn dst(&self) -> Ipv4Addr {
+        self.dst
+    }
+
+    fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult {
         let payload_len = payload.len();
         let builder = Ipv4Builder::new(self.src, self.dst, self.next_identification, payload);
         self.next_identification.wrapping_add(1);
@@ -103,10 +110,6 @@ impl Ipv4Tx {
             let size = max_payload_per_fragment + Ipv4Packet::minimum_packet_size();
             self.ethernet.send(fragments, size, builder)
         }
-    }
-
-    pub fn max_payload_per_fragment(&self) -> usize {
-        (self.mtu - Ipv4Packet::minimum_packet_size()) & !0b111
     }
 }
 

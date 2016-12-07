@@ -174,17 +174,19 @@ extern crate pnet;
 extern crate ipnetwork;
 
 use std::io;
-use std::sync::{Arc, Mutex};
 
 #[macro_use]
 extern crate log;
 
-use pnet::datalink::{self, EthernetDataLinkSender, NetworkInterface};
+use pnet::datalink::{self, NetworkInterface};
 use pnet::util::MacAddr;
-use pnet::packet::ethernet::MutableEthernetPacket;
 
 #[macro_use]
 mod macros;
+
+pub mod rx;
+
+pub mod tx;
 
 pub mod ethernet;
 
@@ -206,13 +208,9 @@ pub use routing::RoutingTable;
 
 mod util;
 
-#[cfg(any(test, feature = "unit-tests", feature = "integration-tests", feature = "benchmarks"))]
 pub mod testing;
 
-#[cfg(not(feature = "unit-tests"))]
 mod stack;
-
-#[cfg(not(feature = "unit-tests"))]
 pub use stack::{NetworkStack, StackError, StackResult};
 
 pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
@@ -297,18 +295,6 @@ impl From<TxError> for io::Error {
 /// Type binding for the type of `Result` that a send method returns.
 pub type TxResult = Result<(), TxError>;
 
-fn io_result_to_tx_result(r: Option<io::Result<()>>) -> TxResult {
-    match r {
-        None => Err(TxError::Other("Insufficient buffer space".to_owned())),
-        Some(ior) => {
-            match ior {
-                Err(e) => Err(TxError::from(e)),
-                Ok(()) => Ok(()),
-            }
-        }
-    }
-}
-
 /// Error returned by the `recv` method of `*Rx` objects when there is
 /// something wrong with the
 /// incoming packet.
@@ -336,103 +322,13 @@ pub enum RxError {
 /// Simple type definition for return type of `recv` on `*Rx` objects.
 pub type RxResult = Result<(), RxError>;
 
-/// Internal representation of of a sending channel used for synchronization.
-/// Public only because it's part of the interface of other public structs.
-pub struct VersionedTx {
-    sender: Box<EthernetDataLinkSender>,
-    current_rev: u64,
-}
-
-impl VersionedTx {
-    /// Creates a new `VersionedTx` based on the given `EthernetDataLinkSender`.
-    pub fn new(sender: Box<EthernetDataLinkSender>) -> VersionedTx {
-        VersionedTx {
-            sender: sender,
-            current_rev: 0,
-        }
-    }
-
-    /// Increments the internal counter by one. Used to invalidate all `Tx`
-    /// instances created towards this `VersionedTx`
-    pub fn inc(&mut self) {
-        self.current_rev = self.current_rev.wrapping_add(1);
-        debug!("VersionedTx ticked to {}", self.current_rev);
-    }
-}
-
-enum TxSender {
-    Versioned(Arc<Mutex<VersionedTx>>),
-    Direct(Box<EthernetDataLinkSender>),
-}
-
-/// Base representation of a the sending part of an interface. This is what an
-/// `EthernetTx` send
-/// to.
-pub struct Tx {
-    sender: TxSender,
-    rev: u64,
-}
-
-impl Tx {
-    /// Creates a new `Tx` based on the given `VersionedTx`. Will lock `vtx`
-    /// and copy the current
-    /// revision from it. This `Tx` will work for as long as the revision in
-    /// `vtx` does not change.
-    pub fn versioned(vtx: Arc<Mutex<VersionedTx>>) -> Tx {
-        let rev = vtx.lock().expect("Unable to lock vtx").current_rev;
-        Tx {
-            sender: TxSender::Versioned(vtx),
-            rev: rev,
-        }
-    }
-
-    /// Creates a new `Tx` based directly on the given
-    /// `EthernetDataLinkSender`. Does not do
-    /// versioning and should only be used for tests and other special cases.
-    pub fn direct(sender: Box<EthernetDataLinkSender>) -> Tx {
-        Tx {
-            sender: TxSender::Direct(sender),
-            rev: 0,
-        }
-    }
-
-    /// Sends packets to the backing `EthernetDataLinkSender`. If this `Tx` is
-    /// versioned the
-    /// `VersionedTx` will first be locked and the revision compared. If the
-    /// revision changed
-    /// this method will return `TxError::InvalidTx` instead of sending
-    /// anything.
-    pub fn send<T>(&mut self, num_packets: usize, size: usize, builder: T) -> TxResult
-        where T: FnMut(MutableEthernetPacket)
-    {
-        match self.sender {
-            TxSender::Versioned(ref vtx) => {
-                let mut sender = vtx.lock().unwrap();
-                if self.rev != sender.current_rev {
-                    Err(TxError::InvalidTx)
-                } else {
-                    Self::internal_send(&mut sender.sender, num_packets, size, builder)
-                }
-            }
-            TxSender::Direct(ref mut s) => Self::internal_send(s, num_packets, size, builder),
-        }
-    }
-
-    fn internal_send<T>(sender: &mut Box<EthernetDataLinkSender>,
-                        num_packets: usize,
-                        size: usize,
-                        mut builder: T)
-                        -> TxResult
-        where T: FnMut(MutableEthernetPacket)
-    {
-        let result = sender.build_and_send(num_packets, size, &mut builder);
-        io_result_to_tx_result(result)
-    }
+pub trait Tx {
+    fn send<T>(&mut self, num_packets: usize, packet_size: usize, builder: T) -> TxResult
+        where T: FnMut(&mut [u8]);
 }
 
 /// Create a default stack managing all interfaces given by
 /// `pnet::datalink::interfaces()`.
-#[cfg(not(feature = "unit-tests"))]
 pub fn default_stack() -> StackResult<NetworkStack> {
     let mut stack = NetworkStack::new();
     for interface in datalink::interfaces() {
@@ -451,7 +347,6 @@ pub fn default_stack() -> StackResult<NetworkStack> {
     Ok(stack)
 }
 
-// #[cfg(not(feature = "unit-tests"))]
 // pub fn stack<Datalink>(_datalink_provider: Datalink) ->
 // StackResult<NetworkStack>
 //     where Datalink: datalink::Datalink
@@ -472,7 +367,6 @@ pub fn default_stack() -> StackResult<NetworkStack> {
 //     Ok(stack)
 // }
 //
-// #[cfg(not(feature = "unit-tests"))]
 // pub fn default_stack() -> StackResult<NetworkStack> {
 //     stack(datalink::DefaultDatalink)
 // }

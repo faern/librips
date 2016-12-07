@@ -17,6 +17,7 @@ use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::time::SystemTime;
 
+#[derive(Clone)]
 pub struct MockIcmpListener {
     pub tx: mpsc::Sender<Vec<u8>>,
 }

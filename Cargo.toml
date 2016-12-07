@@ -18,13 +18,11 @@ lazy_static = "^0.2"
 
 [features]
 default = []
-unit-tests = [] # Activate this to build for unit testing
-integration-tests = [] # Activate to build for integration testing
 benchmarks = []
 
 [dependencies.pnet]
 git = "https://github.com/faern/libpnet"
-branch = "self-owned-packets"
+#branch = "self-owned-packets"
 #path = "../libpnet"
 
 #[dependencies.ipnetwork]

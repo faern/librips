@@ -24,7 +24,7 @@ pub use self::icmp_tx::{BasicIcmpProtocol, IcmpBuilder, IcmpProtocol, IcmpTx, Pi
 //     pub fn take_recv() -> Result<Receiver<Box<[u8]>>, ()>;
 // }
 
-#[cfg(all(test, feature = "unit-tests"))]
+#[cfg(test)]
 mod tests {
     use pnet::packet::Packet;
     use pnet::packet::icmp::IcmpTypes;
@@ -32,11 +32,11 @@ mod tests {
     use pnet::packet::ip::IpNextHeaderProtocols;
 
     use super::*;
-    use testing::ipv4::Ipv4Tx;
+    use testing::ipv4::MockIpv4Tx;
 
     #[test]
     fn test_ping() {
-        let (ipv4, read_handle) = Ipv4Tx::new();
+        let (ipv4, read_handle) = MockIpv4Tx::new();
         let mut icmp = IcmpTx::new(ipv4);
         icmp.send_echo(&[9, 55]).unwrap();
 

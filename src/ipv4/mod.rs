@@ -2,21 +2,20 @@ mod ipv4_rx;
 mod ipv4_tx;
 
 pub use self::ipv4_rx::{IpListenerLookup, Ipv4Listener, Ipv4Rx};
-pub use self::ipv4_tx::{BasicIpv4Protocol, Ipv4Builder, Ipv4Protocol, Ipv4Tx};
+pub use self::ipv4_tx::{BasicIpv4Protocol, Ipv4Builder, Ipv4Protocol, Ipv4Tx, Ipv4TxImpl};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
 pub const NO_FLAGS: u8 = 0b000;
 
-
-#[cfg(all(test, feature = "unit-tests"))]
+#[cfg(test)]
 mod tests {
-    use {RxError, RxResult};
+    use RxError;
     use ethernet::EthernetListener;
     use pnet::packet::{MutablePacket, Packet};
     use pnet::packet::ethernet::MutableEthernetPacket;
 
-    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+    use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
     use std::collections::HashMap;
     use std::net::Ipv4Addr;
@@ -33,8 +32,8 @@ mod tests {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
-        let (eth_tx, rx) = ethernet::EthernetTx::new();
-        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, 1500);
+        let (eth_tx, rx) = ethernet::MockEthernetTx::new();
+        let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, src, dst, 1500);
 
         let max_payload_len = ipv4_tx.max_payload_per_fragment();
         let pkg_size = max_payload_len + 5;
@@ -59,8 +58,8 @@ mod tests {
         let src = Ipv4Addr::new(192, 168, 10, 2);
         let dst = Ipv4Addr::new(192, 168, 10, 240);
 
-        let (eth_tx, rx) = ethernet::EthernetTx::new();
-        let mut ipv4_tx = Ipv4Tx::new(eth_tx, src, dst, 1500);
+        let (eth_tx, rx) = ethernet::MockEthernetTx::new();
+        let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, src, dst, 1500);
 
         let max_payload_len = ipv4_tx.max_payload_per_fragment();
         let pkg_size = max_payload_len - 5;

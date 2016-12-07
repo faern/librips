@@ -1,10 +1,10 @@
-use RxResult;
+use ::{RxResult, RxError};
 
-use pnet::datalink::EthernetDataLinkReceiver;
 use pnet::packet::ethernet::{EtherType, EthernetPacket};
+use ::rx::RxListener;
 
 use std::collections::HashMap;
-use std::thread;
+use std::collections::hash_map::Entry;
 use std::time::SystemTime;
 
 /// Anyone interested in receiving ethernet frames from an `EthernetRx` must
@@ -24,7 +24,7 @@ pub trait EthernetListener: Send {
 /// This is the lowest level *Rx* type. This one is operating in its
 /// own thread and reads from the `pnet` backend.
 pub struct EthernetRx {
-    listeners: HashMap<EtherType, Vec<Box<EthernetListener>>>,
+    listeners: HashMap<EtherType, Box<EthernetListener>>,
 }
 
 impl EthernetRx {
@@ -36,44 +36,25 @@ impl EthernetRx {
     }
 
     fn expand_listeners(listeners: Vec<Box<EthernetListener>>)
-                        -> HashMap<EtherType, Vec<Box<EthernetListener>>> {
+                        -> HashMap<EtherType, Box<EthernetListener>> {
         let mut map_listeners = HashMap::new();
         for listener in listeners {
             let ethertype = listener.get_ethertype();
-            map_listeners.entry(ethertype).or_insert(vec![]).push(listener);
+            match map_listeners.entry(ethertype) {
+                Entry::Occupied(..) => panic!("Unable to have >1 listener per EtherType"),
+                Entry::Vacant(entry) => entry.insert(listener),
+            };
         }
         map_listeners
     }
+}
 
-    /// Start a new thread and move the `EthernetRx` to it. This thread will
-    /// constantly read from the given `EthernetDataLinkReceiver` and
-    /// distribute the packets to its listeners.
-    pub fn spawn(self, receiver: Box<EthernetDataLinkReceiver>) {
-        thread::spawn(move || {
-            self.run(receiver);
-        });
-    }
-
-    fn run(mut self, mut receiver: Box<EthernetDataLinkReceiver>) {
-        let mut rx_iter = receiver.iter();
-        loop {
-            match rx_iter.next() {
-                Ok(pkg) => {
-                    let time = SystemTime::now();
-                    let ethertype = pkg.get_ethertype();
-                    match self.listeners.get_mut(&ethertype) {
-                        Some(listeners) => {
-                            for listener in listeners {
-                                if let Err(e) = listener.recv(time, &pkg) {
-                                    warn!("RxError: {:?}", e);
-                                }
-                            }
-                        }
-                        None => debug!("Ethernet: No listener for {:?}", ethertype),
-                    }
-                }
-                Err(e) => panic!("EthernetRx crash: {}", e),
-            }
+impl RxListener for EthernetRx {
+    fn recv(&mut self, time: SystemTime, packet: &EthernetPacket) -> RxResult {
+        let ethertype = packet.get_ethertype();
+        match self.listeners.get_mut(&ethertype) {
+            Some(listener) => listener.recv(time, packet),
+            None => Err(RxError::NoListener(format!("Ethernet: No listener for {}", ethertype))),
         }
     }
 }

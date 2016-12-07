@@ -31,8 +31,8 @@ impl Buffer {
     }
 
     /// Consumes the `Buffer` and returns the data in an owned slice
-    pub fn into_boxed_slice(self) -> Box<[u8]> {
-        self.data.into_boxed_slice()
+    pub fn into_vec(self) -> Vec<u8> {
+        self.data
     }
 }
 
