@@ -1,40 +1,22 @@
 use pnet::packet::{Packet, PrimitiveValues};
-use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket, MutableEthernetPacket};
+use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use rips::RxResult;
-use rips::ethernet::{EthernetListener, EthernetRx, EthernetTx, EthernetTxImpl};
-use rips::ethernet::BasicEthernetProtocol;
+use rips::ethernet::{BasicEthernetProtocol, BasicEthernetListener};
+use rips::ethernet::{EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::rx;
 use rips::testing;
 use rips::tx::TxBarrier;
 
 use std::sync::mpsc;
-use std::time::SystemTime;
-
-pub struct MockEthernetListener {
-    pub tx: mpsc::Sender<Vec<u8>>,
-}
-
-impl EthernetListener for MockEthernetListener {
-    fn recv(&mut self, _time: SystemTime, packet: &EthernetPacket) -> RxResult {
-        self.tx.send(packet.packet().to_vec()).unwrap();
-        Ok(())
-    }
-
-    fn get_ethertype(&self) -> EtherType {
-        EtherTypes::Arp
-    }
-}
 
 #[test]
 fn test_ethernet_recv() {
     let (listener_tx, listener_rx) = mpsc::channel();
-    let mock_listener = MockEthernetListener { tx: listener_tx };
-    let listeners = vec![Box::new(mock_listener) as Box<EthernetListener>];
+    let mock_listener = BasicEthernetListener::new(EtherTypes::Arp, listener_tx);
 
     let (channel, _, inject_handle, _) = testing::dummy_ethernet(0);
-    let ethernet_rx = EthernetRx::new(listeners);
+    let ethernet_rx = EthernetRx::new(vec![mock_listener]);
     rx::spawn(channel.1, ethernet_rx);
 
     let mut buffer = vec![0; EthernetPacket::minimum_packet_size() + 3];
@@ -47,8 +29,7 @@ fn test_ethernet_recv() {
     }
 
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
-    let packet = listener_rx.recv().unwrap();
-    let eth_packet = EthernetPacket::new(&packet[..]).unwrap();
+    let (_time, eth_packet) = listener_rx.recv().unwrap();
     assert_eq!((1, 2, 3, 4, 5, 6),
                eth_packet.get_source().to_primitive_values());
     assert_eq!((9, 8, 7, 6, 5, 4),

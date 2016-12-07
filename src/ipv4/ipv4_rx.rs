@@ -171,7 +171,7 @@ impl EthernetListener for Ipv4Rx {
         }
     }
 
-    fn get_ethertype(&self) -> EtherType {
+    fn ether_type(&self) -> EtherType {
         EtherTypes::Ipv4
     }
 }

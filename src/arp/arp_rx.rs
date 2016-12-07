@@ -48,7 +48,7 @@ impl EthernetListener for ArpRx {
         }
     }
 
-    fn get_ethertype(&self) -> EtherType {
+    fn ether_type(&self) -> EtherType {
         EtherTypes::Arp
     }
 }
