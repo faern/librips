@@ -96,6 +96,89 @@ impl RxListener for EthernetRx {
 
 #[cfg(test)]
 mod tests {
+    use RxError;
+
+    use pnet::packet::Packet;
+    use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
+
+    use rx::RxListener;
+
+    use std::sync::mpsc;
+    use std::time::SystemTime;
+
+    use super::*;
+
     #[test]
-    fn multiple_listener_panic() {}
+    fn basic_ethernet_listener_ether_type() {
+        let (tx, _) = mpsc::channel();
+        let testee = BasicEthernetListener::new(EtherTypes::Ipv4, tx);
+        assert_eq!(EtherTypes::Ipv4, testee.ether_type());
+    }
+
+    #[test]
+    fn basic_ethernet_listener_recv() {
+        let time = SystemTime::now();
+        let mut packet = MutableEthernetPacket::owned(vec![0; 14]).unwrap();
+        packet.set_ethertype(EtherTypes::Arp);
+
+        let (tx, rx) = mpsc::channel();
+        let mut testee = BasicEthernetListener::new(EtherTypes::Ipv4, tx);
+
+        testee.recv(time, &packet.to_immutable()).unwrap();
+        let (output_time, output_packet) = rx.try_recv().unwrap();
+
+        assert_eq!(time, output_time);
+        assert_eq!(EtherTypes::Arp, output_packet.get_ethertype());
+    }
+
+    #[test]
+    fn basic_ethernet_listener_recv_closed_listener() {
+        let packet = EthernetPacket::owned(vec![0; 14]).unwrap();
+
+        let (tx, _) = mpsc::channel();
+        let mut testee = BasicEthernetListener::new(EtherTypes::Ipv4, tx);
+
+        assert!(testee.recv(SystemTime::now(), &packet).is_err());
+    }
+
+
+    #[test]
+    #[should_panic]
+    fn ethernet_rx_multiple_listener_panic() {
+        let listener1 = BasicEthernetListener::new(EtherTypes::Arp, mpsc::channel().0);
+        let listener2 = BasicEthernetListener::new(EtherTypes::Arp, mpsc::channel().0);
+        let _testee = EthernetRx::new(vec![listener1, listener2]);
+    }
+
+    #[test]
+    fn ethernet_rx_recv_no_listener() {
+        let packet = EthernetPacket::owned(vec![0; 14]).unwrap();
+        let mut testee = EthernetRx::new(vec![]);
+        match testee.recv(SystemTime::now(), &packet) {
+            Err(RxError::NoListener(_)) => (),
+            _ => panic!("Expected NoListener error"),
+        }
+    }
+
+    #[test]
+    fn ethernet_rx_recv() {
+        let time = SystemTime::now();
+        let mut packet = MutableEthernetPacket::owned(vec![0; 15]).unwrap();
+        packet.set_ethertype(EtherTypes::Arp);
+        packet.set_payload(&[56]);
+
+        let (tx1, rx1) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
+        let listener1 = BasicEthernetListener::new(EtherTypes::Arp, tx1);
+        let listener2 = BasicEthernetListener::new(EtherTypes::Ipv4, tx2);
+
+        let mut testee = EthernetRx::new(vec![listener1, listener2]);
+        testee.recv(time, &packet.to_immutable()).unwrap();
+
+        assert!(rx2.try_recv().is_err());
+        let (output_time, output_packet) = rx1.try_recv().unwrap();
+        assert_eq!(time, output_time);
+        assert_eq!(EtherTypes::Arp, output_packet.get_ethertype());
+        assert_eq!([56], output_packet.payload());
+    }
 }
