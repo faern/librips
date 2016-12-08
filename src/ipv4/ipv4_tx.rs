@@ -1,5 +1,5 @@
-use {Protocol, TxResult};
-use ethernet::EthernetProtocol;
+use {Payload, TxResult};
+use ethernet::EthernetPayload;
 use ethernet::EthernetTx;
 
 use pnet::packet::{MutablePacket, Packet};
@@ -12,20 +12,20 @@ use std::net::Ipv4Addr;
 
 use super::{MORE_FRAGMENTS, NO_FLAGS};
 
-pub trait Ipv4Protocol: Protocol {
+pub trait Ipv4Payload: Payload {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol;
 }
 
-pub struct BasicIpv4Protocol {
+pub struct BasicIpv4Payload {
     next_level_protocol: IpNextHeaderProtocol,
     offset: usize,
     payload: Vec<u8>,
 }
 
-impl BasicIpv4Protocol {
+impl BasicIpv4Payload {
     pub fn new(next_level_protocol: IpNextHeaderProtocol, payload: Vec<u8>) -> Self {
         assert!(payload.len() <= ::std::u16::MAX as usize);
-        BasicIpv4Protocol {
+        BasicIpv4Payload {
             next_level_protocol: next_level_protocol,
             offset: 0,
             payload: payload,
@@ -33,13 +33,13 @@ impl BasicIpv4Protocol {
     }
 }
 
-impl Ipv4Protocol for BasicIpv4Protocol {
+impl Ipv4Payload for BasicIpv4Payload {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         self.next_level_protocol
     }
 }
 
-impl Protocol for BasicIpv4Protocol {
+impl Payload for BasicIpv4Payload {
     fn len(&self) -> usize {
         self.payload.len()
     }
@@ -56,7 +56,7 @@ impl Protocol for BasicIpv4Protocol {
 pub trait Ipv4Tx {
     fn src(&self) -> Ipv4Addr;
     fn dst(&self) -> Ipv4Addr;
-    fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult;
+    fn send<P: Ipv4Payload>(&mut self, payload: P) -> TxResult;
 }
 
 /// IPv4 packet builder and sender. Will fragment packets larger than the
@@ -96,7 +96,7 @@ impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
         self.dst
     }
 
-    fn send<P: Ipv4Protocol>(&mut self, payload: P) -> TxResult {
+    fn send<P: Ipv4Payload>(&mut self, payload: P) -> TxResult {
         let payload_len = payload.len();
         let builder = Ipv4Builder::new(self.src, self.dst, self.next_identification, payload);
         self.next_identification.wrapping_add(1);
@@ -114,7 +114,7 @@ impl<T: EthernetTx> Ipv4Tx for Ipv4TxImpl<T> {
 }
 
 
-pub struct Ipv4Builder<P: Ipv4Protocol> {
+pub struct Ipv4Builder<P: Ipv4Payload> {
     src: Ipv4Addr,
     dst: Ipv4Addr,
     offset: usize,
@@ -122,7 +122,7 @@ pub struct Ipv4Builder<P: Ipv4Protocol> {
     payload: P,
 }
 
-impl<P: Ipv4Protocol> Ipv4Builder<P> {
+impl<P: Ipv4Payload> Ipv4Builder<P> {
     pub fn new(src: Ipv4Addr, dst: Ipv4Addr, identification: u16, payload: P) -> Self {
         Ipv4Builder {
             src: src,
@@ -134,13 +134,13 @@ impl<P: Ipv4Protocol> Ipv4Builder<P> {
     }
 }
 
-impl<P: Ipv4Protocol> EthernetProtocol for Ipv4Builder<P> {
+impl<P: Ipv4Payload> EthernetPayload for Ipv4Builder<P> {
     fn ether_type(&self) -> EtherType {
         EtherTypes::Ipv4
     }
 }
 
-impl<P: Ipv4Protocol> Protocol for Ipv4Builder<P> {
+impl<P: Ipv4Payload> Payload for Ipv4Builder<P> {
     fn len(&self) -> usize {
         Ipv4Packet::minimum_packet_size() + self.payload.len()
     }

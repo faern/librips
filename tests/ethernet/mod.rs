@@ -2,7 +2,7 @@ use pnet::packet::{Packet, PrimitiveValues};
 use pnet::packet::ethernet::{EtherTypes, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
 
-use rips::ethernet::{BasicEthernetProtocol, BasicEthernetListener};
+use rips::ethernet::{BasicEthernetPayload, BasicEthernetListener};
 use rips::ethernet::{EthernetRx, EthernetTx, EthernetTxImpl};
 use rips::rx;
 use rips::testing;
@@ -46,7 +46,7 @@ fn test_ethernet_send() {
     let tx = TxBarrier::new(channel.0);
     let mut ethernet_tx = EthernetTxImpl::new(tx, src, dst);
 
-    ethernet_tx.send(1, 1, BasicEthernetProtocol::new(EtherTypes::Rarp, vec![57]))
+    ethernet_tx.send(1, 1, BasicEthernetPayload::new(EtherTypes::Rarp, vec![57]))
         .expect("Unable to send to ethernet");
 
     let sent_buffer = read_handle.try_recv().expect("Expected a packet to have been sent");

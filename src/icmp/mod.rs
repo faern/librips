@@ -2,7 +2,7 @@ mod icmp_rx;
 mod icmp_tx;
 
 pub use self::icmp_rx::{IcmpListener, IcmpListenerLookup, IcmpRx};
-pub use self::icmp_tx::{BasicIcmpProtocol, IcmpBuilder, IcmpProtocol, IcmpTx, PingBuilder};
+pub use self::icmp_tx::{BasicIcmpPayload, IcmpBuilder, IcmpPayload, IcmpTx, PingBuilder};
 
 
 // pub struct PingSocket {

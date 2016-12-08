@@ -10,7 +10,7 @@ use rips::ethernet::EthernetRx;
 use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::rx;
 use rips::testing;
-use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Protocol};
+use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Payload};
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
@@ -31,7 +31,7 @@ fn simple_send() {
     stack.add_ipv4(&interface, config).unwrap();
 
     let mut ipv4_tx = stack.ipv4_tx(target_ip).unwrap();
-    ipv4_tx.send(TestIpv4Protocol::new(2)).unwrap();
+    ipv4_tx.send(TestIpv4Payload::new(2)).unwrap();
 
     let pkg = read_handle.recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();

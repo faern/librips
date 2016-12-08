@@ -1,4 +1,4 @@
-use {Protocol, Tx, TxResult};
+use {Payload, Tx, TxResult};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
@@ -7,23 +7,23 @@ use pnet::util::MacAddr;
 use std::cmp;
 
 /// Trait for anything wishing to be the payload of an Ethernet frame.
-pub trait EthernetProtocol: Protocol {
+pub trait EthernetPayload: Payload {
     fn ether_type(&self) -> EtherType;
 }
 
 
-/// Basic reference implementation of an `EthernetProtocol`.
+/// Basic reference implementation of an `EthernetPayload`.
 /// Can be used to construct Ethernet frames with arbitrary payload from a
 /// vector.
-pub struct BasicEthernetProtocol {
+pub struct BasicEthernetPayload {
     ether_type: EtherType,
     offset: usize,
     payload: Vec<u8>,
 }
 
-impl BasicEthernetProtocol {
+impl BasicEthernetPayload {
     pub fn new(ether_type: EtherType, payload: Vec<u8>) -> Self {
-        BasicEthernetProtocol {
+        BasicEthernetPayload {
             ether_type: ether_type,
             offset: 0,
             payload: payload,
@@ -31,13 +31,13 @@ impl BasicEthernetProtocol {
     }
 }
 
-impl EthernetProtocol for BasicEthernetProtocol {
+impl EthernetPayload for BasicEthernetPayload {
     fn ether_type(&self) -> EtherType {
         self.ether_type
     }
 }
 
-impl Protocol for BasicEthernetProtocol {
+impl Payload for BasicEthernetPayload {
     fn len(&self) -> usize {
         self.payload.len()
     }
@@ -54,7 +54,7 @@ pub trait EthernetTx {
     fn src(&self) -> MacAddr;
     fn dst(&self) -> MacAddr;
     fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
-        where P: EthernetProtocol;
+        where P: EthernetPayload;
 }
 
 pub struct EthernetTxImpl<T: Tx> {
@@ -91,7 +91,7 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
     /// length in the header and the extra bytes should thus not cause any
     /// trouble.
     fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
-        where P: EthernetProtocol
+        where P: EthernetPayload
     {
         let mut builder = EthernetBuilder::new(self.src, self.dst, payload);
         let builder_callback = |buffer: &mut [u8]| {
@@ -104,13 +104,13 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
 }
 
 /// Struct building Ethernet frames
-pub struct EthernetBuilder<P: EthernetProtocol> {
+pub struct EthernetBuilder<P: EthernetPayload> {
     src: MacAddr,
     dst: MacAddr,
     payload: P,
 }
 
-impl<P: EthernetProtocol> EthernetBuilder<P> {
+impl<P: EthernetPayload> EthernetBuilder<P> {
     /// Creates a new `EthernetBuilder` with the given parameters
     pub fn new(src: MacAddr, dst: MacAddr, payload: P) -> Self {
         EthernetBuilder {

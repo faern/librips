@@ -9,7 +9,7 @@ use pnet::packet::ipv4::Ipv4Packet;
 use pnet::util::MacAddr;
 
 use rips::ethernet::EthernetBuilder;
-use rips::icmp::{BasicIcmpProtocol, IcmpBuilder, IcmpListener};
+use rips::icmp::{BasicIcmpPayload, IcmpBuilder, IcmpListener};
 use rips::ipv4::Ipv4Builder;
 use rips::testing;
 
@@ -44,9 +44,9 @@ fn recv_icmp() {
     stack.add_ipv4(&interface, local_net).unwrap();
     stack.icmp_listen(local_ip, IcmpTypes::DestinationUnreachable, listener).unwrap();
 
-    let payload_builder = BasicIcmpProtocol::new(IcmpTypes::DestinationUnreachable,
-                                                 IcmpCodes::NoCode,
-                                                 vec![6, 5]);
+    let payload_builder = BasicIcmpPayload::new(IcmpTypes::DestinationUnreachable,
+                                                IcmpCodes::NoCode,
+                                                vec![6, 5]);
     let icmp_builder = IcmpBuilder::new(payload_builder);
     let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
     let mut eth_builder = EthernetBuilder::new(remote_mac, local_mac, ipv4_builder);
