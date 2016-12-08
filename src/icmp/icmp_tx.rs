@@ -1,5 +1,5 @@
-use {Protocol, TxResult};
-use ipv4::{Ipv4Protocol, Ipv4Tx};
+use {Payload, TxResult};
+use ipv4::{Ipv4Payload, Ipv4Tx};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
@@ -9,7 +9,7 @@ use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use std::cmp;
 
 /// Trait for anything wishing to be the payload of an Icmp packet.
-pub trait IcmpProtocol: Protocol {
+pub trait IcmpProtocol: Payload {
     fn icmp_type(&self) -> IcmpType;
 
     fn icmp_code(&self) -> IcmpCode;
@@ -43,7 +43,7 @@ impl IcmpProtocol for BasicIcmpProtocol {
     }
 }
 
-impl Protocol for BasicIcmpProtocol {
+impl Payload for BasicIcmpProtocol {
     fn len(&self) -> usize {
         self.payload.len()
     }
@@ -96,13 +96,13 @@ impl<P: IcmpProtocol> IcmpBuilder<P> {
     }
 }
 
-impl<P: IcmpProtocol> Ipv4Protocol for IcmpBuilder<P> {
+impl<P: IcmpProtocol> Ipv4Payload for IcmpBuilder<P> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Icmp
     }
 }
 
-impl<P: IcmpProtocol> Protocol for IcmpBuilder<P> {
+impl<P: IcmpProtocol> Payload for IcmpBuilder<P> {
     fn len(&self) -> usize {
         IcmpPacket::minimum_packet_size() + self.builder.len()
     }
@@ -137,7 +137,7 @@ impl<'a> IcmpProtocol for PingBuilder<'a> {
     }
 }
 
-impl<'a> Protocol for PingBuilder<'a> {
+impl<'a> Payload for PingBuilder<'a> {
     fn len(&self) -> usize {
         EchoRequestPacket::minimum_packet_size() - IcmpPacket::minimum_packet_size() +
         self.payload.len()

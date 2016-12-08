@@ -1,5 +1,5 @@
 use TxResult;
-use ethernet::{EthernetProtocol, EthernetTx};
+use ethernet::{EthernetPayload, EthernetTx};
 
 use pnet::util::MacAddr;
 
@@ -27,7 +27,7 @@ impl EthernetTx for MockEthernetTx {
     }
 
     fn send<P>(&mut self, packets: usize, packet_size: usize, mut payload: P) -> TxResult
-        where P: EthernetProtocol
+        where P: EthernetPayload
     {
         for _ in 0..packets {
             let mut buffer = vec![0; packet_size];

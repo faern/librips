@@ -1,5 +1,5 @@
-use {Protocol, RxResult, TxResult};
-use ipv4::{Ipv4Listener, Ipv4Protocol, Ipv4Tx};
+use {Payload, RxResult, TxResult};
+use ipv4::{Ipv4Listener, Ipv4Payload, Ipv4Tx};
 
 use pnet::packet::Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
@@ -43,7 +43,7 @@ impl Ipv4Tx for MockIpv4Tx {
         Ipv4Addr::new(0, 0, 0, 0)
     }
 
-    fn send<P: Ipv4Protocol>(&mut self, mut payload: P) -> TxResult {
+    fn send<P: Ipv4Payload>(&mut self, mut payload: P) -> TxResult {
         let mut buffer = vec![0; payload.len() as usize];
         payload.build(&mut buffer);
         self.chan.send((payload.next_level_protocol(), buffer.into_boxed_slice())).unwrap();
@@ -51,15 +51,15 @@ impl Ipv4Tx for MockIpv4Tx {
     }
 }
 
-pub struct TestIpv4Protocol<'a> {
+pub struct TestIpv4Payload<'a> {
     size: usize,
     call_count: Option<&'a AtomicUsize>,
     call_bytes: Option<&'a AtomicUsize>,
 }
 
-impl<'a> TestIpv4Protocol<'a> {
-    pub fn new(size: usize) -> TestIpv4Protocol<'a> {
-        TestIpv4Protocol {
+impl<'a> TestIpv4Payload<'a> {
+    pub fn new(size: usize) -> Self {
+        TestIpv4Payload {
             size: size,
             call_count: None,
             call_bytes: None,
@@ -69,8 +69,8 @@ impl<'a> TestIpv4Protocol<'a> {
     pub fn new_counted(size: usize,
                        call_count: &'a AtomicUsize,
                        call_bytes: &'a AtomicUsize)
-                       -> TestIpv4Protocol<'a> {
-        TestIpv4Protocol {
+                       -> Self {
+        TestIpv4Payload {
             size: size,
             call_count: Some(call_count),
             call_bytes: Some(call_bytes),
@@ -78,13 +78,13 @@ impl<'a> TestIpv4Protocol<'a> {
     }
 }
 
-impl<'a> Ipv4Protocol for TestIpv4Protocol<'a> {
+impl<'a> Ipv4Payload for TestIpv4Payload<'a> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Tcp
     }
 }
 
-impl<'a> Protocol for TestIpv4Protocol<'a> {
+impl<'a> Payload for TestIpv4Payload<'a> {
     fn len(&self) -> usize {
         self.size
     }

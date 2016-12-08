@@ -1,5 +1,5 @@
-use {Protocol, TxResult};
-use ethernet::{EthernetProtocol, EthernetTx};
+use {Payload, TxResult};
+use ethernet::{EthernetPayload, EthernetTx};
 
 use pnet::packet::arp::{ArpHardwareTypes, ArpOperations, ArpOperation, ArpPacket, MutableArpPacket};
 use pnet::packet::ethernet::{EtherType, EtherTypes};
@@ -78,13 +78,13 @@ impl ArpBuilder {
     }
 }
 
-impl EthernetProtocol for ArpBuilder {
+impl EthernetPayload for ArpBuilder {
     fn ether_type(&self) -> EtherType {
         EtherTypes::Arp
     }
 }
 
-impl Protocol for ArpBuilder {
+impl Payload for ArpBuilder {
     fn len(&self) -> usize {
         ArpPacket::minimum_packet_size()
     }

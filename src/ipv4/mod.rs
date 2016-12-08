@@ -2,7 +2,7 @@ mod ipv4_rx;
 mod ipv4_tx;
 
 pub use self::ipv4_rx::{IpListenerLookup, Ipv4Listener, Ipv4Rx};
-pub use self::ipv4_tx::{BasicIpv4Protocol, Ipv4Builder, Ipv4Protocol, Ipv4Tx, Ipv4TxImpl};
+pub use self::ipv4_tx::{BasicIpv4Payload, Ipv4Builder, Ipv4Payload, Ipv4Tx, Ipv4TxImpl};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
 pub const DONT_FRAGMENT: u8 = 0b010;
@@ -25,7 +25,7 @@ mod tests {
 
     use super::*;
     use testing::{ethernet, ipv4};
-    use testing::ipv4::TestIpv4Protocol;
+    use testing::ipv4::TestIpv4Payload;
 
     #[test]
     fn tx_fragmented() {
@@ -40,7 +40,7 @@ mod tests {
 
         let call_count = AtomicUsize::new(0);
         let call_bytes = AtomicUsize::new(0);
-        let builder = TestIpv4Protocol::new_counted(pkg_size, &call_count, &call_bytes);
+        let builder = TestIpv4Payload::new_counted(pkg_size, &call_count, &call_bytes);
         assert!(ipv4_tx.send(builder).is_ok());
         assert_eq!(call_count.load(Ordering::SeqCst), 2);
         assert_eq!(call_bytes.load(Ordering::SeqCst), pkg_size);
@@ -66,7 +66,7 @@ mod tests {
 
         let call_count = AtomicUsize::new(0);
         let call_bytes = AtomicUsize::new(0);
-        let builder = TestIpv4Protocol::new_counted(pkg_size, &call_count, &call_bytes);
+        let builder = TestIpv4Payload::new_counted(pkg_size, &call_count, &call_bytes);
         assert!(ipv4_tx.send(builder).is_ok());
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
         assert_eq!(call_bytes.load(Ordering::SeqCst), pkg_size);

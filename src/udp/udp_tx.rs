@@ -1,5 +1,5 @@
-use {Protocol, TxResult};
-use ipv4::{Ipv4Protocol, Ipv4Tx};
+use {Payload, TxResult};
+use ipv4::{Ipv4Payload, Ipv4Tx};
 
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use pnet::packet::udp::{MutableUdpPacket, UdpPacket, ipv4_checksum_adv};
@@ -57,13 +57,13 @@ impl<'a> UdpBuilder<'a> {
     }
 }
 
-impl<'a> Ipv4Protocol for UdpBuilder<'a> {
+impl<'a> Ipv4Payload for UdpBuilder<'a> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Udp
     }
 }
 
-impl<'a> Protocol for UdpBuilder<'a> {
+impl<'a> Payload for UdpBuilder<'a> {
     fn len(&self) -> usize {
         UdpPacket::minimum_packet_size() + self.payload.len()
     }
