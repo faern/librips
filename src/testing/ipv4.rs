@@ -5,16 +5,16 @@ use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender, Receiver};
 
 pub struct MockIpv4Tx {
-    chan: mpsc::Sender<(IpNextHeaderProtocol, Box<[u8]>)>,
+    tx: Sender<(IpNextHeaderProtocol, Box<[u8]>)>,
 }
 
 impl MockIpv4Tx {
-    pub fn new() -> (MockIpv4Tx, mpsc::Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
+    pub fn new() -> (MockIpv4Tx, Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
         let (tx, rx) = mpsc::channel();
-        let ipv4 = MockIpv4Tx { chan: tx };
+        let ipv4 = MockIpv4Tx { tx: tx };
         (ipv4, rx)
     }
 }
@@ -31,7 +31,7 @@ impl Ipv4Tx for MockIpv4Tx {
     fn send<P: Ipv4Payload>(&mut self, mut payload: P) -> TxResult {
         let mut buffer = vec![0; payload.len() as usize];
         payload.build(&mut buffer);
-        self.chan.send((payload.next_level_protocol(), buffer.into_boxed_slice())).unwrap();
+        self.tx.send((payload.next_level_protocol(), buffer.into_boxed_slice())).unwrap();
         Ok(())
     }
 }

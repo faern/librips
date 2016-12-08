@@ -46,9 +46,67 @@ impl Payload for BasicEthernetPayload {
         let start = self.offset;
         let end = cmp::min(start + buffer.len(), self.payload.len());
         self.offset = end;
-        buffer.copy_from_slice(&self.payload[start..end]);
+        buffer[0..end - start].copy_from_slice(&self.payload[start..end]);
     }
 }
+
+#[cfg(test)]
+mod basic_ethernet_payload_tests {
+    use Payload;
+    use pnet::packet::ethernet::EtherTypes;
+    use super::*;
+
+    #[test]
+    fn ether_type() {
+        let testee = BasicEthernetPayload::new(EtherTypes::Ipv6, vec![]);
+        assert_eq!(EtherTypes::Ipv6, testee.ether_type());
+    }
+
+    #[test]
+    fn len_zero() {
+        let testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![]);
+        assert_eq!(0, testee.len());
+    }
+
+    #[test]
+    fn len_three() {
+        let testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![5, 6, 7]);
+        assert_eq!(3, testee.len());
+    }
+
+    #[test]
+    fn build_without_data() {
+        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![]);
+        let mut buffer = vec![99; 1];
+        testee.build(&mut buffer);
+        assert_eq!(99, buffer[0]);
+    }
+
+    #[test]
+    fn build_with_data() {
+        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![5, 6, 7]);
+        let mut buffer = vec![0; 1];
+        testee.build(&mut buffer[0..0]);
+
+        testee.build(&mut buffer);
+        assert_eq!(5, buffer[0]);
+        testee.build(&mut buffer);
+        assert_eq!(6, buffer[0]);
+        testee.build(&mut buffer);
+        assert_eq!(7, buffer[0]);
+
+        testee.build(&mut buffer[0..0]);
+    }
+
+    #[test]
+    fn build_with_larger_buffer() {
+        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![5, 6]);
+        let mut buffer = vec![0; 3];
+        testee.build(&mut buffer);
+        assert_eq!(&[5, 6, 0], &buffer[..]);
+    }
+}
+
 
 pub trait EthernetTx {
     fn src(&self) -> MacAddr;
