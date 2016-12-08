@@ -9,22 +9,22 @@ use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
 use std::cmp;
 
 /// Trait for anything wishing to be the payload of an Icmp packet.
-pub trait IcmpProtocol: Payload {
+pub trait IcmpPayload: Payload {
     fn icmp_type(&self) -> IcmpType;
 
     fn icmp_code(&self) -> IcmpCode;
 }
 
-pub struct BasicIcmpProtocol {
+pub struct BasicIcmpPayload {
     icmp_type: IcmpType,
     icmp_code: IcmpCode,
     offset: usize,
     payload: Vec<u8>,
 }
 
-impl BasicIcmpProtocol {
+impl BasicIcmpPayload {
     pub fn new(icmp_type: IcmpType, icmp_code: IcmpCode, payload: Vec<u8>) -> Self {
-        BasicIcmpProtocol {
+        BasicIcmpPayload {
             icmp_type: icmp_type,
             icmp_code: icmp_code,
             offset: 0,
@@ -33,7 +33,7 @@ impl BasicIcmpProtocol {
     }
 }
 
-impl IcmpProtocol for BasicIcmpProtocol {
+impl IcmpPayload for BasicIcmpPayload {
     fn icmp_type(&self) -> IcmpType {
         self.icmp_type
     }
@@ -43,7 +43,7 @@ impl IcmpProtocol for BasicIcmpProtocol {
     }
 }
 
-impl Payload for BasicIcmpProtocol {
+impl Payload for BasicIcmpPayload {
     fn len(&self) -> usize {
         self.payload.len()
     }
@@ -72,7 +72,7 @@ impl<T: Ipv4Tx> IcmpTx<T> {
     /// Sends a general Icmp packet. Should not be called directly in general,
     /// instead use the specialized `send_echo` for ping packets.
     pub fn send<P>(&mut self, builder: P) -> TxResult
-        where P: IcmpProtocol
+        where P: IcmpPayload
     {
         let builder = IcmpBuilder::new(builder);
         self.ipv4.send(builder)
@@ -86,23 +86,23 @@ impl<T: Ipv4Tx> IcmpTx<T> {
 }
 
 
-pub struct IcmpBuilder<P: IcmpProtocol> {
+pub struct IcmpBuilder<P: IcmpPayload> {
     builder: P,
 }
 
-impl<P: IcmpProtocol> IcmpBuilder<P> {
+impl<P: IcmpPayload> IcmpBuilder<P> {
     pub fn new(builder: P) -> IcmpBuilder<P> {
         IcmpBuilder { builder: builder }
     }
 }
 
-impl<P: IcmpProtocol> Ipv4Payload for IcmpBuilder<P> {
+impl<P: IcmpPayload> Ipv4Payload for IcmpBuilder<P> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         IpNextHeaderProtocols::Icmp
     }
 }
 
-impl<P: IcmpProtocol> Payload for IcmpBuilder<P> {
+impl<P: IcmpPayload> Payload for IcmpBuilder<P> {
     fn len(&self) -> usize {
         IcmpPacket::minimum_packet_size() + self.builder.len()
     }
@@ -127,7 +127,7 @@ impl<'a> PingBuilder<'a> {
     }
 }
 
-impl<'a> IcmpProtocol for PingBuilder<'a> {
+impl<'a> IcmpPayload for PingBuilder<'a> {
     fn icmp_type(&self) -> IcmpType {
         IcmpTypes::EchoRequest
     }
