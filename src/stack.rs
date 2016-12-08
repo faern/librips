@@ -12,7 +12,7 @@ use pnet::util::MacAddr;
 
 use rand;
 use rand::distributions::{IndependentSample, Range};
-use ::rx;
+use rx;
 
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry;
@@ -22,10 +22,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use ::tx::{TxBarrier, TxImpl};
-use ::udp::{self, UdpTx};
-use ::util;
-
+use tx::TxImpl;
+use tx_internal::TxBarrier;
+use udp::{self, UdpTx};
+use util;
 
 pub static DEFAULT_MTU: usize = 1500;
 pub static LOCAL_PORT_RANGE_START: u16 = 32768;

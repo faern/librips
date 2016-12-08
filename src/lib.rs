@@ -59,9 +59,8 @@
 //! - [ ] IPv4
 //!   - [x] Standard send
 //!   - [x] Validate lengths and checksums as part of parsing incoming
-//!   - [ ] Fragmenting outgoing packets
-//!     - [x] Works in standard case
-//!     - [ ] Correctly picking an identification field
+//!   - [x] Fragmenting outgoing packets
+//!   - [ ] Correctly pick an identification field on outgoing IPv4
 //!   - [ ] Reassembling incoming packets
 //!     - [x] Works in standard case
 //!     - [ ] Timing out caches of packets that were never completed
@@ -173,13 +172,13 @@ extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
 
-use std::io;
-
 #[macro_use]
 extern crate log;
 
 use pnet::datalink::{self, NetworkInterface};
 use pnet::util::MacAddr;
+
+use std::io;
 
 #[macro_use]
 mod macros;
@@ -187,6 +186,8 @@ mod macros;
 pub mod rx;
 
 pub mod tx;
+
+mod tx_internal;
 
 pub mod ethernet;
 
