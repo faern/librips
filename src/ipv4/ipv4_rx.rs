@@ -9,6 +9,7 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::Sender;
 use std::time::SystemTime;
 
 use super::{MORE_FRAGMENTS, NO_FLAGS};
@@ -18,6 +19,26 @@ use util::Buffer;
 pub trait Ipv4Listener: Send {
     /// Called by the library to deliver an `Ipv4Packet` to a listener.
     fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult;
+}
+
+pub struct BasicIpv4Listener {
+    pub tx: Sender<(SystemTime, Ipv4Packet<'static>)>,
+}
+
+impl BasicIpv4Listener {
+    pub fn new(tx: Sender<(SystemTime, Ipv4Packet<'static>)>) -> Box<Ipv4Listener> {
+        Box::new(BasicIpv4Listener { tx: tx })
+    }
+}
+
+impl Ipv4Listener for BasicIpv4Listener {
+    fn recv(&mut self, time: SystemTime, packet: Ipv4Packet) -> RxResult {
+        let data = packet.packet().to_vec();
+        let owned_packet = Ipv4Packet::owned(data).unwrap();
+        self.tx
+            .send((time, owned_packet))
+            .map_err(|_| RxError::NoListener("Remote end closed".to_owned()))
+    }
 }
 
 /// Type binding for how the listeners in `Ipv4Rx` are structured.

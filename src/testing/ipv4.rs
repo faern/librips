@@ -1,26 +1,11 @@
-use {Payload, RxResult, TxResult};
-use ipv4::{Ipv4Listener, Ipv4Payload, Ipv4Tx};
+use {Payload, TxResult};
+use ipv4::{Ipv4Payload, Ipv4Tx};
 
-use pnet::packet::Packet;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-use pnet::packet::ipv4::Ipv4Packet;
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
-use std::time::SystemTime;
-
-pub struct MockIpv4Listener {
-    pub tx: mpsc::Sender<Vec<u8>>,
-}
-
-impl Ipv4Listener for MockIpv4Listener {
-    fn recv(&mut self, _time: SystemTime, packet: Ipv4Packet) -> RxResult {
-        println!("MockIpv4Listener got a packet!");
-        self.tx.send(packet.packet().to_vec()).unwrap();
-        Ok(())
-    }
-}
 
 pub struct MockIpv4Tx {
     chan: mpsc::Sender<(IpNextHeaderProtocol, Box<[u8]>)>,

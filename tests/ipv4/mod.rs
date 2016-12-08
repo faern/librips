@@ -7,14 +7,16 @@ use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::util::MacAddr;
 
 use rips::ethernet::EthernetRx;
-use rips::ipv4::{Ipv4Listener, Ipv4Rx, Ipv4Tx};
+use rips::ipv4::{BasicIpv4Listener, Ipv4Rx, Ipv4Tx};
 use rips::rx;
 use rips::testing;
-use rips::testing::ipv4::{MockIpv4Listener, TestIpv4Payload};
+use rips::testing::ipv4::TestIpv4Payload;
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex, mpsc};
+use std::thread;
+use std::time::Duration;
 
 #[test]
 fn simple_send() {
@@ -50,10 +52,9 @@ fn custom_igmp_recv() {
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
 
     let (tx, rx) = mpsc::channel();
-    let ipv4_listener = MockIpv4Listener { tx: tx };
+    let ipv4_listener = BasicIpv4Listener::new(tx);
     let mut ipv4_ip_listeners = HashMap::new();
-    ipv4_ip_listeners.insert(IpNextHeaderProtocols::Igmp,
-                             Box::new(ipv4_listener) as Box<Ipv4Listener>);
+    ipv4_ip_listeners.insert(IpNextHeaderProtocols::Igmp, ipv4_listener);
 
     let mut ipv4_listeners = HashMap::new();
     ipv4_listeners.insert(target_ip, ipv4_ip_listeners);
@@ -80,12 +81,9 @@ fn custom_igmp_recv() {
     }
 
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
+    thread::sleep(Duration::new(1, 0));
 
-    let pkg = match rx.recv() {
-        Ok(p) => p,
-        Err(e) => panic!("NOOO: {}", e),
-    };
-    let ip_pkg = Ipv4Packet::new(&pkg[..]).unwrap();
+    let (_time, ip_pkg) = rx.try_recv().unwrap();
     assert_eq!(ip_pkg.get_source(), source_ip);
     assert_eq!(ip_pkg.get_destination(), target_ip);
     assert_eq!(ip_pkg.get_next_level_protocol(),

@@ -1,7 +1,7 @@
 mod ipv4_rx;
 mod ipv4_tx;
 
-pub use self::ipv4_rx::{IpListenerLookup, Ipv4Listener, Ipv4Rx};
+pub use self::ipv4_rx::{BasicIpv4Listener, IpListenerLookup, Ipv4Listener, Ipv4Rx};
 pub use self::ipv4_tx::{BasicIpv4Payload, Ipv4Builder, Ipv4Payload, Ipv4Tx, Ipv4TxImpl};
 
 pub const MORE_FRAGMENTS: u8 = 0b001;
@@ -19,12 +19,13 @@ mod tests {
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
     use std::collections::HashMap;
     use std::net::Ipv4Addr;
-    use std::sync::{Arc, Mutex, mpsc};
+    use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc::{self, Receiver};
     use std::time::SystemTime;
 
     use super::*;
-    use testing::{ethernet, ipv4};
+    use testing::ethernet;
     use testing::ipv4::TestIpv4Payload;
 
     #[test]
@@ -94,9 +95,11 @@ mod tests {
             ip_pkg.set_checksum(csum);
         }
 
-        ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
-        let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
-        let rx_ip_pkg = Ipv4Packet::new(&rx_pkg[..]).unwrap();
+        let time = SystemTime::now();
+        ipv4_rx.recv(time, &pkg.to_immutable()).unwrap();
+        let (output_time, rx_ip_pkg) = rx.try_recv()
+            .expect("Expected a packet to have been delivered");
+        assert_eq!(time, output_time);
         assert_eq!(rx_ip_pkg.get_destination(), dst);
         assert_eq!(rx_ip_pkg.get_flags(), DONT_FRAGMENT);
         assert_eq!(rx_ip_pkg.get_total_length(), 35);
@@ -150,18 +153,20 @@ mod tests {
             let csum = checksum(&ip_pkg.to_immutable());
             ip_pkg.set_checksum(csum);
         }
-        ipv4_rx.recv(SystemTime::now(), &pkg.to_immutable()).unwrap();
-        let rx_pkg = rx.try_recv().expect("Expected a packet to have been delivered");
-        let rx_ip_pkg = Ipv4Packet::new(&rx_pkg[..]).unwrap();
+        let time = SystemTime::now();
+        ipv4_rx.recv(time, &pkg.to_immutable()).unwrap();
+        let (output_time, rx_ip_pkg) = rx.try_recv().unwrap();
+        assert_eq!(time, output_time);
         assert_eq!(rx_ip_pkg.get_destination(), dst);
         assert_eq!(rx_ip_pkg.get_flags(), NO_FLAGS);
         assert_eq!(rx_ip_pkg.get_total_length(), 20 + 16 + 8);
         assert!(rx.try_recv().is_err());
     }
 
-    fn setup_rx(dst: Ipv4Addr) -> (Box<EthernetListener>, mpsc::Receiver<Vec<u8>>) {
+    fn setup_rx(dst: Ipv4Addr)
+                -> (Box<EthernetListener>, Receiver<(SystemTime, Ipv4Packet<'static>)>) {
         let (tx, rx) = mpsc::channel();
-        let arp_listener = Box::new(ipv4::MockIpv4Listener { tx: tx }) as Box<Ipv4Listener>;
+        let arp_listener = BasicIpv4Listener::new(tx);
 
         let mut ip_listeners = HashMap::new();
         ip_listeners.insert(IpNextHeaderProtocols::Icmp, arp_listener);

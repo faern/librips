@@ -71,6 +71,10 @@ pub struct Ipv4TxImpl<T: EthernetTx> {
 
 impl<T: EthernetTx> Ipv4TxImpl<T> {
     /// Constructs a new `Ipv4Tx`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `mtu` is smaller than the minimum Ipv4 packet size.
     pub fn new(ethernet: T, src: Ipv4Addr, dst: Ipv4Addr, mtu: usize) -> Self {
         assert!(mtu >= Ipv4Packet::minimum_packet_size());
         Ipv4TxImpl {
