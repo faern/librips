@@ -1,4 +1,4 @@
-use ::{EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx};
+use ::{EthernetChannel, Interface, RoutingTable, TxError, TxResult, Tx, Payload};
 use ::arp::{self, ArpRequestTx, ArpReplyTx, ArpTable};
 use ::ethernet::{EthernetRx, EthernetTxImpl};
 use ::icmp::{self, IcmpTx};
@@ -527,14 +527,12 @@ impl TxImpl {
 }
 
 impl Tx for TxImpl {
-    fn send<T>(&mut self, num_packets: usize, packet_size: usize, builder: T) -> TxResult
-        where T: FnMut(&mut [u8])
-    {
+    fn send<P: Payload>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult {
         let mut tx = self.tx.lock().unwrap();
         if self.version != tx.version() {
             Err(TxError::InvalidTx)
         } else {
-            tx.send(num_packets, packet_size, builder)
+            tx.send(num_packets, packet_size, payload)
         }
     }
 }
@@ -577,13 +575,15 @@ impl TxBarrier {
 }
 
 impl Tx for TxBarrier {
-    fn send<T>(&mut self, num_packets: usize, packet_size: usize, mut builder: T) -> TxResult
-        where T: FnMut(&mut [u8])
-    {
-        let mut eth_builder = |mut packet: MutableEthernetPacket| {
-            builder(packet.packet_mut());
+    fn send<P: Payload>(&mut self,
+                        num_packets: usize,
+                        packet_size: usize,
+                        mut payload: P)
+                        -> TxResult {
+        let mut eth_payload = |mut packet: MutableEthernetPacket| {
+            payload.build(packet.packet_mut());
         };
-        let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_builder);
+        let result = self.tx.build_and_send(num_packets, packet_size, &mut eth_payload);
         self.io_result_to_tx_result(result)
     }
 }

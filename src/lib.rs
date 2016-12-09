@@ -234,19 +234,6 @@ impl Interface {
     }
 }
 
-/// Super trait to any payload. Represents any type that can become the payload
-/// of a packet.
-pub trait Payload {
-    /// Returns how many bytes this payload will occupy in total
-    fn len(&self) -> usize;
-
-    /// Construct this payload into the given `buffer`. If the buffer is
-    /// smaller than the length of this `Payload`, fill the entire `buffer`,
-    /// note how much data was used and put the remaining data into buffers
-    /// sent in on subsequent calls to `build`.
-    fn build(&mut self, buffer: &mut [u8]);
-}
-
 /// Represents the channel used for sending to and reading from one network
 /// interface.
 /// Basically a simplification of `pnet::datalink::Channel` but guaranteed to
@@ -323,9 +310,23 @@ pub enum RxError {
 /// Simple type definition for return type of `recv` on `*Rx` objects.
 pub type RxResult = Result<(), RxError>;
 
+
+
+/// Super trait to any payload. Represents any type that can become the payload
+/// of a packet.
+pub trait Payload {
+    /// Returns how many bytes this payload will occupy in total
+    fn len(&self) -> usize;
+
+    /// Construct this payload into the given `buffer`. If the buffer is
+    /// smaller than the length of this `Payload`, fill the entire `buffer`,
+    /// note how much data was used and put the remaining data into buffers
+    /// sent in on subsequent calls to `build`.
+    fn build(&mut self, buffer: &mut [u8]);
+}
+
 pub trait Tx {
-    fn send<T>(&mut self, num_packets: usize, packet_size: usize, builder: T) -> TxResult
-        where T: FnMut(&mut [u8]);
+    fn send<P: Payload>(&mut self, num_packets: usize, packet_size: usize, payload: P) -> TxResult;
 }
 
 /// Create a default stack managing all interfaces given by

@@ -151,13 +151,9 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
     fn send<P>(&mut self, packets: usize, size: usize, payload: P) -> TxResult
         where P: EthernetPayload
     {
-        let mut builder = EthernetBuilder::new(self.src, self.dst, payload);
-        let builder_callback = |buffer: &mut [u8]| {
-            let packet = MutableEthernetPacket::new(buffer).unwrap();
-            builder.build(packet);
-        };
+        let builder = EthernetBuilder::new(self.src, self.dst, payload);
         let total_size = size + EthernetPacket::minimum_packet_size();
-        self.tx.send(packets, total_size, builder_callback)
+        self.tx.send(packets, total_size, builder)
     }
 }
 
@@ -177,13 +173,16 @@ impl<P: EthernetPayload> EthernetBuilder<P> {
             payload: payload,
         }
     }
+}
 
-    pub fn len(&self) -> usize {
+impl<P: EthernetPayload> Payload for EthernetBuilder<P> {
+    fn len(&self) -> usize {
         EthernetPacket::minimum_packet_size() + self.payload.len()
     }
 
     /// Modifies `pkg` to have the correct header and payload
-    pub fn build(&mut self, mut pkg: MutableEthernetPacket) {
+    fn build(&mut self, buffer: &mut [u8]) {
+        let mut pkg = MutableEthernetPacket::new(buffer).unwrap();
         pkg.set_source(self.src);
         pkg.set_destination(self.dst);
         pkg.set_ethertype(self.payload.ether_type());

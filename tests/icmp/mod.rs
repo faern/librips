@@ -1,13 +1,13 @@
 use ipnetwork::Ipv4Network;
 
 use pnet::packet::Packet;
-use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::icmp::{IcmpPacket, IcmpTypes};
 use pnet::packet::icmp::echo_request::IcmpCodes;
 use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::Ipv4Packet;
 use pnet::util::MacAddr;
 
+use rips::Payload;
 use rips::ethernet::EthernetBuilder;
 use rips::icmp::{BasicIcmpPayload, IcmpBuilder, IcmpListener};
 use rips::ipv4::Ipv4Builder;
@@ -49,12 +49,10 @@ fn recv_icmp() {
                                                 vec![6, 5]);
     let icmp_builder = IcmpBuilder::new(payload_builder);
     let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
+
     let mut eth_builder = EthernetBuilder::new(remote_mac, local_mac, ipv4_builder);
     let mut buffer = vec![0; eth_builder.len()];
-    {
-        let eth_pkg = MutableEthernetPacket::new(&mut buffer).unwrap();
-        eth_builder.build(eth_pkg);
-    }
+    eth_builder.build(&mut buffer);
 
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
 
