@@ -1,4 +1,4 @@
-use {NetworkStack, StackError, StackResult};
+use {NetworkStack, StackError, StackResult, TxImpl};
 use {TxError, TxResult};
 use ethernet::EthernetTxImpl;
 use ipv4::Ipv4TxImpl;
@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::{Arc, Mutex};
-use tx::TxImpl;
 
 use util;
 

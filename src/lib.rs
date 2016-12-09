@@ -185,10 +185,6 @@ mod macros;
 
 pub mod rx;
 
-pub mod tx;
-
-mod tx_internal;
-
 pub mod ethernet;
 
 /// Module containing everything related to the address resolution protocol
@@ -212,7 +208,7 @@ mod util;
 pub mod testing;
 
 mod stack;
-pub use stack::{NetworkStack, StackError, StackResult};
+pub use stack::{NetworkStack, StackError, StackResult, TxImpl};
 
 pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
 
