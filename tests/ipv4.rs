@@ -10,44 +10,52 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 use pnet::util::MacAddr;
 
-use rips::ethernet::EthernetRx;
-use rips::ipv4::{BasicIpv4Listener, Ipv4Rx, Ipv4Tx};
-use rips::rx;
-use rips::testing;
-use rips::testing::ipv4::TestIpv4Payload;
+use rips::{rx, testing, NetworkStack, TxImpl};
+use rips::ethernet::{EthernetRx, EthernetTxImpl};
+use rips::ipv4::{BasicIpv4Listener, BasicIpv4Payload, Ipv4Rx, Ipv4Tx, Ipv4TxImpl};
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
 #[test]
 fn simple_send() {
-    let source_ip = Ipv4Addr::new(10, 1, 2, 3);
-    let target_ip = Ipv4Addr::new(10, 1, 2, 2);
-    let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
+    let src_ip = Ipv4Addr::new(10, 1, 2, 3);
+    let dst_ip = Ipv4Addr::new(10, 1, 2, 2);
+    let dst_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let (mut stack, interface, _, read_handle) = testing::dummy_stack();
+    let (_stack, mut ipv4_tx, read_handle) = prepare_ipv4_tx(src_ip, dst_ip, dst_mac);
 
-    // Inject an Arp entry so Ipv4 knows where to send
-    stack.interface(&interface).unwrap().arp_table().insert(target_ip, target_mac);
+    ipv4_tx.send(BasicIpv4Payload::new(IpNextHeaderProtocols::Igmp, vec![100, 99])).unwrap();
 
-    let config = Ipv4Network::new(source_ip, 24).unwrap();
-    stack.add_ipv4(&interface, config).unwrap();
-
-    let mut ipv4_tx = stack.ipv4_tx(target_ip).unwrap();
-    ipv4_tx.send(TestIpv4Payload::new(2)).unwrap();
-
-    let pkg = read_handle.recv().unwrap();
+    let pkg = read_handle.try_recv().unwrap();
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
-    assert_eq!(eth_pkg.get_destination(), target_mac);
+    assert_eq!(eth_pkg.get_destination(), dst_mac);
     assert_eq!(eth_pkg.get_ethertype(), EtherTypes::Ipv4);
     let ip_pkg = Ipv4Packet::new(eth_pkg.payload()).unwrap();
     assert_eq!(ip_pkg.get_version(), 4);
-    assert_eq!(ip_pkg.get_source(), source_ip);
-    assert_eq!(ip_pkg.get_destination(), target_ip);
+    assert_eq!(ip_pkg.get_source(), src_ip);
+    assert_eq!(ip_pkg.get_destination(), dst_ip);
+    assert_eq!(IpNextHeaderProtocols::Igmp,
+               ip_pkg.get_next_level_protocol());
     assert_eq!(ip_pkg.payload(), [100, 99]);
+}
+
+fn prepare_ipv4_tx(src_ip: Ipv4Addr,
+                   dst_ip: Ipv4Addr,
+                   dst_mac: MacAddr)
+                   -> (NetworkStack, Ipv4TxImpl<EthernetTxImpl<TxImpl>>, Receiver<Box<[u8]>>) {
+    let (mut stack, interface, _, read_handle) = testing::dummy_stack();
+
+    stack.interface(&interface).unwrap().arp_table().insert(dst_ip, dst_mac);
+    let config = Ipv4Network::new(src_ip, 24).unwrap();
+    stack.add_ipv4(&interface, config).unwrap();
+    let ipv4_tx = stack.ipv4_tx(dst_ip).unwrap();
+
+    (stack, ipv4_tx, read_handle)
 }
 
 #[test]

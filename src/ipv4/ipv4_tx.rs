@@ -269,7 +269,7 @@ mod ipv4_tx_tests {
         let mut testee = Ipv4TxImpl::new(eth_tx, *SRC_IP, *DST_IP, 20 + 8);
 
         let payload = BasicIpv4Payload::new(IpNextHeaderProtocols::Tcp, (0..10).collect());
-        assert!(testee.send(payload).is_ok());
+        testee.send(payload).unwrap();
 
         let pkg1 = rx.try_recv().unwrap();
         let pkg2 = rx.try_recv().unwrap();
@@ -287,7 +287,7 @@ mod ipv4_tx_tests {
 
         let payload_data = (0..100).collect::<Vec<u8>>();
         let payload = BasicIpv4Payload::new(IpNextHeaderProtocols::Tcp, payload_data.clone());
-        assert!(ipv4_tx.send(payload).is_ok());
+        ipv4_tx.send(payload).unwrap();
 
         let pkg = rx.try_recv().unwrap();
         assert!(rx.try_recv().is_err());
