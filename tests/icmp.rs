@@ -44,7 +44,7 @@ fn recv_icmp() {
     let (tx, rx) = mpsc::channel();
     let listener = MockIcmpListener { tx: tx };
 
-    let (mut stack, interface, inject_handle, _) = testing::dummy_stack(0);
+    let (mut stack, interface, inject_handle, _) = testing::dummy_stack();
     stack.add_ipv4(&interface, local_net).unwrap();
     stack.icmp_listen(local_ip, IcmpTypes::DestinationUnreachable, listener).unwrap();
 

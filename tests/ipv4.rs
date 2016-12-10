@@ -28,7 +28,7 @@ fn simple_send() {
     let target_ip = Ipv4Addr::new(10, 1, 2, 2);
     let target_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
 
-    let (mut stack, interface, _, read_handle) = testing::dummy_stack(0);
+    let (mut stack, interface, _, read_handle) = testing::dummy_stack();
 
     // Inject an Arp entry so Ipv4 knows where to send
     stack.interface(&interface).unwrap().arp_table().insert(target_ip, target_mac);
@@ -63,7 +63,7 @@ fn custom_igmp_recv() {
     let mut ipv4_listeners = HashMap::new();
     ipv4_listeners.insert(target_ip, ipv4_ip_listeners);
 
-    let (channel, _interface, inject_handle, _) = testing::dummy_ethernet(0);
+    let (channel, _interface, inject_handle, _) = testing::dummy_ethernet();
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
     let ethernet_rx = EthernetRx::new(vec![ipv4_rx]);
     rx::spawn(channel.1, ethernet_rx);

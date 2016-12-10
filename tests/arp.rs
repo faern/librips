@@ -19,7 +19,7 @@ use std::time::Duration;
 
 #[test]
 fn arp_invalidate_on_update() {
-    let (mut stack, interface, inject_handle, _) = testing::dummy_stack(7);
+    let (mut stack, interface, inject_handle, _) = testing::dummy_stack();
     let stack_interface = stack.interface(&interface).unwrap();
 
     let mut arp_request_tx = stack_interface.arp_request_tx();
@@ -35,7 +35,7 @@ fn arp_invalidate_on_update() {
 
 #[test]
 fn arp_reply_to_request() {
-    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack(7);
+    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack();
 
     let config = Ipv4Network::new(Ipv4Addr::new(10, 0, 0, 1), 24).unwrap();
     stack.add_ipv4(&interface, config).unwrap();
@@ -54,7 +54,7 @@ fn arp_locking() {
     let thread_count = 100;
     let dst = Ipv4Addr::new(10, 0, 0, 1);
 
-    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack(7);
+    let (mut stack, interface, inject_handle, read_handle) = testing::dummy_stack();
     let stack_interface = stack.interface(&interface).unwrap();
 
     let arp_table = stack_interface.arp_table().clone();
@@ -85,8 +85,7 @@ fn arp_locking() {
     let arp_request_u8 = read_handle.recv().unwrap();
     let arp_request_eth = EthernetPacket::new(&arp_request_u8[..]).unwrap();
     let arp_request = ArpPacket::new(arp_request_eth.payload()).unwrap();
-    assert_eq!(MacAddr::new(1, 2, 3, 4, 5, 7),
-               arp_request.get_sender_hw_addr());
+    assert_eq!(interface.mac, arp_request.get_sender_hw_addr());
     assert_eq!(Ipv4Addr::new(10, 0, 0, 1),
                arp_request.get_target_proto_addr());
 
