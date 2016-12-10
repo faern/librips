@@ -157,6 +157,7 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
     }
 }
 
+
 /// Struct building Ethernet frames
 pub struct EthernetBuilder<P: EthernetPayload> {
     src: MacAddr,

@@ -12,9 +12,10 @@ ipnetwork = "0.9.0"
 #pnet = "0.12.0"
 log = "0.3"
 rand = "0.3"
+lazy_static = "^0.2"
 
 [dev-dependencies]
-lazy_static = "^0.2"
+
 
 [features]
 default = []

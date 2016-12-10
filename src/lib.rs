@@ -171,6 +171,8 @@
 extern crate rand;
 extern crate pnet;
 extern crate ipnetwork;
+#[macro_use]
+extern crate lazy_static;
 
 #[macro_use]
 extern crate log;

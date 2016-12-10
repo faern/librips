@@ -12,70 +12,19 @@ pub const NO_FLAGS: u8 = 0b000;
 mod tests {
     use RxError;
     use ethernet::EthernetListener;
-    use pnet::packet::{MutablePacket, Packet};
-    use pnet::packet::ethernet::MutableEthernetPacket;
 
+    use pnet::packet::MutablePacket;
+    use pnet::packet::ethernet::MutableEthernetPacket;
     use pnet::packet::ip::IpNextHeaderProtocols;
     use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
+
     use std::collections::HashMap;
     use std::net::Ipv4Addr;
     use std::sync::{Arc, Mutex};
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc::{self, Receiver};
     use std::time::SystemTime;
 
     use super::*;
-    use testing::ethernet;
-    use testing::ipv4::TestIpv4Payload;
-
-    #[test]
-    fn tx_fragmented() {
-        let src = Ipv4Addr::new(192, 168, 10, 2);
-        let dst = Ipv4Addr::new(192, 168, 10, 240);
-
-        let (eth_tx, rx) = ethernet::MockEthernetTx::new();
-        let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, src, dst, 1500);
-
-        let max_payload_len = ipv4_tx.max_payload_per_fragment();
-        let pkg_size = max_payload_len + 5;
-
-        let call_count = AtomicUsize::new(0);
-        let call_bytes = AtomicUsize::new(0);
-        let builder = TestIpv4Payload::new_counted(pkg_size, &call_count, &call_bytes);
-        assert!(ipv4_tx.send(builder).is_ok());
-        assert_eq!(call_count.load(Ordering::SeqCst), 2);
-        assert_eq!(call_bytes.load(Ordering::SeqCst), pkg_size);
-
-        let frame1 = rx.try_recv().expect("Expected a frame to have been sent");
-        let frame2 = rx.try_recv().expect("Expected a second frame to have been sent");
-        assert!(rx.try_recv().is_err());
-        let id1 = check_pkg(&frame1, src, dst, max_payload_len, true, 0, 100, 99);
-        let id2 = check_pkg(&frame2, src, dst, 5, false, max_payload_len as u16, 100, 99);
-        assert_eq!(id1, id2);
-    }
-
-    #[test]
-    fn tx_not_fragmented() {
-        let src = Ipv4Addr::new(192, 168, 10, 2);
-        let dst = Ipv4Addr::new(192, 168, 10, 240);
-
-        let (eth_tx, rx) = ethernet::MockEthernetTx::new();
-        let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, src, dst, 1500);
-
-        let max_payload_len = ipv4_tx.max_payload_per_fragment();
-        let pkg_size = max_payload_len - 5;
-
-        let call_count = AtomicUsize::new(0);
-        let call_bytes = AtomicUsize::new(0);
-        let builder = TestIpv4Payload::new_counted(pkg_size, &call_count, &call_bytes);
-        assert!(ipv4_tx.send(builder).is_ok());
-        assert_eq!(call_count.load(Ordering::SeqCst), 1);
-        assert_eq!(call_bytes.load(Ordering::SeqCst), pkg_size);
-
-        let frame = rx.try_recv().expect("Expected a frame to have been sent");
-        assert!(rx.try_recv().is_err());
-        check_pkg(&frame, src, dst, pkg_size, false, 0, 100, 99);
-    }
 
     #[test]
     fn rx_not_fragmented() {
@@ -177,27 +126,5 @@ mod tests {
         let listeners = Arc::new(Mutex::new(listeners));
         let ipv4_rx = Ipv4Rx::new(listeners);
         (ipv4_rx, rx)
-    }
-
-    fn check_pkg(payload: &[u8],
-                 src: Ipv4Addr,
-                 dst: Ipv4Addr,
-                 payload_len: usize,
-                 is_fragment: bool,
-                 offset: u16,
-                 first: u8,
-                 last: u8)
-                 -> u16 {
-        let ip_pkg = Ipv4Packet::new(payload).unwrap();
-        assert_eq!(ip_pkg.get_source(), src);
-        assert_eq!(ip_pkg.get_destination(), dst);;
-        assert_eq!(ip_pkg.get_total_length() as usize,
-                   payload_len + Ipv4Packet::minimum_packet_size());
-        assert_eq!(ip_pkg.get_flags() == MORE_FRAGMENTS, is_fragment);
-        assert_eq!(ip_pkg.get_fragment_offset() * 8, offset);
-        let payload = ip_pkg.payload();
-        assert_eq!(payload[0], first);
-        assert_eq!(payload[payload_len - 1], last);
-        ip_pkg.get_identification()
     }
 }
