@@ -40,7 +40,7 @@ macro_rules! bench_to_send {
 
 #[bench]
 fn dummy_lan_63k(b: &mut Bencher) {
-    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_63K, *DST);
+    bench_to_send!(b, rips_socket(testing::dummy_stack().0), BUF_63K, *DST);
 }
 
 #[bench]
@@ -61,17 +61,17 @@ fn std_lan_63k(b: &mut Bencher) {
 
 #[bench]
 fn dummy_through_gw_63k(b: &mut Bencher) {
-    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_63K, *DST2);
+    bench_to_send!(b, rips_socket(testing::dummy_stack().0), BUF_63K, *DST2);
 }
 
 #[bench]
 fn dummy_lan_1byte(b: &mut Bencher) {
-    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_1BYTE, *DST);
+    bench_to_send!(b, rips_socket(testing::dummy_stack().0), BUF_1BYTE, *DST);
 }
 
 #[bench]
 fn dummy_through_gw_1byte(b: &mut Bencher) {
-    bench_to_send!(b, rips_socket(testing::dummy_stack(0).0), BUF_1BYTE, *DST2);
+    bench_to_send!(b, rips_socket(testing::dummy_stack().0), BUF_1BYTE, *DST2);
 }
 
 #[bench]
@@ -81,7 +81,7 @@ fn std_through_gw_1byte(b: &mut Bencher) {
 
 #[bench]
 fn dummy_recv(b: &mut Bencher) {
-    let (stack, _, inject_handle, _) = testing::dummy_stack(0);
+    let (stack, _, inject_handle, _) = testing::dummy_stack();
     let socket = rips_socket(stack);
     let mut buffer = vec![0; 100];
     {
