@@ -1,6 +1,8 @@
 extern crate rips;
 extern crate pnet;
 extern crate ipnetwork;
+#[macro_use]
+extern crate lazy_static;
 
 use ipnetwork::Ipv4Network;
 
@@ -21,37 +23,40 @@ use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::Duration;
 
+lazy_static! {
+    static ref SRC_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 3);
+    static ref LAN_DST_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 1);
+    static ref LAN_DST_MAC: MacAddr = MacAddr::new(9, 0, 0, 4, 0, 0);
+}
+
 #[test]
 fn simple_send() {
-    let src_ip = Ipv4Addr::new(10, 1, 2, 3);
-    let dst_ip = Ipv4Addr::new(10, 1, 2, 2);
-    let dst_mac = MacAddr::new(9, 0, 0, 4, 0, 0);
-
-    let (_stack, mut ipv4_tx, read_handle) = prepare_ipv4_tx(src_ip, dst_ip, dst_mac);
+    let (_stack, mut ipv4_tx, read_handle) = prepare_ipv4_tx(*LAN_DST_IP, *LAN_DST_MAC);
 
     ipv4_tx.send(BasicIpv4Payload::new(IpNextHeaderProtocols::Igmp, vec![100, 99])).unwrap();
 
     let pkg = read_handle.try_recv().unwrap();
+
     let eth_pkg = EthernetPacket::new(&pkg[..]).unwrap();
-    assert_eq!(eth_pkg.get_destination(), dst_mac);
+    assert_eq!(eth_pkg.get_destination(), *LAN_DST_MAC);
     assert_eq!(eth_pkg.get_ethertype(), EtherTypes::Ipv4);
+
     let ip_pkg = Ipv4Packet::new(eth_pkg.payload()).unwrap();
     assert_eq!(ip_pkg.get_version(), 4);
-    assert_eq!(ip_pkg.get_source(), src_ip);
-    assert_eq!(ip_pkg.get_destination(), dst_ip);
+    assert_eq!(ip_pkg.get_source(), *SRC_IP);
+    assert_eq!(ip_pkg.get_destination(), *LAN_DST_IP);
     assert_eq!(IpNextHeaderProtocols::Igmp,
                ip_pkg.get_next_level_protocol());
     assert_eq!(ip_pkg.payload(), [100, 99]);
 }
 
-fn prepare_ipv4_tx(src_ip: Ipv4Addr,
-                   dst_ip: Ipv4Addr,
+fn prepare_ipv4_tx(dst_ip: Ipv4Addr,
                    dst_mac: MacAddr)
                    -> (NetworkStack, Ipv4TxImpl<EthernetTxImpl<TxImpl>>, Receiver<Box<[u8]>>) {
     let (mut stack, interface, _, read_handle) = testing::dummy_stack();
 
     stack.interface(&interface).unwrap().arp_table().insert(dst_ip, dst_mac);
-    let config = Ipv4Network::new(src_ip, 24).unwrap();
+    let config = Ipv4Network::new(*SRC_IP, 24).unwrap();
     stack.add_ipv4(&interface, config).unwrap();
     let ipv4_tx = stack.ipv4_tx(dst_ip).unwrap();
 
@@ -60,16 +65,13 @@ fn prepare_ipv4_tx(src_ip: Ipv4Addr,
 
 #[test]
 fn custom_igmp_recv() {
-    let source_ip = Ipv4Addr::new(10, 1, 2, 3);
-    let target_ip = Ipv4Addr::new(10, 1, 2, 2);
-
     let (tx, rx) = mpsc::channel();
     let ipv4_listener = BasicIpv4Listener::new(tx);
     let mut ipv4_ip_listeners = HashMap::new();
     ipv4_ip_listeners.insert(IpNextHeaderProtocols::Igmp, ipv4_listener);
 
     let mut ipv4_listeners = HashMap::new();
-    ipv4_listeners.insert(target_ip, ipv4_ip_listeners);
+    ipv4_listeners.insert(*LAN_DST_IP, ipv4_ip_listeners);
 
     let (channel, _interface, inject_handle, _) = testing::dummy_ethernet();
     let ipv4_rx = Ipv4Rx::new(Arc::new(Mutex::new(ipv4_listeners)));
@@ -83,8 +85,8 @@ fn custom_igmp_recv() {
         eth_pkg.set_ethertype(EtherTypes::Ipv4);
         let mut ip_pkg = MutableIpv4Packet::new(eth_pkg.payload_mut()).unwrap();
         ip_pkg.set_header_length(5); // 5 is for no option fields
-        ip_pkg.set_source(source_ip);
-        ip_pkg.set_destination(target_ip);
+        ip_pkg.set_source(*SRC_IP);
+        ip_pkg.set_destination(*LAN_DST_IP);
         ip_pkg.set_next_level_protocol(IpNextHeaderProtocols::Igmp);
         ip_pkg.set_total_length(20 + 2);
         ip_pkg.set_payload(&[67, 99]);
@@ -96,8 +98,8 @@ fn custom_igmp_recv() {
     thread::sleep(Duration::new(1, 0));
 
     let (_time, ip_pkg) = rx.try_recv().unwrap();
-    assert_eq!(ip_pkg.get_source(), source_ip);
-    assert_eq!(ip_pkg.get_destination(), target_ip);
+    assert_eq!(ip_pkg.get_source(), *SRC_IP);
+    assert_eq!(ip_pkg.get_destination(), *LAN_DST_IP);
     assert_eq!(ip_pkg.get_next_level_protocol(),
                IpNextHeaderProtocols::Igmp);
     assert_eq!(ip_pkg.payload(), [67, 99]);
