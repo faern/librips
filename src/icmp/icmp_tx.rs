@@ -200,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ping() {
+    fn test_send_echo() {
         let (ipv4, read_handle) = MockIpv4Tx::new();
         let mut testee = IcmpTx::new(ipv4);
         testee.send_echo(&[9, 55]).unwrap();

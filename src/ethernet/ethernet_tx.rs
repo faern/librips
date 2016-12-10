@@ -152,8 +152,8 @@ impl<T: Tx> EthernetTx for EthernetTxImpl<T> {
         where P: EthernetPayload
     {
         let builder = EthernetBuilder::new(self.src, self.dst, payload);
-        let total_size = size + EthernetPacket::minimum_packet_size();
-        self.tx.send(packets, total_size, builder)
+        let size_with_header = size + EthernetPacket::minimum_packet_size();
+        self.tx.send(packets, size_with_header, builder)
     }
 }
 
@@ -181,12 +181,84 @@ impl<P: EthernetPayload> Payload for EthernetBuilder<P> {
         EthernetPacket::minimum_packet_size() + self.payload.len()
     }
 
-    /// Modifies `pkg` to have the correct header and payload
     fn build(&mut self, buffer: &mut [u8]) {
         let mut pkg = MutableEthernetPacket::new(buffer).unwrap();
         pkg.set_source(self.src);
         pkg.set_destination(self.dst);
         pkg.set_ethertype(self.payload.ether_type());
         self.payload.build(pkg.payload_mut());
+    }
+}
+
+
+#[cfg(test)]
+mod ethernet_tx_tests {
+    use {TxResult, TxError, Tx, Payload};
+
+    use pnet::packet::Packet;
+    use pnet::packet::ethernet::{EtherTypes, EthernetPacket};
+    use pnet::util::MacAddr;
+
+    use std::error::Error;
+    use std::sync::mpsc::{self, Sender, Receiver};
+
+    use super::*;
+
+    pub struct MockTx {
+        chan: Sender<Box<[u8]>>,
+    }
+
+    impl MockTx {
+        pub fn new() -> (Self, Receiver<Box<[u8]>>) {
+            let (tx, rx) = mpsc::channel();
+            (MockTx { chan: tx }, rx)
+        }
+    }
+
+    impl Tx for MockTx {
+        fn send<P>(&mut self, packets: usize, size: usize, mut payload: P) -> TxResult
+            where P: Payload
+        {
+            for _ in 0..packets {
+                let mut buffer = vec![0; size];
+                payload.build(&mut buffer[..]);
+                self.chan
+                    .send(buffer.into_boxed_slice())
+                    .map_err(|e| TxError::Other(e.description().to_owned()))?;
+            }
+            Ok(())
+        }
+    }
+
+    lazy_static! {
+        static ref SRC: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 1);
+        static ref DST: MacAddr = MacAddr::new(0, 0, 0, 0, 0, 2);
+    }
+
+    #[test]
+    fn new() {
+        let (mock_tx, _) = MockTx::new();
+        let testee = EthernetTxImpl::new(mock_tx, *SRC, *DST);
+        assert_eq!(*SRC, testee.src());
+        assert_eq!(*DST, testee.dst());
+    }
+
+    #[test]
+    fn send() {
+        let (mock_tx, rx) = MockTx::new();
+        let mut testee = EthernetTxImpl::new(mock_tx, *SRC, *DST);
+
+        let payload = BasicEthernetPayload::new(EtherTypes::Arp, vec![8, 7, 6]);
+
+        testee.send(1, 3, payload).unwrap();
+
+        let buffer = rx.try_recv().unwrap();
+        assert!(rx.try_recv().is_err());
+
+        let pkg = EthernetPacket::new(&buffer).unwrap();
+        assert_eq!(*SRC, pkg.get_source());
+        assert_eq!(*DST, pkg.get_destination());
+        assert_eq!(EtherTypes::Arp, pkg.get_ethertype());
+        assert_eq!(&[8, 7, 6], pkg.payload());
     }
 }
