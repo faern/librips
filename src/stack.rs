@@ -77,6 +77,7 @@ pub enum StackInterfaceMsg {
 struct StackInterfaceData {
     interface: Interface,
     tx: Arc<Mutex<TxBarrier>>,
+    ipv4_addresses: RwLock<HashSet<Ipv4Addr>>,
 }
 
 impl StackInterfaceData {
@@ -104,20 +105,15 @@ struct StackInterfaceThread {
     queue: Receiver<StackInterfaceMsg>,
     data: Arc<StackInterfaceData>,
     arp_table: ArpTable,
-    ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
 }
 
 impl StackInterfaceThread {
-    pub fn spawn(data: Arc<StackInterfaceData>,
-                 arp_table: ArpTable,
-                 ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>)
-                 -> Sender<StackInterfaceMsg> {
+    pub fn spawn(data: Arc<StackInterfaceData>, arp_table: ArpTable) -> Sender<StackInterfaceMsg> {
         let (thread_handle, rx) = mpsc::channel();
         let stack_interface_thread = StackInterfaceThread {
             queue: rx,
             data: data,
             arp_table: arp_table,
-            ipv4_addresses: ipv4_addresses,
         };
         thread::spawn(move || {
             stack_interface_thread.run();
@@ -156,7 +152,7 @@ impl StackInterfaceThread {
                           sender_ip: Ipv4Addr,
                           sender_mac: MacAddr,
                           target_ip: Ipv4Addr) {
-        let ipv4_addresses = self.ipv4_addresses.read().unwrap();
+        let ipv4_addresses = self.data.ipv4_addresses.read().unwrap();
         if ipv4_addresses.contains(&target_ip) {
             debug!("Incoming Arp request for me!! {}", target_ip);
             tx_send!(|| self.data.arp_reply_tx(); target_ip, sender_mac, sender_ip).unwrap_or(());
@@ -177,7 +173,6 @@ pub struct StackInterface {
     mtu: usize,
     thread_handle: Sender<StackInterfaceMsg>,
     arp_table: ArpTable,
-    ipv4_addresses: Arc<RwLock<HashSet<Ipv4Addr>>>,
     ipv4_datas: HashMap<Ipv4Addr, Ipv4Data>,
     ipv4_listeners: Arc<Mutex<ipv4::IpListenerLookup>>,
 }
@@ -186,19 +181,16 @@ impl StackInterface {
     pub fn new(interface: Interface, channel: EthernetChannel) -> StackInterface {
         let EthernetChannel(sender, receiver) = channel;
 
-        let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
-
         let stack_interface_data = Arc::new(StackInterfaceData {
             interface: interface,
-            tx: tx,
+            tx: Arc::new(Mutex::new(TxBarrier::new(sender))),
+            ipv4_addresses: RwLock::new(HashSet::new()),
         });
 
         let arp_table = arp::ArpTable::new();
-        let ipv4_addresses = Arc::new(RwLock::new(HashSet::new()));
 
         let thread_handle = StackInterfaceThread::spawn(stack_interface_data.clone(),
-                                                        arp_table.clone(),
-                                                        ipv4_addresses.clone());
+                                                        arp_table.clone());
 
         let arp_rx = arp_table.arp_rx(thread_handle.clone());
 
@@ -214,7 +206,6 @@ impl StackInterface {
             mtu: DEFAULT_MTU,
             thread_handle: thread_handle,
             arp_table: arp_table,
-            ipv4_addresses: ipv4_addresses,
             ipv4_datas: HashMap::new(),
             ipv4_listeners: ipv4_listeners,
         }
@@ -263,7 +254,7 @@ impl StackInterface {
                     icmp_listeners: icmp_listeners,
                 };
                 entry.insert(data);
-                self.ipv4_addresses.write().unwrap().insert(ip);
+                self.data.ipv4_addresses.write().unwrap().insert(ip);
                 Ok(())
             }
         }

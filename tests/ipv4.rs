@@ -63,6 +63,10 @@ fn prepare_ipv4_tx(dst_ip: Ipv4Addr,
     (stack, ipv4_tx, read_handle)
 }
 
+// TODO: Deprecate or change this test. It does not test the stack at all, just
+// individual components, which should be done in unit tests.
+// If the stack get support for adding custom IPv4 listeners this test can be
+// retained and adapted to that.
 #[test]
 fn custom_igmp_recv() {
     let (tx, rx) = mpsc::channel();
