@@ -184,8 +184,7 @@ pub struct StackInterface {
 
 impl StackInterface {
     pub fn new(interface: Interface, channel: EthernetChannel) -> StackInterface {
-        let sender = channel.0;
-        let receiver = channel.1;
+        let EthernetChannel(sender, receiver) = channel;
 
         let tx = Arc::new(Mutex::new(TxBarrier::new(sender)));
 
@@ -330,6 +329,7 @@ impl StackInterface {
 
 impl Drop for StackInterface {
     fn drop(&mut self) {
+        self.data.tx.lock().unwrap().inc();
         if let Err(..) = self.thread_handle.send(StackInterfaceMsg::Shutdown) {
             error!("Unable to send shutdown command to interface thread");
         }
