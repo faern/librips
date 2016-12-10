@@ -58,7 +58,8 @@ impl Payload for BasicIcmpPayload {
     }
 }
 
-/// Icmp packet builder and sender struct.
+
+/// Icmp packet sender struct.
 pub struct IcmpTx<T: Ipv4Tx> {
     ipv4: T,
 }
@@ -71,10 +72,10 @@ impl<T: Ipv4Tx> IcmpTx<T> {
 
     /// Sends a general Icmp packet. Should not be called directly in general,
     /// instead use the specialized `send_echo` for ping packets.
-    pub fn send<P>(&mut self, builder: P) -> TxResult
+    pub fn send<P>(&mut self, payload: P) -> TxResult
         where P: IcmpPayload
     {
-        let builder = IcmpBuilder::new(builder);
+        let builder = IcmpBuilder::new(payload);
         self.ipv4.send(builder)
     }
 
@@ -149,4 +150,68 @@ impl<'a> Payload for PingBuilder<'a> {
         echo_pkg.set_sequence_number(0);
         echo_pkg.set_payload(self.payload);
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use {TxResult, TxError};
+    use ipv4::{Ipv4Payload, Ipv4Tx};
+
+    use pnet::packet::Packet;
+    use pnet::packet::icmp::IcmpTypes;
+    use pnet::packet::icmp::echo_request::EchoRequestPacket;
+    use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
+
+    use std::error::Error;
+    use std::net::Ipv4Addr;
+    use std::sync::mpsc::{self, Sender, Receiver};
+
+    use super::*;
+
+    pub struct MockIpv4Tx {
+        tx: Sender<(IpNextHeaderProtocol, Box<[u8]>)>,
+    }
+
+    impl MockIpv4Tx {
+        pub fn new() -> (MockIpv4Tx, Receiver<(IpNextHeaderProtocol, Box<[u8]>)>) {
+            let (tx, rx) = mpsc::channel();
+            let ipv4 = MockIpv4Tx { tx: tx };
+            (ipv4, rx)
+        }
+    }
+
+    impl Ipv4Tx for MockIpv4Tx {
+        fn src(&self) -> Ipv4Addr {
+            Ipv4Addr::new(0, 0, 0, 0)
+        }
+
+        fn dst(&self) -> Ipv4Addr {
+            Ipv4Addr::new(0, 0, 0, 0)
+        }
+
+        fn send<P: Ipv4Payload>(&mut self, mut payload: P) -> TxResult {
+            let mut buffer = vec![0; payload.len() as usize];
+            payload.build(&mut buffer);
+            self.tx
+                .send((payload.next_level_protocol(), buffer.into_boxed_slice()))
+                .map_err(|e| TxError::Other(e.description().to_owned()))?;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_ping() {
+        let (ipv4, read_handle) = MockIpv4Tx::new();
+        let mut testee = IcmpTx::new(ipv4);
+        testee.send_echo(&[9, 55]).unwrap();
+
+        let (next_level_protocol, data) = read_handle.try_recv().unwrap();
+        assert_eq!(IpNextHeaderProtocols::Icmp, next_level_protocol);
+        let echo_pkg = EchoRequestPacket::new(&data).unwrap();
+        assert_eq!(IcmpTypes::EchoRequest, echo_pkg.get_icmp_type());
+        assert_eq!(0, echo_pkg.get_icmp_code().0);
+        assert_eq!(61128, echo_pkg.get_checksum());
+        assert_eq!([9, 55], echo_pkg.payload());
+    }
+
 }

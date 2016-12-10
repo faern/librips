@@ -189,7 +189,7 @@ impl<P: Ipv4Payload> Payload for Ipv4Builder<P> {
 
 #[cfg(test)]
 mod ipv4_tx_tests {
-    use TxResult;
+    use {TxResult, TxError};
     use ethernet::{EthernetPayload, EthernetTx};
 
     use pnet::packet::Packet;
@@ -197,6 +197,7 @@ mod ipv4_tx_tests {
     use pnet::packet::ipv4::Ipv4Packet;
     use pnet::util::MacAddr;
 
+    use std::error::Error;
     use std::net::Ipv4Addr;
     use std::sync::mpsc;
 
@@ -208,8 +209,6 @@ mod ipv4_tx_tests {
         static ref DST_IP: Ipv4Addr = Ipv4Addr::new(192, 168, 1, 1);
     }
 
-
-    #[derive(Debug)]
     pub struct MockEthernetTx {
         chan: mpsc::Sender<Box<[u8]>>,
     }
@@ -236,7 +235,9 @@ mod ipv4_tx_tests {
             for _ in 0..packets {
                 let mut buffer = vec![0; packet_size];
                 payload.build(&mut buffer[..]);
-                self.chan.send(buffer.into_boxed_slice()).unwrap();
+                self.chan
+                    .send(buffer.into_boxed_slice())
+                    .map_err(|e| TxError::Other(e.description().to_owned()))?;
             }
             Ok(())
         }
