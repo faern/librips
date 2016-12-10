@@ -1,3 +1,7 @@
+extern crate rips;
+extern crate pnet;
+extern crate ipnetwork;
+
 use ipnetwork::Ipv4Network;
 
 use pnet::packet::{MutablePacket, Packet};
