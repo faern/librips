@@ -1,10 +1,8 @@
-use {Payload, Tx, TxResult};
+use {Payload, HasPayload, BasicPayload, Tx, TxResult};
 
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::{EtherType, EthernetPacket, MutableEthernetPacket};
 use pnet::util::MacAddr;
-
-use std::cmp;
 
 /// Trait for anything wishing to be the payload of an Ethernet frame.
 pub trait EthernetPayload: Payload {
@@ -15,38 +13,33 @@ pub trait EthernetPayload: Payload {
 /// Basic reference implementation of an `EthernetPayload`.
 /// Can be used to construct Ethernet frames with arbitrary payload from a
 /// vector.
-pub struct BasicEthernetPayload {
+pub struct BasicEthernetPayload<'a> {
     ether_type: EtherType,
-    offset: usize,
-    payload: Vec<u8>,
+    payload: BasicPayload<'a>,
 }
 
-impl BasicEthernetPayload {
-    pub fn new(ether_type: EtherType, payload: Vec<u8>) -> Self {
+impl<'a> BasicEthernetPayload<'a> {
+    pub fn new(ether_type: EtherType, payload: &'a [u8]) -> Self {
         BasicEthernetPayload {
             ether_type: ether_type,
-            offset: 0,
-            payload: payload,
+            payload: BasicPayload::new(payload),
         }
     }
 }
 
-impl EthernetPayload for BasicEthernetPayload {
+impl<'a> EthernetPayload for BasicEthernetPayload<'a> {
     fn ether_type(&self) -> EtherType {
         self.ether_type
     }
 }
 
-impl Payload for BasicEthernetPayload {
-    fn len(&self) -> usize {
-        self.payload.len()
+impl<'a> HasPayload for BasicEthernetPayload<'a> {
+    fn get_payload(&self) -> &Payload {
+        &self.payload
     }
 
-    fn build(&mut self, buffer: &mut [u8]) {
-        let start = self.offset;
-        let end = cmp::min(start + buffer.len(), self.payload.len());
-        self.offset = end;
-        buffer[0..end - start].copy_from_slice(&self.payload[start..end]);
+    fn get_payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
     }
 }
 
@@ -58,25 +51,26 @@ mod basic_ethernet_payload_tests {
 
     #[test]
     fn ether_type() {
-        let testee = BasicEthernetPayload::new(EtherTypes::Ipv6, vec![]);
+        let testee = BasicEthernetPayload::new(EtherTypes::Ipv6, &[]);
         assert_eq!(EtherTypes::Ipv6, testee.ether_type());
     }
 
     #[test]
     fn len_zero() {
-        let testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![]);
+        let testee = BasicEthernetPayload::new(EtherTypes::Arp, &[]);
         assert_eq!(0, testee.len());
     }
 
     #[test]
     fn len_three() {
-        let testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![5, 6, 7]);
+        let data = &[5, 6, 7];
+        let testee = BasicEthernetPayload::new(EtherTypes::Arp, data);
         assert_eq!(3, testee.len());
     }
 
     #[test]
     fn build_without_data() {
-        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![]);
+        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, &[]);
         let mut buffer = vec![99; 1];
         testee.build(&mut buffer);
         assert_eq!(99, buffer[0]);
@@ -84,7 +78,8 @@ mod basic_ethernet_payload_tests {
 
     #[test]
     fn build_with_data() {
-        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![5, 6, 7]);
+        let data = &[5, 6, 7];
+        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, data);
         let mut buffer = vec![0; 1];
         testee.build(&mut buffer[0..0]);
 
@@ -100,7 +95,8 @@ mod basic_ethernet_payload_tests {
 
     #[test]
     fn build_with_larger_buffer() {
-        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, vec![5, 6]);
+        let data = &[5, 6];
+        let mut testee = BasicEthernetPayload::new(EtherTypes::Arp, data);
         let mut buffer = vec![0; 3];
         testee.build(&mut buffer);
         assert_eq!(&[5, 6, 0], &buffer[..]);
@@ -248,7 +244,8 @@ mod ethernet_tx_tests {
         let (mock_tx, rx) = MockTx::new();
         let mut testee = EthernetTxImpl::new(mock_tx, *SRC, *DST);
 
-        let payload = BasicEthernetPayload::new(EtherTypes::Arp, vec![8, 7, 6]);
+        let data = &[8, 7, 6];
+        let payload = BasicEthernetPayload::new(EtherTypes::Arp, data);
 
         testee.send(1, 3, payload).unwrap();
 
@@ -259,6 +256,6 @@ mod ethernet_tx_tests {
         assert_eq!(*SRC, pkg.get_source());
         assert_eq!(*DST, pkg.get_destination());
         assert_eq!(EtherTypes::Arp, pkg.get_ethertype());
-        assert_eq!(&[8, 7, 6], pkg.payload());
+        assert_eq!(data, pkg.payload());
     }
 }

@@ -1,4 +1,4 @@
-use {Payload, TxResult};
+use {Payload, HasPayload, BasicPayload, TxResult};
 use ethernet::EthernetPayload;
 use ethernet::EthernetTx;
 
@@ -7,7 +7,6 @@ use pnet::packet::ethernet::{EtherType, EtherTypes};
 use pnet::packet::ip::IpNextHeaderProtocol;
 use pnet::packet::ipv4::{Ipv4Packet, MutableIpv4Packet, checksum};
 
-use std::cmp;
 use std::net::Ipv4Addr;
 
 use super::{MORE_FRAGMENTS, NO_FLAGS};
@@ -17,39 +16,34 @@ pub trait Ipv4Payload: Payload {
 }
 
 
-pub struct BasicIpv4Payload {
+pub struct BasicIpv4Payload<'a> {
     next_level_protocol: IpNextHeaderProtocol,
-    offset: usize,
-    payload: Vec<u8>,
+    payload: BasicPayload<'a>,
 }
 
-impl BasicIpv4Payload {
-    pub fn new(next_level_protocol: IpNextHeaderProtocol, payload: Vec<u8>) -> Self {
+impl<'a> BasicIpv4Payload<'a> {
+    pub fn new(next_level_protocol: IpNextHeaderProtocol, payload: &'a [u8]) -> Self {
         assert!(payload.len() <= ::std::u16::MAX as usize);
         BasicIpv4Payload {
             next_level_protocol: next_level_protocol,
-            offset: 0,
-            payload: payload,
+            payload: BasicPayload::new(payload),
         }
     }
 }
 
-impl Ipv4Payload for BasicIpv4Payload {
+impl<'a> Ipv4Payload for BasicIpv4Payload<'a> {
     fn next_level_protocol(&self) -> IpNextHeaderProtocol {
         self.next_level_protocol
     }
 }
 
-impl Payload for BasicIpv4Payload {
-    fn len(&self) -> usize {
-        self.payload.len()
+impl<'a> HasPayload for BasicIpv4Payload<'a> {
+    fn get_payload(&self) -> &Payload {
+        &self.payload
     }
 
-    fn build(&mut self, buffer: &mut [u8]) {
-        let start = self.offset;
-        let end = cmp::min(start + buffer.len(), self.payload.len());
-        self.offset = end;
-        buffer.copy_from_slice(&self.payload[start..end]);
+    fn get_payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
     }
 }
 
@@ -269,7 +263,8 @@ mod ipv4_tx_tests {
         let (eth_tx, rx) = MockEthernetTx::new();
         let mut testee = Ipv4TxImpl::new(eth_tx, *SRC_IP, *DST_IP, 20 + 8);
 
-        let payload = BasicIpv4Payload::new(IpNextHeaderProtocols::Tcp, (0..10).collect());
+        let data = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let payload = BasicIpv4Payload::new(IpNextHeaderProtocols::Tcp, data);
         testee.send(payload).unwrap();
 
         let pkg1 = rx.try_recv().unwrap();
@@ -287,7 +282,7 @@ mod ipv4_tx_tests {
         let mut ipv4_tx = Ipv4TxImpl::new(eth_tx, *SRC_IP, *DST_IP, 1500);
 
         let payload_data = (0..100).collect::<Vec<u8>>();
-        let payload = BasicIpv4Payload::new(IpNextHeaderProtocols::Tcp, payload_data.clone());
+        let payload = BasicIpv4Payload::new(IpNextHeaderProtocols::Tcp, &payload_data);
         ipv4_tx.send(payload).unwrap();
 
         let pkg = rx.try_recv().unwrap();

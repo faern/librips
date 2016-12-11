@@ -33,7 +33,7 @@ lazy_static! {
 fn simple_send() {
     let (_stack, mut ipv4_tx, read_handle) = prepare_ipv4_tx(*LAN_DST_IP, *LAN_DST_MAC);
 
-    ipv4_tx.send(BasicIpv4Payload::new(IpNextHeaderProtocols::Igmp, vec![100, 99])).unwrap();
+    ipv4_tx.send(BasicIpv4Payload::new(IpNextHeaderProtocols::Igmp, &[100, 99])).unwrap();
 
     let pkg = read_handle.try_recv().unwrap();
 

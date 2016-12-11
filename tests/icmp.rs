@@ -19,7 +19,8 @@ use rips::testing;
 
 use std::net::Ipv4Addr;
 use std::sync::mpsc;
-use std::time::SystemTime;
+use std::thread;
+use std::time::{SystemTime, Duration};
 
 #[derive(Clone)]
 pub struct MockIcmpListener {
@@ -48,9 +49,11 @@ fn recv_icmp() {
     stack.add_ipv4(&interface, local_net).unwrap();
     stack.icmp_listen(local_ip, IcmpTypes::DestinationUnreachable, listener).unwrap();
 
+    let data = &[6, 5];
     let payload_builder = BasicIcmpPayload::new(IcmpTypes::DestinationUnreachable,
                                                 IcmpCodes::NoCode,
-                                                vec![6, 5]);
+                                                [0, 0, 0, 0],
+                                                data);
     let icmp_builder = IcmpBuilder::new(payload_builder);
     let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
 
@@ -59,8 +62,9 @@ fn recv_icmp() {
     eth_builder.build(&mut buffer);
 
     inject_handle.send(Ok(buffer.into_boxed_slice())).unwrap();
+    thread::sleep(Duration::new(1, 0));
 
-    let pkg = rx.recv().unwrap();
+    let pkg = rx.try_recv().unwrap();
     let ip_pkg = Ipv4Packet::new(&pkg[..]).unwrap();
     assert_eq!(ip_pkg.get_source(), remote_ip);
     assert_eq!(ip_pkg.get_destination(), local_ip);
