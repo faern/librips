@@ -167,6 +167,7 @@
 //!
 
 // #![deny(missing_docs)]
+#![cfg_attr(feature = "bench", feature(test))]
 
 extern crate rand;
 extern crate pnet;
@@ -176,6 +177,9 @@ extern crate lazy_static;
 
 #[macro_use]
 extern crate log;
+
+#[cfg(feature = "bench")]
+extern crate test;
 
 use pnet::datalink::{self, NetworkInterface};
 use pnet::util::MacAddr;

@@ -19,7 +19,7 @@ lazy_static = "^0.2"
 
 [features]
 default = []
-benchmarks = []
+bench = []
 
 [dependencies.pnet]
 git = "https://github.com/faern/libpnet"

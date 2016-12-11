@@ -1,6 +1,5 @@
-
-
 use ipnetwork::Ipv4Network;
+
 use pnet::packet::MutablePacket;
 use pnet::packet::ethernet::MutableEthernetPacket;
 use pnet::packet::ipv4::MutableIpv4Packet;
@@ -8,12 +7,13 @@ use pnet::util::MacAddr;
 
 use rips::{self, NetworkStack, testing};
 use rips::udp::UdpSocket as RipsUdpSocket;
+
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket as StdUdpSocket};
 use std::str::FromStr;
-
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
 use test::{Bencher, black_box};
 
 lazy_static! {
@@ -23,7 +23,7 @@ lazy_static! {
     static ref REMOTE_IP: Ipv4Addr = Ipv4Addr::new(10, 0, 0, 1);
     static ref DST: SocketAddrV4 = SocketAddrV4::from_str("10.0.0.1:9999").unwrap();
     static ref DST2: SocketAddrV4 = SocketAddrV4::from_str("192.168.0.1:9999").unwrap();
-    static ref DEFAULT_ROUTE: Ipv4Network = Ipv4Network::from_cidr("0.0.0.0/0").unwrap();
+    static ref DEFAULT_ROUTE: Ipv4Network = Ipv4Network::from_str("0.0.0.0/0").unwrap();
     static ref BUF_63K: Vec<u8> = vec![0; 1024*63];
     static ref BUF_1BYTE: Vec<u8> = vec![0; 1];
 }
@@ -33,7 +33,7 @@ macro_rules! bench_to_send {
         thread::sleep(Duration::new(0, 250_000_000));
         let mut socket = $create_socket;
         $bencher.iter(|| {
-            socket.send_to(black_box(&$buffer), $dst).expect("Unablet to send")
+            socket.send_to(black_box(&$buffer), $dst).expect("Unable to send")
         });
     }};
 }
