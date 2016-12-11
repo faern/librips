@@ -8,7 +8,7 @@ description = "Rust TCP/IP Stack - A full userspace TCP/IP stack written in Rust
 readme = "README.md"
 
 [dependencies]
-ipnetwork = "0.9.0"
+ipnetwork = "0.10.0"
 #pnet = "0.12.0"
 log = "0.3"
 rand = "0.3"

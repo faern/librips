@@ -51,9 +51,13 @@ impl RoutingTable {
 #[cfg(test)]
 mod tests {
     use Interface;
+
     use ipnetwork::Ipv4Network;
     use pnet::util::MacAddr;
+
     use std::net::Ipv4Addr;
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -66,7 +70,7 @@ mod tests {
     #[test]
     fn no_default() {
         let mut table = RoutingTable::new();
-        table.add_route(Ipv4Network::from_cidr("10/8").unwrap(), None, iface("eth0"));
+        table.add_route(Ipv4Network::from_str("10/8").unwrap(), None, iface("eth0"));
         let (gw, out_eth) = table.route(Ipv4Addr::new(10, 0, 0, 1)).unwrap();
         assert_eq!(gw, None);
         assert_eq!(out_eth, iface("eth0"));
@@ -78,10 +82,8 @@ mod tests {
         let gw = Ipv4Addr::new(10, 0, 0, 1);
 
         let mut table = RoutingTable::new();
-        table.add_route(Ipv4Network::from_cidr("10/16").unwrap(),
-                        None,
-                        iface("eth0"));
-        table.add_route(Ipv4Network::from_cidr("0/0").unwrap(),
+        table.add_route(Ipv4Network::from_str("10/16").unwrap(), None, iface("eth0"));
+        table.add_route(Ipv4Network::from_str("0/0").unwrap(),
                         Some(gw),
                         iface("eth1"));
 
@@ -98,10 +100,10 @@ mod tests {
         let gw = Ipv4Addr::new(10, 0, 0, 1);
 
         let mut table = RoutingTable::new();
-        table.add_route(Ipv4Network::from_cidr("10.0.0.0/24").unwrap(),
+        table.add_route(Ipv4Network::from_str("10.0.0.0/24").unwrap(),
                         None,
                         iface("eth0"));
-        table.add_route(Ipv4Network::from_cidr("10.0.0.99/32").unwrap(),
+        table.add_route(Ipv4Network::from_str("10.0.0.99/32").unwrap(),
                         Some(gw),
                         iface("eth1"));
 

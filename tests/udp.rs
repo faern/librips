@@ -14,6 +14,7 @@ use rips::testing;
 use rips::udp::UdpSocket;
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 #[test]
@@ -22,7 +23,7 @@ fn socket_listen() {
     let target_ip = Ipv4Addr::new(10, 9, 0, 254);
 
     let (mut stack, interface, inject_handle, _) = testing::dummy_stack();
-    stack.add_ipv4(&interface, Ipv4Network::from_cidr("10.9.0.254/16").unwrap()).unwrap();
+    stack.add_ipv4(&interface, Ipv4Network::from_str("10.9.0.254/16").unwrap()).unwrap();
     let stack = Arc::new(Mutex::new(stack));
 
     let socket = UdpSocket::bind(stack, "10.9.0.254:1024").unwrap();
