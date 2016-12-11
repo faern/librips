@@ -50,10 +50,8 @@ fn recv_icmp() {
     stack.icmp_listen(local_ip, IcmpTypes::DestinationUnreachable, listener).unwrap();
 
     let data = &[6, 5];
-    let payload_builder = BasicIcmpPayload::new(IcmpTypes::DestinationUnreachable,
-                                                IcmpCodes::NoCode,
-                                                [0, 0, 0, 0],
-                                                data);
+    let payload_builder =
+        BasicIcmpPayload::new(IcmpTypes::DestinationUnreachable, IcmpCodes::NoCode, data);
     let icmp_builder = IcmpBuilder::new(payload_builder);
     let ipv4_builder = Ipv4Builder::new(remote_ip, local_ip, 0, icmp_builder);
 

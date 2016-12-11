@@ -2,11 +2,9 @@ use {Payload, HasPayload, BasicPayload, TxResult};
 use ipv4::{Ipv4Payload, Ipv4Tx};
 
 use pnet::packet::MutablePacket;
-use pnet::packet::icmp::{IcmpCode, IcmpPacket, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
+use pnet::packet::icmp::{IcmpCode, IcmpType, MutableIcmpPacket, checksum, IcmpTypes};
 use pnet::packet::icmp::echo_request::IcmpCodes;
 use pnet::packet::ip::{IpNextHeaderProtocol, IpNextHeaderProtocols};
-
-use std::cmp;
 
 /// Trait for anything wishing to be the payload of an Icmp packet.
 pub trait IcmpPayload: Payload {
@@ -14,26 +12,20 @@ pub trait IcmpPayload: Payload {
 
     fn icmp_code(&self) -> IcmpCode;
 
-    fn rest_of_header(&self) -> [u8; 4];
+    fn build_header(&self, header: &mut MutableIcmpPacket);
 }
 
 pub struct BasicIcmpPayload<'a> {
     icmp_type: IcmpType,
     icmp_code: IcmpCode,
-    rest_of_header: [u8; 4],
     payload: BasicPayload<'a>,
 }
 
 impl<'a> BasicIcmpPayload<'a> {
-    pub fn new(icmp_type: IcmpType,
-               icmp_code: IcmpCode,
-               rest_of_header: [u8; 4],
-               payload: &'a [u8])
-               -> Self {
+    pub fn new(icmp_type: IcmpType, icmp_code: IcmpCode, payload: &'a [u8]) -> Self {
         BasicIcmpPayload {
             icmp_type: icmp_type,
             icmp_code: icmp_code,
-            rest_of_header: rest_of_header,
             payload: BasicPayload::new(payload),
         }
     }
@@ -48,9 +40,7 @@ impl<'a> IcmpPayload for BasicIcmpPayload<'a> {
         self.icmp_code
     }
 
-    fn rest_of_header(&self) -> [u8; 4] {
-        self.rest_of_header
-    }
+    fn build_header(&self, _header: &mut MutableIcmpPacket) {}
 }
 
 impl<'a> HasPayload for BasicIcmpPayload<'a> {
@@ -87,6 +77,7 @@ impl<T: Ipv4Tx> IcmpTx<T> {
     /// Sends an Echo Request packet (ping) with the given payload.
     pub fn send_echo(&mut self, payload: &[u8]) -> TxResult {
         let builder = PingBuilder::new(payload);
+        println!("PingBuilder has len {}", builder.len());
         self.send(builder)
     }
 }
@@ -110,31 +101,30 @@ impl<P: IcmpPayload> Ipv4Payload for IcmpBuilder<P> {
 
 impl<P: IcmpPayload> Payload for IcmpBuilder<P> {
     fn len(&self) -> usize {
-        IcmpPacket::minimum_packet_size() + 4 + self.builder.len()
+        8 + self.builder.len()
     }
 
     fn build(&mut self, buffer: &mut [u8]) {
         let mut pkg = MutableIcmpPacket::new(buffer).unwrap();
-        pkg.set_icmp_type(self.builder.icmp_type());
-        pkg.set_icmp_code(self.builder.icmp_code());
-        pkg.payload_mut()[..4].copy_from_slice(&self.builder.rest_of_header());
-        self.builder.build(&mut pkg.payload_mut()[4..]);
+        {
+            let mut header_pkg = MutableIcmpPacket::new(&mut pkg.packet_mut()[..8]).unwrap();
+            header_pkg.set_icmp_type(self.builder.icmp_type());
+            header_pkg.set_icmp_code(self.builder.icmp_code());
+            self.builder.build_header(&mut header_pkg);
+        }
+        self.builder.build(&mut pkg.packet_mut()[8..]);
         let checksum = checksum(&pkg.to_immutable());
         pkg.set_checksum(checksum);
     }
 }
 
 pub struct PingBuilder<'a> {
-    offset: usize,
-    payload: &'a [u8],
+    payload: BasicPayload<'a>,
 }
 
 impl<'a> PingBuilder<'a> {
     pub fn new(payload: &'a [u8]) -> PingBuilder<'a> {
-        PingBuilder {
-            offset: 0,
-            payload: payload,
-        }
+        PingBuilder { payload: BasicPayload::new(payload) }
     }
 }
 
@@ -147,27 +137,16 @@ impl<'a> IcmpPayload for PingBuilder<'a> {
         IcmpCodes::NoCode
     }
 
-    fn rest_of_header(&self) -> [u8; 4] {
-        [0, 0, 0, 0]
-    }
+    fn build_header(&self, _header: &mut MutableIcmpPacket) {}
 }
 
-impl<'a> Payload for PingBuilder<'a> {
-    fn len(&self) -> usize {
-        self.payload.len()
+impl<'a> HasPayload for PingBuilder<'a> {
+    fn get_payload(&self) -> &Payload {
+        &self.payload
     }
 
-    fn build(&mut self, buffer: &mut [u8]) {
-        // let mut echo_pkg = MutableEchoRequestPacket::new(buffer).unwrap();
-        // echo_pkg.set_identifier(0);
-        // echo_pkg.set_sequence_number(0);
-        // echo_pkg.set_payload(self.payload);
-        // buffer.copy_from_slice(self.payload);
-
-        let start = self.offset;
-        let end = cmp::min(start + buffer.len(), self.payload.len());
-        self.offset = end;
-        buffer[0..end - start].copy_from_slice(&self.payload[start..end]);
+    fn get_payload_mut(&mut self) -> &mut Payload {
+        &mut self.payload
     }
 }
 
