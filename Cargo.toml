@@ -3,8 +3,10 @@ name = "rips"
 version = "0.0.0"
 authors = ["Linus Färnstrand <faern@faern.net>"]
 license = "MIT/Apache-2.0"
-repository = "https://github.com/faern/librips"
+homepage = "https://github.com/faern/rips"
+repository = "https://github.com/faern/rips"
 description = "Rust TCP/IP Stack - A full userspace TCP/IP stack written in Rust"
+keywords = ["network", "stack", "ip", "ethernet", "socket"]
 readme = "README.md"
 
 [dependencies]
