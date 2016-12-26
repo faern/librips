@@ -182,7 +182,6 @@ extern crate log;
 extern crate test;
 
 use pnet::datalink::{self, NetworkInterface};
-use pnet::util::MacAddr;
 
 use std::cmp;
 use std::io;
@@ -215,6 +214,8 @@ mod util;
 pub mod testing;
 
 mod stack;
+
+pub use pnet::util::MacAddr;
 pub use stack::{NetworkStack, StackError, StackResult, TxImpl};
 
 pub static DEFAULT_BUFFER_SIZE: usize = 1024 * 128;
