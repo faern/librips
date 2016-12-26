@@ -184,10 +184,12 @@ extern crate test;
 use pnet::datalink::{self, NetworkInterface};
 
 use std::cmp;
-use std::io;
 
 #[macro_use]
 mod macros;
+
+mod errors;
+pub use errors::*;
 
 pub mod rx;
 
@@ -243,81 +245,17 @@ impl Interface {
 }
 
 /// Represents the channel used for sending to and reading from one network
-/// interface.
-/// Basically a simplification of `pnet::datalink::Channel` but guaranteed to
-/// be be ethernet.
+/// interface. Basically a simplification of `pnet::datalink::Channel` but
+/// guaranteed to be be ethernet.
 pub struct EthernetChannel(pub Box<datalink::EthernetDataLinkSender>,
                            pub Box<datalink::EthernetDataLinkReceiver>);
 
-/// Enum representing errors happening while trying to send packets to the
-/// network
-#[derive(Debug)]
-pub enum TxError {
-    /// Returned by `Tx` when trying to use an outdated `*Tx` instance. Please
-    /// construct a new one
-    InvalidTx,
-
-    /// Returned when the payload does not fit in the given protocol. For
-    /// example sending a
-    /// packet with more than 2^16 bytes in a protocol with a 16 bit length
-    /// field
-    TooLargePayload,
-
-    /// Returned when there was an `IoError` during transmission
-    IoError(io::Error),
-
-    /// Any other error not covered by the more specific enum variants
-    Other(String),
-}
-
-impl From<io::Error> for TxError {
-    fn from(e: io::Error) -> Self {
-        TxError::IoError(e)
-    }
-}
-
-impl From<TxError> for io::Error {
-    fn from(e: TxError) -> Self {
-        let other = |msg| io::Error::new(io::ErrorKind::Other, msg);
-        match e {
-            TxError::InvalidTx => other("Outdated constructor".to_owned()),
-            TxError::TooLargePayload => other("Too large payload".to_owned()),
-            TxError::IoError(e2) => e2,
-            TxError::Other(msg) => other(format!("Other: {}", msg)),
-        }
-    }
-}
 
 /// Type binding for the type of `Result` that a send method returns.
 pub type TxResult = Result<(), TxError>;
 
-/// Error returned by the `recv` method of `*Rx` objects when there is
-/// something wrong with the
-/// incoming packet.
-#[derive(Debug, Eq, PartialEq)]
-pub enum RxError {
-    /// When nothing is listening for this packet, so it becomes silently
-    /// discarded.
-    NoListener(String),
-
-    /// When a packet contains an invalid checksum.
-    InvalidChecksum,
-
-    /// When the length of the packet does not match the
-    /// requirements or header content of a protocol
-    InvalidLength,
-
-    /// When other packet content is invalid.
-    InvalidContent,
-
-    /// Some error that was not covered by the more specific errors in this
-    /// enum.
-    Other(String),
-}
-
 /// Simple type definition for return type of `recv` on `*Rx` objects.
 pub type RxResult = Result<(), RxError>;
-
 
 
 /// Super trait to any payload. Represents any type that can become the payload
