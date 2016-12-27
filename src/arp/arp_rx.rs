@@ -6,6 +6,7 @@ use pnet::packet::arp::{ArpPacket, ArpOperations};
 use pnet::packet::ethernet::{EtherType, EtherTypes, EthernetPacket};
 use stack::StackInterfaceMsg;
 
+use std::mem::drop;
 use std::sync::mpsc::Sender;
 use std::time::SystemTime;
 
@@ -22,9 +23,7 @@ impl ArpRx {
         let sender_mac = arp_pkg.get_sender_hw_addr();
         let sender_ip = arp_pkg.get_sender_proto_addr();
         let target_ip = arp_pkg.get_target_proto_addr();
-        self.listener
-            .send(StackInterfaceMsg::ArpRequest(sender_ip, sender_mac, target_ip))
-            .unwrap();
+        drop(self.listener.send(StackInterfaceMsg::ArpRequest(sender_ip, sender_mac, target_ip)));
         Ok(())
     }
 
@@ -32,7 +31,7 @@ impl ArpRx {
         let sender_mac = arp_pkg.get_sender_hw_addr();
         let sender_ip = arp_pkg.get_sender_proto_addr();
         debug!("Arp reply. MAC: {} -> IPv4: {}", sender_mac, sender_ip);
-        self.listener.send(StackInterfaceMsg::UpdateArpTable(sender_ip, sender_mac)).unwrap();
+        drop(self.listener.send(StackInterfaceMsg::UpdateArpTable(sender_ip, sender_mac)));
         Ok(())
     }
 }
